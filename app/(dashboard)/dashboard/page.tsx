@@ -40,8 +40,25 @@ export default function DashboardPage() {
 
       {/* Main */}
       <main className="max-w-5xl mx-auto px-6 py-10">
-        <h1 className="text-2xl font-bold text-gray-900 mb-2">Dashboard</h1>
-        <p className="text-gray-500">Welcome back. Your estimates will appear here.</p>
+        <div className="flex items-center justify-between mb-6">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
+            <p className="text-gray-500 mt-1">Welcome back.</p>
+          </div>
+          <a
+            href="/estimates/new"
+            className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700"
+          >
+            + New Estimate
+          </a>
+        </div>
+        <a
+          href="/estimates"
+          className="block bg-white rounded-xl border border-gray-200 px-6 py-5 hover:shadow-sm transition-shadow"
+        >
+          <p className="font-semibold text-gray-900">Estimates</p>
+          <p className="text-sm text-gray-500 mt-0.5">View and manage all your estimates →</p>
+        </a>
       </main>
     </div>
   )
