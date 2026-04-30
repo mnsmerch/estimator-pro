@@ -27,6 +27,7 @@ export default function DashboardPage() {
           <span className="font-bold text-gray-900 text-lg">Estimator Pro</span>
         </div>
         <div className="flex items-center gap-4">
+          <a href="/settings" className="text-sm text-gray-600 hover:text-gray-900 font-medium">Settings</a>
           <span className="text-sm text-gray-500">{user?.email}</span>
           <button
             onClick={handleSignOut}
