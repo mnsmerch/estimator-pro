@@ -106,13 +106,13 @@ function paintBucket(app: ApplicationItem): PaintBucket {
   if (app.categoryKey === 'staining') return 'stain'
   if (app.isAccent) return 'accent'
   if (app.isTrimColor) return 'trim'
-  if (app.isBodyColor) return 'body'
-  // Unflagged body application → body paint
+  // isBodyColor on non-bodyApplication rows (e.g. Eaves Body Color) contributes 0 —
+  // those surfaces are included in the siding spray measurement
   if (app.categoryKey === 'bodyApplication') return 'body'
   // Unflagged trim-type categories → trim paint
   if (['eaves', 'fascia', 'otherTrim', 'windows', 'doors', 'sidelights',
        'garageDoors', 'railings', 'shutters'].includes(app.categoryKey)) return 'trim'
-  return null  // prepWork, woodReplacement
+  return null  // prepWork, woodReplacement, isBodyColor non-body rows
 }
 
 // ─── Per-row calculation ───────────────────────────────────────────────────────
@@ -180,17 +180,16 @@ export function calcEstimate(
   // Paint gallons per type
   // gallons = totalSqft * coverageMultiplier / paintCoverage
   // We use paintCoverageBrushRoll as default multiplier (conservative)
-  const coverageMultiplier = constants.paintCoverageBrushRoll
-
   const totalBodySqft   = rowResults.reduce((s, r) => s + r.bodySqft, 0)
   const totalTrimSqft   = rowResults.reduce((s, r) => s + r.trimSqft, 0)
   const totalAccentSqft = rowResults.reduce((s, r) => s + r.accentSqft, 0)
   const totalStainSqft  = rowResults.reduce((s, r) => s + r.stainSqft, 0)
 
-  const bodyGallons   = bodyPaint.coverage > 0   ? (totalBodySqft   * coverageMultiplier) / bodyPaint.coverage   : 0
-  const trimGallons   = trimPaint.coverage > 0   ? (totalTrimSqft   * coverageMultiplier) / trimPaint.coverage   : 0
-  const accentGallons = accentPaint.coverage > 0 ? (totalAccentSqft * coverageMultiplier) / accentPaint.coverage : 0
-  const stainGallons  = stainPaint.coverage > 0  ? (totalStainSqft  * constants.stainCoverage) / stainPaint.coverage  : 0
+  // Body is sprayed (higher multiplier); trim/accent are brush/roll
+  const bodyGallons   = bodyPaint.coverage > 0   ? (totalBodySqft   * constants.paintCoverageSpray)     / bodyPaint.coverage   : 0
+  const trimGallons   = trimPaint.coverage > 0   ? (totalTrimSqft   * constants.paintCoverageBrushRoll) / trimPaint.coverage   : 0
+  const accentGallons = accentPaint.coverage > 0 ? (totalAccentSqft * constants.paintCoverageBrushRoll) / accentPaint.coverage : 0
+  const stainGallons  = stainPaint.coverage > 0  ? (totalStainSqft  * constants.stainCoverage)          / stainPaint.coverage  : 0
 
   const body:   PaintBreakdown = { gallons: bodyGallons,   cost: calcPaintCost(bodyGallons,   bodyPaint)   }
   const trim:   PaintBreakdown = { gallons: trimGallons,   cost: calcPaintCost(trimGallons,   trimPaint)   }
