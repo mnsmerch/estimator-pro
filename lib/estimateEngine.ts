@@ -106,13 +106,14 @@ function paintBucket(app: ApplicationItem): PaintBucket {
   if (app.categoryKey === 'staining') return 'stain'
   if (app.isAccent) return 'accent'
   if (app.isTrimColor) return 'trim'
-  // isBodyColor on non-bodyApplication rows (e.g. Eaves Body Color) contributes 0 —
-  // those surfaces are included in the siding spray measurement
+  // isBodyColor rows outside bodyApplication (eaves, doors, garage doors, etc.) contribute 0 paint —
+  // those surfaces are covered during the siding spray pass
+  if (app.isBodyColor) return null
   if (app.categoryKey === 'bodyApplication') return 'body'
   // Unflagged trim-type categories → trim paint
   if (['eaves', 'fascia', 'otherTrim', 'windows', 'doors', 'sidelights',
        'garageDoors', 'railings', 'shutters'].includes(app.categoryKey)) return 'trim'
-  return null  // prepWork, woodReplacement, isBodyColor non-body rows
+  return null  // prepWork, woodReplacement
 }
 
 // ─── Per-row calculation ───────────────────────────────────────────────────────
