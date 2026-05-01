@@ -83,15 +83,17 @@ const PAINT_BRANDS = [
   },
 ]
 
+// Rounded to nearest dollar — used for large subtotals/pricing
 function fmt(n: number) {
   return n.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 })
 }
 
-function fmtHrs(n: number) {
-  return n.toFixed(1)
+// Exact cents — used for paint costs
+function fmtCents(n: number) {
+  return n.toLocaleString('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 2 })
 }
 
-function fmtGal(n: number) {
+function fmtHrs(n: number) {
   return n.toFixed(1)
 }
 
@@ -498,7 +500,7 @@ export default function NewEstimatePage() {
                 <tr className="border-t-2 border-gray-300 bg-gray-50">
                   <td colSpan={3} className="px-4 py-2 font-bold text-gray-900 text-sm">Grand Total</td>
                   <td className="px-4 py-2 text-right font-bold text-gray-900 tabular-nums">
-                    {fmt((totals?.totalPaintCost ?? 0) + manualMaterialCost(manualPaintAProductId, manualPaintAGallons, paintProducts) + manualMaterialCost(manualPaintBProductId, manualPaintBGallons, paintProducts))}
+                    {fmtCents((totals?.totalPaintCost ?? 0) + manualMaterialCost(manualPaintAProductId, manualPaintAGallons, paintProducts) + manualMaterialCost(manualPaintBProductId, manualPaintBGallons, paintProducts))}
                   </td>
                 </tr>
               </tfoot>
@@ -523,11 +525,11 @@ export default function NewEstimatePage() {
               {/* Paint */}
               <div className="space-y-2">
                 <p className="text-xs font-semibold uppercase tracking-wider text-gray-400">Paint</p>
-                {totals.body.gallons > 0   && <SummaryRow label={`Body (${bodyPaint.name || 'n/a'})`}   value={`${fmtGal(totals.body.gallons)} gal — ${fmt(totals.body.cost)}`} />}
-                {totals.trim.gallons > 0   && <SummaryRow label={`Trim (${trimPaint.name || 'n/a'})`}   value={`${fmtGal(totals.trim.gallons)} gal — ${fmt(totals.trim.cost)}`} />}
-                {totals.accent.gallons > 0 && <SummaryRow label={`Accent (${accentPaint.name || 'n/a'})`} value={`${fmtGal(totals.accent.gallons)} gal — ${fmt(totals.accent.cost)}`} />}
-                {totals.stain.gallons > 0  && <SummaryRow label={`Stain (${stainPaint.name || 'n/a'})`}  value={`${fmtGal(totals.stain.gallons)} gal — ${fmt(totals.stain.cost)}`} />}
-                <SummaryRow label="Total Paint" value={fmt(totals.totalPaintCost)} bold />
+                {totals.body.gallons > 0   && <SummaryRow label={`Body ${bodyPaint.name || 'n/a'}`}   value={`${Math.ceil(totals.body.gallons)} gal — ${fmtCents(totals.body.cost)}`} />}
+                {totals.trim.gallons > 0   && <SummaryRow label={`Trim ${trimPaint.name || 'n/a'}`}   value={`${Math.ceil(totals.trim.gallons)} gal — ${fmtCents(totals.trim.cost)}`} />}
+                {totals.accent.gallons > 0 && <SummaryRow label={`Accent ${accentPaint.name || 'n/a'}`} value={`${Math.ceil(totals.accent.gallons)} gal — ${fmtCents(totals.accent.cost)}`} />}
+                {totals.stain.gallons > 0  && <SummaryRow label={`Stain ${stainPaint.name || 'n/a'}`}  value={`${Math.ceil(totals.stain.gallons)} gal — ${fmtCents(totals.stain.cost)}`} />}
+                <SummaryRow label="Total Paint" value={fmtCents(totals.totalPaintCost)} bold />
               </div>
 
               {/* Cost */}
