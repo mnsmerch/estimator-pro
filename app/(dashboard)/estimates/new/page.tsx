@@ -75,8 +75,9 @@ export default function NewEstimatePage() {
 
   const [saving, setSaving] = useState(false)
 
-  // Load settings — always fall through to show the form even if Firestore fails
+  // Load settings — wait for auth user before reading Firestore
   useEffect(() => {
+    if (!user) return
     async function load() {
       try {
         const [r, c, pp, rt] = await Promise.all([
@@ -96,7 +97,7 @@ export default function NewEstimatePage() {
       }
     }
     load()
-  }, [])
+  }, [user])
 
   // Application list & map (recalc when rates change)
   const applications = useMemo(() => buildApplicationList(rates), [rates])
