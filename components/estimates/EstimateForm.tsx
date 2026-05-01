@@ -59,7 +59,8 @@ function fmtCents(n: number) {
   return n.toLocaleString('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 2 })
 }
 function fmtHrs(n: number) {
-  return n.toFixed(3)
+  // Match Google Sheet precision — up to 10 decimal places, trailing zeros removed
+  return parseFloat(n.toFixed(10)).toString()
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
