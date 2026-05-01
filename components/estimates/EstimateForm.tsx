@@ -478,7 +478,7 @@ export default function EstimateForm({ estimateId, initialData }: EstimateFormPr
                 <p className="text-xs font-semibold uppercase tracking-wider text-gray-400">Pricing</p>
                 <SummaryRow label="Labor"    value={fmtCents(totals.laborCost)} />
                 <SummaryRow label="Paint"    value={fmtCents(totals.totalPaintCost)} />
-                <SummaryRow label="Sundries" value={fmt(totals.sundries)} />
+                <SummaryRow label="Sundries" value={fmtCents(totals.sundries)} />
                 <SummaryRow label="L&amp;M"  value={fmt(totals.landm)} />
                 <SummaryRow label={`Markup (${(markup * 100).toFixed(0)}%)`} value="" />
                 <div className="border-t border-gray-200 pt-2 space-y-1.5">
