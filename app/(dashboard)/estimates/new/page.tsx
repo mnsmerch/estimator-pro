@@ -359,115 +359,6 @@ export default function NewEstimatePage() {
           </div>
         </section>
 
-        {/* ── Paint Selections ──────────────────────────────────────────── */}
-        <section className="bg-white rounded-xl border border-gray-200 p-6">
-          <h2 className="text-base font-semibold text-gray-900 mb-4">Paint Selection</h2>
-
-          {/* Brand buttons */}
-          <div className="flex flex-wrap gap-2 mb-6">
-            {PAINT_BRANDS.map(brand => (
-              <button
-                key={brand.key}
-                onClick={() => selectBrand(brand.key)}
-                className={`px-5 py-2 rounded-lg text-sm font-semibold border transition-colors ${
-                  selectedBrand === brand.key
-                    ? 'bg-blue-600 text-white border-blue-600'
-                    : 'bg-white text-gray-700 border-gray-300 hover:border-blue-400 hover:text-blue-600'
-                }`}
-              >
-                {brand.label}
-              </button>
-            ))}
-          </div>
-
-          {/* Materials card */}
-          <div className="border border-gray-200 rounded-lg overflow-hidden">
-            <div className="bg-gray-700 text-white text-center text-sm font-bold py-2 tracking-wide">
-              MATERIALS
-            </div>
-            <table className="w-full text-sm">
-              <thead className="bg-gray-50 border-b border-gray-200">
-                <tr>
-                  <th className="text-left font-medium text-gray-600 px-4 py-2">Product</th>
-                  <th className="text-left font-medium text-gray-600 px-3 py-2 w-28">Type</th>
-                  <th className="text-right font-medium text-gray-600 px-3 py-2 w-24">Gallons</th>
-                  <th className="text-right font-medium text-gray-600 px-4 py-2 w-28">Total ($)</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {/* Body */}
-                <MaterialRow
-                  type="Body"
-                  product={bodyPaint}
-                  gallons={totals?.body.gallons ?? 0}
-                  cost={totals?.body.cost ?? 0}
-                  products={paintProducts}
-                  selectedId={bodyPaintId}
-                  onProductChange={setBodyPaintId}
-                />
-                {/* Trim */}
-                <MaterialRow
-                  type="Trim"
-                  product={trimPaint}
-                  gallons={totals?.trim.gallons ?? 0}
-                  cost={totals?.trim.cost ?? 0}
-                  products={paintProducts}
-                  selectedId={trimPaintId}
-                  onProductChange={setTrimPaintId}
-                />
-                {/* Accent */}
-                <MaterialRow
-                  type="Accent"
-                  product={accentPaint}
-                  gallons={totals?.accent.gallons ?? 0}
-                  cost={totals?.accent.cost ?? 0}
-                  products={paintProducts}
-                  selectedId={accentPaintId}
-                  onProductChange={setAccentPaintId}
-                />
-                {/* Manual A */}
-                <ManualMaterialRow
-                  type="Manual A"
-                  products={paintProducts}
-                  selectedId={manualPaintAProductId}
-                  onProductChange={setManualPaintAProductId}
-                  gallons={manualPaintAGallons}
-                  onGallonsChange={setManualPaintAGallons}
-                  paintProducts={paintProducts}
-                />
-                {/* Manual B */}
-                <ManualMaterialRow
-                  type="Manual B"
-                  products={paintProducts}
-                  selectedId={manualPaintBProductId}
-                  onProductChange={setManualPaintBProductId}
-                  gallons={manualPaintBGallons}
-                  onGallonsChange={setManualPaintBGallons}
-                  paintProducts={paintProducts}
-                />
-                {/* Solid Stain */}
-                <MaterialRow
-                  type="Solid Stain"
-                  product={stainPaint}
-                  gallons={totals?.stain.gallons ?? 0}
-                  cost={totals?.stain.cost ?? 0}
-                  products={paintProducts}
-                  selectedId={stainPaintId}
-                  onProductChange={setStainPaintId}
-                />
-              </tbody>
-              <tfoot>
-                <tr className="border-t-2 border-gray-300 bg-gray-50">
-                  <td colSpan={3} className="px-4 py-2 font-bold text-gray-900 text-sm">Grand Total</td>
-                  <td className="px-4 py-2 text-right font-bold text-gray-900 tabular-nums">
-                    {fmt((totals?.totalPaintCost ?? 0) + manualMaterialCost(manualPaintAProductId, manualPaintAGallons, paintProducts) + manualMaterialCost(manualPaintBProductId, manualPaintBGallons, paintProducts))}
-                  </td>
-                </tr>
-              </tfoot>
-            </table>
-          </div>
-        </section>
-
         {/* ── Measurements ──────────────────────────────────────────────── */}
         <section className="bg-white rounded-xl border border-gray-200 p-6">
           <div className="flex items-center justify-between mb-4">
@@ -556,6 +447,61 @@ export default function NewEstimatePage() {
                   )
                 })}
               </tbody>
+            </table>
+          </div>
+        </section>
+
+        {/* ── Paint Selections ──────────────────────────────────────────── */}
+        <section className="bg-white rounded-xl border border-gray-200 p-6">
+          <h2 className="text-base font-semibold text-gray-900 mb-4">Paint Selection</h2>
+
+          {/* Brand buttons */}
+          <div className="flex flex-wrap gap-2 mb-6">
+            {PAINT_BRANDS.map(brand => (
+              <button
+                key={brand.key}
+                onClick={() => selectBrand(brand.key)}
+                className={`px-5 py-2 rounded-lg text-sm font-semibold border transition-colors ${
+                  selectedBrand === brand.key
+                    ? 'bg-blue-600 text-white border-blue-600'
+                    : 'bg-white text-gray-700 border-gray-300 hover:border-blue-400 hover:text-blue-600'
+                }`}
+              >
+                {brand.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Materials card */}
+          <div className="border border-gray-200 rounded-lg overflow-hidden">
+            <div className="bg-gray-700 text-white text-center text-sm font-bold py-2 tracking-wide">
+              MATERIALS
+            </div>
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50 border-b border-gray-200">
+                <tr>
+                  <th className="text-left font-medium text-gray-600 px-4 py-2">Product</th>
+                  <th className="text-left font-medium text-gray-600 px-3 py-2 w-28">Type</th>
+                  <th className="text-right font-medium text-gray-600 px-3 py-2 w-24">Gallons</th>
+                  <th className="text-right font-medium text-gray-600 px-4 py-2 w-28">Total ($)</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                <MaterialRow type="Body" product={bodyPaint} gallons={totals?.body.gallons ?? 0} cost={totals?.body.cost ?? 0} products={paintProducts} selectedId={bodyPaintId} onProductChange={setBodyPaintId} />
+                <MaterialRow type="Trim" product={trimPaint} gallons={totals?.trim.gallons ?? 0} cost={totals?.trim.cost ?? 0} products={paintProducts} selectedId={trimPaintId} onProductChange={setTrimPaintId} />
+                <MaterialRow type="Accent" product={accentPaint} gallons={totals?.accent.gallons ?? 0} cost={totals?.accent.cost ?? 0} products={paintProducts} selectedId={accentPaintId} onProductChange={setAccentPaintId} />
+                <ManualMaterialRow type="Manual A" products={paintProducts} selectedId={manualPaintAProductId} onProductChange={setManualPaintAProductId} gallons={manualPaintAGallons} onGallonsChange={setManualPaintAGallons} paintProducts={paintProducts} />
+                <ManualMaterialRow type="Manual B" products={paintProducts} selectedId={manualPaintBProductId} onProductChange={setManualPaintBProductId} gallons={manualPaintBGallons} onGallonsChange={setManualPaintBGallons} paintProducts={paintProducts} />
+                <MaterialRow type="Solid Stain" product={stainPaint} gallons={totals?.stain.gallons ?? 0} cost={totals?.stain.cost ?? 0} products={paintProducts} selectedId={stainPaintId} onProductChange={setStainPaintId} />
+              </tbody>
+              <tfoot>
+                <tr className="border-t-2 border-gray-300 bg-gray-50">
+                  <td colSpan={3} className="px-4 py-2 font-bold text-gray-900 text-sm">Grand Total</td>
+                  <td className="px-4 py-2 text-right font-bold text-gray-900 tabular-nums">
+                    {fmt((totals?.totalPaintCost ?? 0) + manualMaterialCost(manualPaintAProductId, manualPaintAGallons, paintProducts) + manualMaterialCost(manualPaintBProductId, manualPaintBGallons, paintProducts))}
+                  </td>
+                </tr>
+              </tfoot>
             </table>
           </div>
         </section>
