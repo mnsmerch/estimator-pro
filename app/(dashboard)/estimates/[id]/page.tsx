@@ -50,6 +50,12 @@ export default function EstimateDetailPage({ params }: { params: Promise<{ id: s
         </div>
         <div className="flex items-center gap-4">
           <a href="/estimates" className="text-sm text-gray-500 hover:text-gray-800">← Estimates</a>
+          <a
+            href={`/estimates/${id}/edit`}
+            className="px-4 py-2 text-sm font-medium rounded-lg bg-blue-600 text-white hover:bg-blue-700"
+          >
+            Edit
+          </a>
         </div>
       </header>
 

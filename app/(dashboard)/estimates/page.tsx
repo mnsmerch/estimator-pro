@@ -80,7 +80,7 @@ export default function EstimatesPage() {
             {estimates.map(est => (
               <a
                 key={est.id}
-                href={`/estimates/${est.id}`}
+                href={est.status === 'draft' ? `/estimates/${est.id}/edit` : `/estimates/${est.id}`}
                 className="flex items-center justify-between px-6 py-4 hover:bg-gray-50 transition-colors"
               >
                 <div>
