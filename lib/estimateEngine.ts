@@ -206,8 +206,11 @@ export function calcEstimate(
   // Sundries, L&M, pricing
   const sundries   = totalHours * constants.sundriesPerHour
   const landm      = laborCost + totalPaintCost + sundries
-  const markup     = calcMarkup(rules)
-  const subtotal   = markup > 0 ? (landm / markup) / (1 - rules.salesDiscount) : 0
+  const markup = calcMarkup(rules)
+  // Matches Google Sheet: IFERROR(IF(B29=0, ROUND((H52/B23)/(1-B26),0), (H52/B23)/(1-B26)))
+  // When salesTax=0 round to nearest dollar; otherwise keep raw for tax calc
+  const rawSubtotal   = markup > 0 ? (landm / markup) / (1 - rules.salesDiscount) : 0
+  const subtotal      = rules.salesTax === 0 ? Math.round(rawSubtotal) : rawSubtotal
   const tenPercentOff = subtotal * 0.90
 
   return {
