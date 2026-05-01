@@ -215,7 +215,31 @@ export default function NewEstimatePage() {
   const addRow = useCallback(() => setRows(r => [...r, newRow()]), [])
   const removeRow = useCallback((id: string) => setRows(r => r.filter(row => row.id !== id)), [])
   const updateRow = useCallback((id: string, field: keyof EstimateRow, value: string | number) => {
-    setRows(r => r.map(row => row.id === id ? { ...row, [field]: value } : row))
+    setRows(r => {
+      const updated = r.map(row => row.id === id ? { ...row, [field]: value } : row)
+
+      // Auto-fill: when editing a measurement on the FIRST Siding Spray row,
+      // copy the same value to Power Wash and the second Siding Spray row.
+      const measurementFields: (keyof EstimateRow)[] = ['front', 'right', 'back', 'left']
+      if (measurementFields.includes(field)) {
+        const changedRow = updated.find(row => row.id === id)
+        if (changedRow?.applicationKey === 'bodyApplication.sidingSpray') {
+          const firstSidingIdx = updated.findIndex(row => row.applicationKey === 'bodyApplication.sidingSpray')
+          if (updated[firstSidingIdx]?.id === id) {
+            return updated.map(row => {
+              if (row.id === id) return row
+              if (row.applicationKey === 'prepWork.powerWash' ||
+                  row.applicationKey === 'bodyApplication.sidingSpray') {
+                return { ...row, [field]: value }
+              }
+              return row
+            })
+          }
+        }
+      }
+
+      return updated
+    })
   }, [])
 
   // Save
