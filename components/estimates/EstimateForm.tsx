@@ -63,6 +63,11 @@ function fmtHrs(n: number) {
   return parseFloat(n.toFixed(10)).toString()
 }
 
+// Prep and Cleanup hours rounded to tenths (e.g. 0.3666... → 0.4)
+function fmtHrsTenths(n: number) {
+  return n.toFixed(1)
+}
+
 // ─── Component ────────────────────────────────────────────────────────────────
 
 interface EstimateFormProps {
@@ -456,9 +461,9 @@ export default function EstimateForm({ estimateId, initialData }: EstimateFormPr
             <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
               <div className="space-y-2">
                 <p className="text-xs font-semibold uppercase tracking-wider text-gray-400">Hours</p>
-                <SummaryRow label="Prep Hours"       value={fmtHrs(totals.prepHours) + ' hrs'} />
+                <SummaryRow label="Prep Hours"       value={fmtHrsTenths(totals.prepHours) + ' hrs'} />
                 <SummaryRow label="Production Hours" value={fmtHrs(totals.productionHours) + ' hrs'} />
-                <SummaryRow label="Cleanup Hours"    value={fmtHrs(totals.cleanupHours) + ' hrs'} />
+                <SummaryRow label="Cleanup Hours"    value={fmtHrsTenths(totals.cleanupHours) + ' hrs'} />
                 <SummaryRow label="Total Hours"      value={fmtHrs(totals.totalHours) + ' hrs'} bold />
               </div>
               <div className="space-y-2">
