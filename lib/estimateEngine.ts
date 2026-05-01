@@ -64,7 +64,9 @@ export function calcPaintCost(gallons: number, product: PaintProduct): number {
   const wholeGallons = Math.ceil(gallons)
   const buckets5 = Math.floor(wholeGallons / 5)
   const remainder = wholeGallons % 5
-  return buckets5 * product.fiveGallon + remainder * product.singleGallon
+  // fiveGallon is the per-gallon price in a 5-gallon container, so one bucket = 5 × fiveGallon
+  // Matches Google Sheet: ROUNDDOWN(gallons/5)*5*fiveGalPrice + MOD(gallons,5)*singleGalPrice
+  return buckets5 * 5 * product.fiveGallon + remainder * product.singleGallon
 }
 
 // ─── Surface area factor ───────────────────────────────────────────────────────
