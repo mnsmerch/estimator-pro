@@ -75,20 +75,25 @@ export default function NewEstimatePage() {
 
   const [saving, setSaving] = useState(false)
 
-  // Load settings
+  // Load settings — always fall through to show the form even if Firestore fails
   useEffect(() => {
     async function load() {
-      const [r, c, pp, rt] = await Promise.all([
-        getSettingsDoc<BusinessRules>('businessRules', DEFAULT_BUSINESS_RULES),
-        getSettingsDoc<ProductionConstants>('productionConstants', DEFAULT_PRODUCTION_CONSTANTS),
-        getSettingsDoc<{ items: PaintProduct[] }>('paintProducts', { items: DEFAULT_PAINT_PRODUCTS }),
-        getSettingsDoc<ProductionRates>('rates', DEFAULT_RATES),
-      ])
-      setRules(r)
-      setConstants(c)
-      setPaintProducts(pp.items ?? DEFAULT_PAINT_PRODUCTS)
-      setRates(rt)
-      setLoadingSettings(false)
+      try {
+        const [r, c, pp, rt] = await Promise.all([
+          getSettingsDoc<BusinessRules>('businessRules', DEFAULT_BUSINESS_RULES),
+          getSettingsDoc<ProductionConstants>('productionConstants', DEFAULT_PRODUCTION_CONSTANTS),
+          getSettingsDoc<{ items: PaintProduct[] }>('paintProducts', { items: DEFAULT_PAINT_PRODUCTS }),
+          getSettingsDoc<ProductionRates>('rates', DEFAULT_RATES),
+        ])
+        setRules(r)
+        setConstants(c)
+        setPaintProducts(pp.items ?? DEFAULT_PAINT_PRODUCTS)
+        setRates(rt)
+      } catch (err) {
+        console.error('Failed to load settings, using defaults:', err)
+      } finally {
+        setLoadingSettings(false)
+      }
     }
     load()
   }, [])
