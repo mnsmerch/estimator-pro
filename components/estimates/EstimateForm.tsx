@@ -479,7 +479,7 @@ export default function EstimateForm({ estimateId, initialData }: EstimateFormPr
                 <SummaryRow label="Labor"    value={fmtCents(totals.laborCost)} />
                 <SummaryRow label="Paint"    value={fmtCents(totals.totalPaintCost)} />
                 <SummaryRow label="Sundries" value={fmtCents(totals.sundries)} />
-                <SummaryRow label="L&amp;M"  value={fmt(totals.landm)} />
+                <SummaryRow label="L&amp;M"  value={fmtCents(totals.landm)} />
                 <SummaryRow label={`Markup (${(markup * 100).toFixed(0)}%)`} value="" />
                 <div className="border-t border-gray-200 pt-2 space-y-1.5">
                   <SummaryRow label="Subtotal" value={fmt(totals.subtotal)} bold />
