@@ -18,6 +18,8 @@ export interface EstimateData {
   clientAddress: string
   clientPhone: string
   clientEmail: string
+  clientFolderId: string
+  clientContactId: string
   // Measurements
   rows: EstimateRow[]
   // Paint selections

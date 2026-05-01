@@ -19,9 +19,32 @@ import type { EstimateRow } from '@/types/estimate'
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
 
-function newRow(): EstimateRow {
-  return { id: crypto.randomUUID(), applicationKey: '', front: 0, right: 0, back: 0, left: 0 }
+function newRow(applicationKey = ''): EstimateRow {
+  return { id: crypto.randomUUID(), applicationKey, front: 0, right: 0, back: 0, left: 0 }
 }
+
+// Default rows pre-selected to match the standard estimate template
+const DEFAULT_ROW_KEYS = [
+  'bodyApplication.sidingSpray',
+  'eaves.eavesBodyColor',
+  'fascia.fascia2Story',
+  'windows.vinylWithTrim',
+  'otherTrim.otherTrim2PlusStory',
+  'otherTrim.downspoutsPosts',
+  'doors.accentColorWithTrim',
+  'doors.bodyColorWithTrim',
+  'sidelights.accentColorWithTrim',
+  'garageDoors.singleBodyColor',
+  'garageDoors.doubleBodyColor',
+  'railings.railings1Color',
+  'shutters.accentGround',
+  'shutters.accentLadder',
+  'prepWork.manualPrepHours',
+  'prepWork.powerWash',
+  'bodyApplication.sidingSpray',
+  'windows.vinylNoTrim',
+  'bodyApplication.oneCoatSidingSpray',
+]
 
 function fmt(n: number) {
   return n.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 })
@@ -53,9 +76,11 @@ export default function NewEstimatePage() {
   const [clientAddress, setClientAddress] = useState('')
   const [clientPhone, setClientPhone] = useState('')
   const [clientEmail, setClientEmail] = useState('')
+  const [clientFolderId, setClientFolderId] = useState('')
+  const [clientContactId, setClientContactId] = useState('')
 
-  // Measurement rows
-  const [rows, setRows] = useState<EstimateRow[]>([newRow()])
+  // Measurement rows — pre-populated with the standard template
+  const [rows, setRows] = useState<EstimateRow[]>(() => DEFAULT_ROW_KEYS.map(k => newRow(k)))
 
   // Paint selections (store paint product id)
   const [bodyPaintId, setBodyPaintId]     = useState('')
@@ -150,6 +175,8 @@ export default function NewEstimatePage() {
         clientAddress,
         clientPhone,
         clientEmail,
+        clientFolderId,
+        clientContactId,
         rows,
         selectedBodyPaint: bodyPaintId,
         selectedTrimPaint: trimPaintId,
@@ -250,6 +277,24 @@ export default function NewEstimatePage() {
                 value={clientEmail}
                 onChange={e => setClientEmail(e.target.value)}
                 placeholder="client@email.com"
+                className="input"
+              />
+            </Field>
+            <Field label="Folder ID">
+              <input
+                type="text"
+                value={clientFolderId}
+                onChange={e => setClientFolderId(e.target.value)}
+                placeholder="Folder ID"
+                className="input"
+              />
+            </Field>
+            <Field label="Contact ID">
+              <input
+                type="text"
+                value={clientContactId}
+                onChange={e => setClientContactId(e.target.value)}
+                placeholder="Contact ID"
                 className="input"
               />
             </Field>
