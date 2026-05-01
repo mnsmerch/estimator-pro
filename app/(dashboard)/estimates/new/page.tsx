@@ -46,6 +46,43 @@ const DEFAULT_ROW_KEYS = [
   'bodyApplication.oneCoatSidingSpray',
 ]
 
+// ─── Paint brand presets ──────────────────────────────────────────────────────
+
+const PAINT_BRANDS = [
+  {
+    key: 'superPaint',
+    label: 'Super Paint',
+    bodyId: 'sw-super-paint-flat',
+    trimId: 'sw-super-paint-satin',
+    accentId: 'sw-super-paint-flat',
+    stainId: 'sw-super-deck-stain',
+  },
+  {
+    key: 'duration',
+    label: 'Duration',
+    bodyId: 'sw-duration-flat',
+    trimId: 'sw-duration-satin',
+    accentId: 'sw-duration-flat',
+    stainId: 'sw-super-deck-stain',
+  },
+  {
+    key: 'emerald',
+    label: 'Emerald',
+    bodyId: 'sw-emerald-flat',
+    trimId: 'sw-emerald-satin',
+    accentId: 'sw-emerald-flat',
+    stainId: 'sw-super-deck-stain',
+  },
+  {
+    key: 'emeraldRR',
+    label: 'Emerald Rain Refresh',
+    bodyId: 'sw-emerald-rr-flat',
+    trimId: 'sw-emerald-rr-satin',
+    accentId: 'sw-emerald-rr-flat',
+    stainId: 'sw-super-deck-stain',
+  },
+]
+
 function fmt(n: number) {
   return n.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 })
 }
@@ -82,11 +119,16 @@ export default function NewEstimatePage() {
   // Measurement rows — pre-populated with the standard template
   const [rows, setRows] = useState<EstimateRow[]>(() => DEFAULT_ROW_KEYS.map(k => newRow(k)))
 
-  // Paint selections (store paint product id)
-  const [bodyPaintId, setBodyPaintId]     = useState('')
-  const [trimPaintId, setTrimPaintId]     = useState('')
-  const [accentPaintId, setAccentPaintId] = useState('')
-  const [stainPaintId, setStainPaintId]   = useState('')
+  // Paint brand selection — default to Super Paint
+  const [selectedBrand, setSelectedBrand] = useState('superPaint')
+  const [bodyPaintId, setBodyPaintId]     = useState(PAINT_BRANDS[0].bodyId)
+  const [trimPaintId, setTrimPaintId]     = useState(PAINT_BRANDS[0].trimId)
+  const [accentPaintId, setAccentPaintId] = useState(PAINT_BRANDS[0].accentId)
+  const [stainPaintId, setStainPaintId]   = useState(PAINT_BRANDS[0].stainId)
+  const [manualPaintAProductId, setManualPaintAProductId] = useState('')
+  const [manualPaintAGallons, setManualPaintAGallons]     = useState(0)
+  const [manualPaintBProductId, setManualPaintBProductId] = useState('')
+  const [manualPaintBGallons, setManualPaintBGallons]     = useState(0)
 
   // Scope of work
   const [scopeProject, setScopeProject]         = useState(SCOPE_DEFAULTS.scopeProject)
@@ -156,6 +198,17 @@ export default function NewEstimatePage() {
   // Markup display
   const markup = useMemo(() => calcMarkup(rules), [rules])
 
+  // Brand switcher
+  function selectBrand(key: string) {
+    const brand = PAINT_BRANDS.find(b => b.key === key)
+    if (!brand) return
+    setSelectedBrand(key)
+    setBodyPaintId(brand.bodyId)
+    setTrimPaintId(brand.trimId)
+    setAccentPaintId(brand.accentId)
+    setStainPaintId(brand.stainId)
+  }
+
   // Row handlers
   const addRow = useCallback(() => setRows(r => [...r, newRow()]), [])
   const removeRow = useCallback((id: string) => setRows(r => r.filter(row => row.id !== id)), [])
@@ -178,10 +231,15 @@ export default function NewEstimatePage() {
         clientFolderId,
         clientContactId,
         rows,
+        selectedBrand,
         selectedBodyPaint: bodyPaintId,
         selectedTrimPaint: trimPaintId,
         selectedAccentPaint: accentPaintId,
         selectedStainPaint: stainPaintId,
+        manualPaintAProductId,
+        manualPaintAGallons,
+        manualPaintBProductId,
+        manualPaintBGallons,
         scopeProject,
         scopePrepWork,
         scopePainting,
@@ -303,12 +361,110 @@ export default function NewEstimatePage() {
 
         {/* ── Paint Selections ──────────────────────────────────────────── */}
         <section className="bg-white rounded-xl border border-gray-200 p-6">
-          <h2 className="text-base font-semibold text-gray-900 mb-4">Paint Selections</h2>
-          <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-            <PaintSelect label="Body" value={bodyPaintId} onChange={setBodyPaintId} products={paintProducts} />
-            <PaintSelect label="Trim" value={trimPaintId} onChange={setTrimPaintId} products={paintProducts} />
-            <PaintSelect label="Accent" value={accentPaintId} onChange={setAccentPaintId} products={paintProducts} />
-            <PaintSelect label="Stain" value={stainPaintId} onChange={setStainPaintId} products={paintProducts} />
+          <h2 className="text-base font-semibold text-gray-900 mb-4">Paint Selection</h2>
+
+          {/* Brand buttons */}
+          <div className="flex flex-wrap gap-2 mb-6">
+            {PAINT_BRANDS.map(brand => (
+              <button
+                key={brand.key}
+                onClick={() => selectBrand(brand.key)}
+                className={`px-5 py-2 rounded-lg text-sm font-semibold border transition-colors ${
+                  selectedBrand === brand.key
+                    ? 'bg-blue-600 text-white border-blue-600'
+                    : 'bg-white text-gray-700 border-gray-300 hover:border-blue-400 hover:text-blue-600'
+                }`}
+              >
+                {brand.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Materials card */}
+          <div className="border border-gray-200 rounded-lg overflow-hidden">
+            <div className="bg-gray-700 text-white text-center text-sm font-bold py-2 tracking-wide">
+              MATERIALS
+            </div>
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50 border-b border-gray-200">
+                <tr>
+                  <th className="text-left font-medium text-gray-600 px-4 py-2">Product</th>
+                  <th className="text-left font-medium text-gray-600 px-3 py-2 w-28">Type</th>
+                  <th className="text-right font-medium text-gray-600 px-3 py-2 w-24">Gallons</th>
+                  <th className="text-right font-medium text-gray-600 px-4 py-2 w-28">Total ($)</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {/* Body */}
+                <MaterialRow
+                  type="Body"
+                  product={bodyPaint}
+                  gallons={totals?.body.gallons ?? 0}
+                  cost={totals?.body.cost ?? 0}
+                  products={paintProducts}
+                  selectedId={bodyPaintId}
+                  onProductChange={setBodyPaintId}
+                />
+                {/* Trim */}
+                <MaterialRow
+                  type="Trim"
+                  product={trimPaint}
+                  gallons={totals?.trim.gallons ?? 0}
+                  cost={totals?.trim.cost ?? 0}
+                  products={paintProducts}
+                  selectedId={trimPaintId}
+                  onProductChange={setTrimPaintId}
+                />
+                {/* Accent */}
+                <MaterialRow
+                  type="Accent"
+                  product={accentPaint}
+                  gallons={totals?.accent.gallons ?? 0}
+                  cost={totals?.accent.cost ?? 0}
+                  products={paintProducts}
+                  selectedId={accentPaintId}
+                  onProductChange={setAccentPaintId}
+                />
+                {/* Manual A */}
+                <ManualMaterialRow
+                  type="Manual A"
+                  products={paintProducts}
+                  selectedId={manualPaintAProductId}
+                  onProductChange={setManualPaintAProductId}
+                  gallons={manualPaintAGallons}
+                  onGallonsChange={setManualPaintAGallons}
+                  paintProducts={paintProducts}
+                />
+                {/* Manual B */}
+                <ManualMaterialRow
+                  type="Manual B"
+                  products={paintProducts}
+                  selectedId={manualPaintBProductId}
+                  onProductChange={setManualPaintBProductId}
+                  gallons={manualPaintBGallons}
+                  onGallonsChange={setManualPaintBGallons}
+                  paintProducts={paintProducts}
+                />
+                {/* Solid Stain */}
+                <MaterialRow
+                  type="Solid Stain"
+                  product={stainPaint}
+                  gallons={totals?.stain.gallons ?? 0}
+                  cost={totals?.stain.cost ?? 0}
+                  products={paintProducts}
+                  selectedId={stainPaintId}
+                  onProductChange={setStainPaintId}
+                />
+              </tbody>
+              <tfoot>
+                <tr className="border-t-2 border-gray-300 bg-gray-50">
+                  <td colSpan={3} className="px-4 py-2 font-bold text-gray-900 text-sm">Grand Total</td>
+                  <td className="px-4 py-2 text-right font-bold text-gray-900 tabular-nums">
+                    {fmt((totals?.totalPaintCost ?? 0) + manualMaterialCost(manualPaintAProductId, manualPaintAGallons, paintProducts) + manualMaterialCost(manualPaintBProductId, manualPaintBGallons, paintProducts))}
+                  </td>
+                </tr>
+              </tfoot>
+            </table>
           </div>
         </section>
 
@@ -544,5 +700,97 @@ function SummaryRow({ label, value, bold }: { label: string; value: string; bold
       <span dangerouslySetInnerHTML={{ __html: label }} />
       <span className="tabular-nums">{value}</span>
     </div>
+  )
+}
+
+// ─── Materials table helpers ──────────────────────────────────────────────────
+
+import { calcPaintCost } from '@/lib/estimateEngine'
+
+function manualMaterialCost(productId: string, gallons: number, products: PaintProduct[]): number {
+  if (!productId || gallons <= 0) return 0
+  const product = products.find(p => p.id === productId)
+  if (!product) return 0
+  return calcPaintCost(gallons, product)
+}
+
+function MaterialRow({
+  type, product, gallons, cost, products, selectedId, onProductChange,
+}: {
+  type: string
+  product: PaintProduct
+  gallons: number
+  cost: number
+  products: PaintProduct[]
+  selectedId: string
+  onProductChange: (id: string) => void
+}) {
+  return (
+    <tr className="hover:bg-gray-50">
+      <td className="px-4 py-1.5">
+        <select
+          value={selectedId}
+          onChange={e => onProductChange(e.target.value)}
+          className="w-full text-sm border border-gray-200 rounded px-2 py-1 bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
+        >
+          <option value="">— None —</option>
+          {products.map(p => (
+            <option key={p.id} value={p.id}>{p.name}</option>
+          ))}
+        </select>
+      </td>
+      <td className="px-3 py-1.5 text-gray-600">{type}</td>
+      <td className="px-3 py-1.5 text-right tabular-nums text-gray-700">
+        {gallons > 0 ? gallons.toFixed(1) : '0'}
+      </td>
+      <td className="px-4 py-1.5 text-right tabular-nums text-gray-700">
+        {cost > 0 ? cost.toLocaleString('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2 }) : '$0.00'}
+      </td>
+    </tr>
+  )
+}
+
+function ManualMaterialRow({
+  type, products, selectedId, onProductChange, gallons, onGallonsChange,
+}: {
+  type: string
+  products: PaintProduct[]
+  selectedId: string
+  onProductChange: (id: string) => void
+  gallons: number
+  onGallonsChange: (n: number) => void
+  paintProducts: PaintProduct[]
+}) {
+  const product = products.find(p => p.id === selectedId)
+  const cost = product ? calcPaintCost(gallons, product) : 0
+  return (
+    <tr className="hover:bg-gray-50">
+      <td className="px-4 py-1.5">
+        <select
+          value={selectedId}
+          onChange={e => onProductChange(e.target.value)}
+          className="w-full text-sm border border-gray-200 rounded px-2 py-1 bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
+        >
+          <option value="">— None —</option>
+          {products.map(p => (
+            <option key={p.id} value={p.id}>{p.name}</option>
+          ))}
+        </select>
+      </td>
+      <td className="px-3 py-1.5 text-gray-600">{type}</td>
+      <td className="px-3 py-1.5">
+        <input
+          type="number"
+          min={0}
+          value={gallons || ''}
+          onChange={e => onGallonsChange(parseFloat(e.target.value) || 0)}
+          className="w-full text-right text-sm border border-gray-200 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-blue-500"
+          placeholder="0"
+        />
+      </td>
+      <td className="px-4 py-1.5 text-right tabular-nums text-gray-700">
+        {cost > 0 ? cost.toLocaleString('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2 }) : '$0.00'}
+      </td>
+    </tr>
   )
 }

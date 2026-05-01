@@ -23,10 +23,15 @@ export interface EstimateData {
   // Measurements
   rows: EstimateRow[]
   // Paint selections
+  selectedBrand: string
   selectedBodyPaint: string
   selectedTrimPaint: string
   selectedAccentPaint: string
   selectedStainPaint: string
+  manualPaintAProductId: string
+  manualPaintAGallons: number
+  manualPaintBProductId: string
+  manualPaintBGallons: number
   // Scope of work
   scopeProject: string
   scopePrepWork: string
