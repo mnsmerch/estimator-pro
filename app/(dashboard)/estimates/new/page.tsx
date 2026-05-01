@@ -94,7 +94,7 @@ function fmtCents(n: number) {
 }
 
 function fmtHrs(n: number) {
-  return n.toFixed(1)
+  return n.toFixed(3)
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
