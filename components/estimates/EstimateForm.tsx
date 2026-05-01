@@ -481,7 +481,7 @@ export default function EstimateForm({ estimateId, initialData }: EstimateFormPr
                 <SummaryRow label="Sundries" value={fmtCents(totals.sundries)} />
                 <SummaryRow label="L&amp;M"  value={fmtCents(totals.landm)} />
                 <div className="border-t border-gray-200 pt-2 space-y-1.5">
-                  <SummaryRow label="Subtotal" value={fmt(totals.subtotal)} bold />
+                  <SummaryRow label="Subtotal" value={fmtCents(totals.subtotal)} bold />
                   <SummaryRow label="10% Off"  value={fmt(totals.tenPercentOff)} />
                 </div>
               </div>
