@@ -687,7 +687,7 @@ function MaterialRow({
       </td>
       <td className="px-3 py-1.5 text-gray-600">{type}</td>
       <td className="px-3 py-1.5 text-right tabular-nums text-gray-700">
-        {gallons > 0 ? gallons.toFixed(1) : '0'}
+        {gallons > 0 ? Math.ceil(gallons) : '0'}
       </td>
       <td className="px-4 py-1.5 text-right tabular-nums text-gray-700">
         {cost > 0 ? cost.toLocaleString('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2 }) : '$0.00'}

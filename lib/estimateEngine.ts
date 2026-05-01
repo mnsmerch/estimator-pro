@@ -60,8 +60,10 @@ export function calcMarkup(rules: BusinessRules): number {
 
 export function calcPaintCost(gallons: number, product: PaintProduct): number {
   if (gallons <= 0) return 0
-  const buckets5 = Math.floor(gallons / 5)
-  const remainder = gallons % 5
+  // Always round up to whole gallons — you can't buy a fraction of a gallon
+  const wholeGallons = Math.ceil(gallons)
+  const buckets5 = Math.floor(wholeGallons / 5)
+  const remainder = wholeGallons % 5
   return buckets5 * product.fiveGallon + remainder * product.singleGallon
 }
 
