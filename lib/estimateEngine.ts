@@ -177,7 +177,9 @@ export function calcEstimate(
   const totalHours = productionHours + cleanupHours
 
   // Labor
-  const hourlyRate = rules.wage * (1 + rules.payrollBurden)
+  // Labor = totalHours * wage * payrollBurden  (payrollBurden=1 means no burden)
+  // Matches Google Sheet: H48 * (Inputs!B10 * Inputs!B11)
+  const hourlyRate = rules.wage * rules.payrollBurden
   const laborCost = totalHours * hourlyRate
 
   // Paint gallons per type
