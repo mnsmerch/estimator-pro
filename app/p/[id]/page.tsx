@@ -52,6 +52,7 @@ export default function ProposalPage({ params }: { params: Promise<{ id: string 
   const [rates, setRates]             = useState<ProductionRates>(DEFAULT_RATES)
   const [company, setCompany]         = useState<CompanySettings>(DEFAULT_COMPANY)
   const [loading, setLoading]         = useState(true)
+  const [loadError, setLoadError]     = useState<string | null>(null)
 
   // Customer-interactive state
   const [selectedBrand,  setSelectedBrand]  = useState('superPaint')
@@ -74,6 +75,7 @@ export default function ProposalPage({ params }: { params: Promise<{ id: string 
 
   useEffect(() => {
     async function load() {
+      try {
       const [est, r, c, pp, rt, co] = await Promise.all([
         getEstimate(id),
         getSettingsDoc<BusinessRules>('businessRules', DEFAULT_BUSINESS_RULES),
@@ -96,6 +98,11 @@ export default function ProposalPage({ params }: { params: Promise<{ id: string 
       setRates(rt)
       setCompany(co)
       setLoading(false)
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err)
+        setLoadError(msg)
+        setLoading(false)
+      }
     }
     load()
   }, [id])
@@ -174,6 +181,17 @@ export default function ProposalPage({ params }: { params: Promise<{ id: string 
     return (
       <div className="min-h-screen bg-gray-100 flex items-center justify-center">
         <div className="w-6 h-6 border-2 border-brand-600 border-t-transparent rounded-full animate-spin" />
+      </div>
+    )
+  }
+
+  if (loadError) {
+    return (
+      <div className="min-h-screen bg-gray-100 flex items-center justify-center p-6">
+        <div className="bg-white rounded-2xl border border-red-200 p-8 max-w-md w-full text-center">
+          <p className="text-red-600 font-semibold mb-2">Failed to load estimate</p>
+          <p className="text-sm text-gray-500 font-mono break-all">{loadError}</p>
+        </div>
       </div>
     )
   }
