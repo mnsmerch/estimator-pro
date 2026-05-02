@@ -5,6 +5,7 @@ export interface CompanySettings {
   website: string
   streetAddress: string
   cityStateZip: string
+  logoUrl?: string
 }
 
 export interface BusinessRules {

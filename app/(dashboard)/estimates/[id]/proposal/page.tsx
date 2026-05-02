@@ -179,11 +179,21 @@ export default function ProposalPage({ params }: { params: Promise<{ id: string 
         {/* ── Company header ─────────────────────────────────────────────── */}
         <div className="bg-blue-700 text-white rounded-2xl p-7">
           <div className="flex items-start justify-between gap-4">
-            <div>
-              <h1 className="text-2xl font-bold tracking-tight">{company.name}</h1>
-              <p className="text-blue-200 text-sm mt-1">{company.streetAddress} · {company.cityStateZip}</p>
-              <p className="text-blue-200 text-sm">{company.phone} · {company.email}</p>
-              {company.website && <p className="text-blue-200 text-sm">{company.website}</p>}
+            <div className="flex items-center gap-4">
+              {company.logoUrl && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={company.logoUrl}
+                  alt={`${company.name} logo`}
+                  className="h-16 max-w-[140px] object-contain rounded-lg bg-white/10 p-1.5 shrink-0"
+                />
+              )}
+              <div>
+                <h1 className="text-2xl font-bold tracking-tight">{company.name}</h1>
+                <p className="text-blue-200 text-sm mt-1">{company.streetAddress} · {company.cityStateZip}</p>
+                <p className="text-blue-200 text-sm">{company.phone} · {company.email}</p>
+                {company.website && <p className="text-blue-200 text-sm">{company.website}</p>}
+              </div>
             </div>
             <div className="text-right shrink-0">
               <p className="text-blue-300 text-xs uppercase tracking-wide">Date</p>

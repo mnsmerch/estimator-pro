@@ -13,6 +13,7 @@ export const DEFAULT_COMPANY: CompanySettings = {
   website: 'www.vanhousingpainters.com',
   streetAddress: '17146 SE 248th Pl',
   cityStateZip: 'Covington, WA 98042',
+  logoUrl: '',
 }
 
 export const DEFAULT_BUSINESS_RULES: BusinessRules = {
