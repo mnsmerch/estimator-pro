@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useMemo, use } from 'react'
+import { useState, useEffect, useMemo, use, useRef, useCallback } from 'react'
 import { getEstimate, acceptEstimate } from '@/lib/firebase/estimates'
 import { getSettingsDoc } from '@/lib/firebase/settings'
 import { buildApplicationList } from '@/lib/applicationList'
@@ -54,10 +54,11 @@ export default function ProposalPage({ params }: { params: Promise<{ id: string 
   const [includeCustom, setIncludeCustom] = useState(false)
 
   // Signature state
-  const [sigName,  setSigName]  = useState('')
-  const [agreed,   setAgreed]   = useState(false)
-  const [signing,  setSigning]  = useState(false)
-  const [signed,   setSigned]   = useState(false)
+  const [sigName,     setSigName]     = useState('')
+  const [sigDataUrl,  setSigDataUrl]  = useState<string | null>(null)
+  const [agreed,      setAgreed]      = useState(false)
+  const [signing,     setSigning]     = useState(false)
+  const [signed,      setSigned]      = useState(false)
 
   useEffect(() => {
     async function load() {
@@ -136,10 +137,10 @@ export default function ProposalPage({ params }: { params: Promise<{ id: string 
   const hasCustomData = (estimate?.customItems ?? []).some(i => i.description && (i.price ?? 0) > 0)
 
   async function handleSign() {
-    if (!sigName.trim() || !agreed) return
+    if (!sigName.trim() || !agreed || !sigDataUrl) return
     setSigning(true)
     try {
-      await acceptEstimate(id, sigName.trim())
+      await acceptEstimate(id, sigName.trim(), sigDataUrl)
       setSigned(true)
       setEstimate(prev => prev ? { ...prev, status: 'approved', signatureName: sigName.trim() } : prev)
     } catch (err) {
@@ -374,7 +375,15 @@ export default function ProposalPage({ params }: { params: Promise<{ id: string 
               {estimate.signatureName && (
                 <p className="text-gray-500 mt-2">Signed by <strong>{estimate.signatureName}</strong></p>
               )}
-              <p className="text-sm text-gray-400 mt-2">
+              {estimate.signatureDataUrl && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={estimate.signatureDataUrl}
+                  alt="Signature"
+                  className="mx-auto mt-3 max-h-16 border border-gray-200 rounded-lg bg-gray-50 px-4 py-2"
+                />
+              )}
+              <p className="text-sm text-gray-400 mt-3">
                 Thank you! We will reach out shortly to schedule your project.
               </p>
             </div>
@@ -400,7 +409,7 @@ export default function ProposalPage({ params }: { params: Promise<{ id: string 
 
                 <div>
                   <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">
-                    Full Name (typed signature)
+                    Full Name
                   </label>
                   <input
                     type="text"
@@ -409,6 +418,26 @@ export default function ProposalPage({ params }: { params: Promise<{ id: string 
                     placeholder="Type your full name"
                     className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
+                </div>
+
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wide">
+                      Signature <span className="text-red-400">*</span>
+                    </label>
+                    {sigDataUrl && (
+                      <button
+                        onClick={() => setSigDataUrl(null)}
+                        className="text-xs text-gray-400 hover:text-red-500 transition-colors"
+                      >
+                        Clear
+                      </button>
+                    )}
+                  </div>
+                  <SignaturePad onSign={setSigDataUrl} cleared={!sigDataUrl} />
+                  {!sigDataUrl && (
+                    <p className="mt-1.5 text-xs text-gray-400">Draw your signature above using your finger or mouse.</p>
+                  )}
                 </div>
 
                 <div>
@@ -422,7 +451,7 @@ export default function ProposalPage({ params }: { params: Promise<{ id: string 
 
                 <button
                   onClick={handleSign}
-                  disabled={!agreed || !sigName.trim() || signing}
+                  disabled={!agreed || !sigName.trim() || !sigDataUrl || signing}
                   className="w-full py-3 rounded-xl bg-blue-600 text-white font-semibold text-sm hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                 >
                   {signing ? 'Signing…' : 'Sign & Accept Estimate'}
@@ -458,5 +487,106 @@ function PriceLine({ label, value }: { label: string; value: string }) {
       <span className="text-sm text-gray-600">{label}</span>
       <span className="text-sm font-medium text-gray-900 tabular-nums shrink-0">{value}</span>
     </div>
+  )
+}
+
+// ─── Signature Pad ────────────────────────────────────────────────────────────
+
+function SignaturePad({
+  onSign,
+  cleared,
+}: {
+  onSign: (dataUrl: string) => void
+  cleared: boolean
+}) {
+  const canvasRef = useRef<HTMLCanvasElement>(null)
+  const drawing   = useRef(false)
+  const lastPos   = useRef<{ x: number; y: number } | null>(null)
+
+  // Clear the canvas whenever the parent resets `cleared`
+  useEffect(() => {
+    if (!cleared) return
+    const canvas = canvasRef.current
+    if (!canvas) return
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
+    ctx.clearRect(0, 0, canvas.width, canvas.height)
+  }, [cleared])
+
+  const getPos = useCallback((e: React.MouseEvent | React.TouchEvent, canvas: HTMLCanvasElement) => {
+    const rect = canvas.getBoundingClientRect()
+    const scaleX = canvas.width / rect.width
+    const scaleY = canvas.height / rect.height
+    if ('touches' in e) {
+      const touch = e.touches[0]
+      return {
+        x: (touch.clientX - rect.left) * scaleX,
+        y: (touch.clientY - rect.top)  * scaleY,
+      }
+    }
+    return {
+      x: (e.clientX - rect.left) * scaleX,
+      y: (e.clientY - rect.top)  * scaleY,
+    }
+  }, [])
+
+  const startDraw = useCallback((e: React.MouseEvent | React.TouchEvent) => {
+    e.preventDefault()
+    const canvas = canvasRef.current
+    if (!canvas) return
+    drawing.current = true
+    lastPos.current = getPos(e, canvas)
+  }, [getPos])
+
+  const draw = useCallback((e: React.MouseEvent | React.TouchEvent) => {
+    e.preventDefault()
+    if (!drawing.current) return
+    const canvas = canvasRef.current
+    if (!canvas) return
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
+    const pos = getPos(e, canvas)
+    if (lastPos.current) {
+      ctx.beginPath()
+      ctx.strokeStyle = '#1e293b'
+      ctx.lineWidth   = 2.5
+      ctx.lineCap     = 'round'
+      ctx.lineJoin    = 'round'
+      ctx.moveTo(lastPos.current.x, lastPos.current.y)
+      ctx.lineTo(pos.x, pos.y)
+      ctx.stroke()
+    }
+    lastPos.current = pos
+  }, [getPos])
+
+  const endDraw = useCallback((e: React.MouseEvent | React.TouchEvent) => {
+    e.preventDefault()
+    if (!drawing.current) return
+    drawing.current = false
+    lastPos.current = null
+    const canvas = canvasRef.current
+    if (!canvas) return
+    // Check if anything was drawn (not just blank)
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
+    const data = ctx.getImageData(0, 0, canvas.width, canvas.height).data
+    const hasInk = data.some((v, i) => i % 4 === 3 && v > 0)
+    if (hasInk) onSign(canvas.toDataURL('image/png'))
+  }, [onSign])
+
+  return (
+    <canvas
+      ref={canvasRef}
+      width={600}
+      height={150}
+      onMouseDown={startDraw}
+      onMouseMove={draw}
+      onMouseUp={endDraw}
+      onMouseLeave={endDraw}
+      onTouchStart={startDraw}
+      onTouchMove={draw}
+      onTouchEnd={endDraw}
+      className="w-full h-[150px] border-2 border-dashed border-gray-300 rounded-xl bg-gray-50 touch-none cursor-crosshair"
+    />
   )
 }

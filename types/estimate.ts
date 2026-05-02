@@ -66,6 +66,7 @@ export interface EstimateData {
   // Signature / acceptance
   signatureName?: string
   signatureDate?: string
+  signatureDataUrl?: string
   // Timestamps
   createdAt?: Date
   updatedAt?: Date
