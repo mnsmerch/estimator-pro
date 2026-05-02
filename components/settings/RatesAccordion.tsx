@@ -309,13 +309,23 @@ export default function RatesAccordion() {
         ratePrefix="$" />
 
       {/* Save */}
-      <div className="flex items-center gap-3 pt-2">
+      <div className="flex items-center gap-3 pt-2 flex-wrap">
         <button
           onClick={handleSave}
           disabled={status === 'saving'}
           className="px-5 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white text-sm font-semibold rounded-lg transition-colors"
         >
           {status === 'saving' ? 'Saving…' : 'Save All Rates'}
+        </button>
+        <button
+          onClick={() => {
+            if (!confirm('Reset all production rates to factory defaults? This cannot be undone.')) return
+            setRates(DEFAULT_RATES)
+          }}
+          disabled={status === 'saving'}
+          className="px-5 py-2 bg-gray-100 hover:bg-gray-200 disabled:opacity-50 text-gray-700 text-sm font-semibold rounded-lg transition-colors"
+        >
+          Reset to Defaults
         </button>
         {status === 'saved' && <span className="text-sm text-green-600 font-medium">Saved!</span>}
         {status === 'error'  && <span className="text-sm text-red-600 font-medium">Error saving. Try again.</span>}
