@@ -108,7 +108,7 @@ export default function CompanyForm() {
             className={`flex flex-col items-center justify-center w-full max-w-xs border-2 border-dashed rounded-xl p-8 transition-colors ${
               uploading
                 ? 'opacity-50 pointer-events-none border-gray-200'
-                : 'border-gray-300 hover:border-blue-400 hover:bg-blue-50 cursor-pointer'
+                : 'border-gray-300 hover:border-brand-400 hover:bg-brand-50 cursor-pointer'
             }`}
           >
             <svg className="w-8 h-8 text-gray-300 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
@@ -140,7 +140,7 @@ export default function CompanyForm() {
               value={(data[key] as string) ?? ''}
               placeholder={placeholder}
               onChange={e => handleChange(key, e.target.value)}
-              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500"
             />
           </div>
         ))}
@@ -157,7 +157,7 @@ function SaveButton({ status, onSave }: { status: string; onSave: () => void }) 
       <button
         onClick={onSave}
         disabled={status === 'saving'}
-        className="px-5 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white text-sm font-semibold rounded-lg transition-colors"
+        className="px-5 py-2 bg-brand-600 hover:bg-brand-700 disabled:bg-brand-400 text-white text-sm font-semibold rounded-lg transition-colors"
       >
         {status === 'saving' ? 'Saving…' : 'Save'}
       </button>

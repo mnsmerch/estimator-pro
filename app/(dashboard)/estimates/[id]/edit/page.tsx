@@ -25,7 +25,7 @@ export default function EditEstimatePage({ params }: { params: Promise<{ id: str
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="w-6 h-6 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+        <div className="w-6 h-6 border-2 border-brand-600 border-t-transparent rounded-full animate-spin" />
       </div>
     )
   }
@@ -33,7 +33,7 @@ export default function EditEstimatePage({ params }: { params: Promise<{ id: str
   if (notFound || !data) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <p className="text-gray-500">Estimate not found. <a href="/estimates" className="text-blue-600 underline">Back to list</a></p>
+        <p className="text-gray-500">Estimate not found. <a href="/estimates" className="text-brand-600 underline">Back to list</a></p>
       </div>
     )
   }

@@ -155,7 +155,7 @@ export default function ProposalPage({ params }: { params: Promise<{ id: string 
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-100 flex items-center justify-center">
-        <div className="w-6 h-6 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+        <div className="w-6 h-6 border-2 border-brand-600 border-t-transparent rounded-full animate-spin" />
       </div>
     )
   }
@@ -178,7 +178,7 @@ export default function ProposalPage({ params }: { params: Promise<{ id: string 
       <div className="max-w-2xl mx-auto space-y-5">
 
         {/* ── Company header ─────────────────────────────────────────────── */}
-        <div className="bg-blue-700 text-white rounded-2xl p-7">
+        <div className="bg-brand-700 text-white rounded-2xl p-7">
           <div className="flex items-start justify-between gap-4">
             <div className="flex items-center gap-4">
               {company.logoUrl && (
@@ -191,13 +191,13 @@ export default function ProposalPage({ params }: { params: Promise<{ id: string 
               )}
               <div>
                 <h1 className="text-2xl font-bold tracking-tight">{company.name}</h1>
-                <p className="text-blue-200 text-sm mt-1">{company.streetAddress} · {company.cityStateZip}</p>
-                <p className="text-blue-200 text-sm">{company.phone} · {company.email}</p>
-                {company.website && <p className="text-blue-200 text-sm">{company.website}</p>}
+                <p className="text-brand-200 text-sm mt-1">{company.streetAddress} · {company.cityStateZip}</p>
+                <p className="text-brand-200 text-sm">{company.phone} · {company.email}</p>
+                {company.website && <p className="text-brand-200 text-sm">{company.website}</p>}
               </div>
             </div>
             <div className="text-right shrink-0">
-              <p className="text-blue-300 text-xs uppercase tracking-wide">Date</p>
+              <p className="text-brand-300 text-xs uppercase tracking-wide">Date</p>
               <p className="text-sm font-semibold mt-0.5">
                 {new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
               </p>
@@ -273,8 +273,8 @@ export default function ProposalPage({ params }: { params: Promise<{ id: string 
                 onClick={() => setSelectedBrand(brand.key)}
                 className={`px-4 py-2 rounded-xl text-sm font-semibold border transition-colors ${
                   selectedBrand === brand.key
-                    ? 'bg-blue-600 text-white border-blue-600'
-                    : 'bg-white text-gray-700 border-gray-300 hover:border-blue-400 hover:text-blue-600'
+                    ? 'bg-brand-600 text-white border-brand-600'
+                    : 'bg-white text-gray-700 border-gray-300 hover:border-brand-400 hover:text-brand-600'
                 }`}
               >
                 {brand.label}
@@ -294,7 +294,7 @@ export default function ProposalPage({ params }: { params: Promise<{ id: string 
                         type="checkbox"
                         checked={includeWood}
                         onChange={e => setIncludeWood(e.target.checked)}
-                        className="w-4 h-4 rounded accent-blue-600"
+                        className="w-4 h-4 rounded accent-brand-600"
                       />
                       <div>
                         <p className="text-sm font-medium text-gray-700 group-hover:text-gray-900">Wood Replacement</p>
@@ -313,7 +313,7 @@ export default function ProposalPage({ params }: { params: Promise<{ id: string 
                         type="checkbox"
                         checked={includeCustom}
                         onChange={e => setIncludeCustom(e.target.checked)}
-                        className="w-4 h-4 rounded accent-blue-600"
+                        className="w-4 h-4 rounded accent-brand-600"
                       />
                       <p className="text-sm font-medium text-gray-700 group-hover:text-gray-900">{item.description}</p>
                     </div>
@@ -348,15 +348,15 @@ export default function ProposalPage({ params }: { params: Promise<{ id: string 
 
               <div className="border-t-2 border-gray-800 pt-4 flex justify-between items-center">
                 <span className="text-base font-bold text-gray-900">Your Total</span>
-                <span className="text-3xl font-bold text-blue-700">{fmt(tenPercentOff)}</span>
+                <span className="text-3xl font-bold text-brand-700">{fmt(tenPercentOff)}</span>
               </div>
 
-              <div className="bg-blue-50 border border-blue-100 rounded-xl px-4 py-3 flex justify-between items-center mt-1">
+              <div className="bg-brand-50 border border-brand-100 rounded-xl px-4 py-3 flex justify-between items-center mt-1">
                 <div>
-                  <p className="text-sm font-semibold text-blue-800">Required Deposit</p>
-                  <p className="text-xs text-blue-500">{Math.round((rules.depositPercent ?? 0.20) * 100)}% due at project start</p>
+                  <p className="text-sm font-semibold text-brand-800">Required Deposit</p>
+                  <p className="text-xs text-brand-500">{Math.round((rules.depositPercent ?? 0.20) * 100)}% due at project start</p>
                 </div>
-                <span className="text-lg font-bold text-blue-800">{fmt(depositAmount)}</span>
+                <span className="text-lg font-bold text-brand-800">{fmt(depositAmount)}</span>
               </div>
             </div>
           </div>
@@ -400,7 +400,7 @@ export default function ProposalPage({ params }: { params: Promise<{ id: string 
                     type="checkbox"
                     checked={agreed}
                     onChange={e => setAgreed(e.target.checked)}
-                    className="mt-0.5 w-4 h-4 rounded accent-blue-600"
+                    className="mt-0.5 w-4 h-4 rounded accent-brand-600"
                   />
                   <span className="text-sm text-gray-600">
                     I have read and agree to the scope of work and pricing outlined above.
@@ -416,7 +416,7 @@ export default function ProposalPage({ params }: { params: Promise<{ id: string 
                     value={sigName}
                     onChange={e => setSigName(e.target.value)}
                     placeholder="Type your full name"
-                    className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
                   />
                 </div>
 
@@ -452,7 +452,7 @@ export default function ProposalPage({ params }: { params: Promise<{ id: string 
                 <button
                   onClick={handleSign}
                   disabled={!agreed || !sigName.trim() || !sigDataUrl || signing}
-                  className="w-full py-3 rounded-xl bg-blue-600 text-white font-semibold text-sm hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                  className="w-full py-3 rounded-xl bg-brand-600 text-white font-semibold text-sm hover:bg-brand-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                 >
                   {signing ? 'Signing…' : 'Sign & Accept Estimate'}
                 </button>

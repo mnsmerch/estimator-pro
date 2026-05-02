@@ -10,6 +10,17 @@
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+
+  /* Brand palette — primary orange #df6437, secondary gray #666666 */
+  --color-brand-50:  #fff4ef;
+  --color-brand-100: #ffe3d2;
+  --color-brand-200: #ffc09f;
+  --color-brand-300: #f99566;
+  --color-brand-400: #ee7849;
+  --color-brand-500: #e56e3e;
+  --color-brand-600: #df6437;
+  --color-brand-700: #c4572f;
+  --color-brand-800: #9e4424;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -38,6 +49,6 @@ input[type=number] {
 @layer components {
   .input {
     @apply w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900
-      focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent;
+      focus:outline-none focus:ring-2 focus:ring-brand-600 focus:border-transparent;
   }
 }

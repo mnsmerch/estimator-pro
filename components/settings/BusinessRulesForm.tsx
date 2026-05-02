@@ -145,7 +145,7 @@ function PctInput({ value, onChange }: { value: number; onChange: (v: number) =>
         max="1"
         value={(value * 100).toFixed(2)}
         onChange={e => onChange(parseFloat(e.target.value) / 100 || 0)}
-        className="w-full px-3 py-1.5 pr-6 text-sm text-right border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+        className="w-full px-3 py-1.5 pr-6 text-sm text-right border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500"
       />
       <span className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 text-sm">%</span>
     </div>
@@ -162,7 +162,7 @@ function DollarInput({ value, onChange }: { value: number; onChange: (v: number)
         min="0"
         value={value}
         onChange={e => onChange(parseFloat(e.target.value) || 0)}
-        className="w-full pl-6 pr-3 py-1.5 text-sm text-right border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+        className="w-full pl-6 pr-3 py-1.5 text-sm text-right border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500"
       />
     </div>
   )
@@ -176,7 +176,7 @@ function NumberInput({ value, onChange, step = 1 }: { value: number; onChange: (
       min="0"
       value={value}
       onChange={e => onChange(parseFloat(e.target.value) || 0)}
-      className="w-28 px-3 py-1.5 text-sm text-right border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+      className="w-28 px-3 py-1.5 text-sm text-right border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500"
     />
   )
 }
@@ -187,7 +187,7 @@ function SaveButton({ status, onSave }: { status: string; onSave: () => void }) 
       <button
         onClick={onSave}
         disabled={status === 'saving'}
-        className="px-5 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white text-sm font-semibold rounded-lg transition-colors"
+        className="px-5 py-2 bg-brand-600 hover:bg-brand-700 disabled:bg-brand-400 text-white text-sm font-semibold rounded-lg transition-colors"
       >
         {status === 'saving' ? 'Saving…' : 'Save'}
       </button>

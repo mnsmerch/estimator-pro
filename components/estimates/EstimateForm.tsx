@@ -381,7 +381,7 @@ export default function EstimateForm({ estimateId, initialData }: EstimateFormPr
   if (loadingSettings) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="w-6 h-6 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+        <div className="w-6 h-6 border-2 border-brand-600 border-t-transparent rounded-full animate-spin" />
       </div>
     )
   }
@@ -391,7 +391,7 @@ export default function EstimateForm({ estimateId, initialData }: EstimateFormPr
       {/* Header */}
       <header className="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between sticky top-0 z-10">
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center">
+          <div className="w-8 h-8 rounded-lg bg-brand-600 flex items-center justify-center">
             <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M9.53 2.47a.75.75 0 0 1 0 1.06L4.81 8.25H15a6.75 6.75 0 0 1 0 13.5h-3a.75.75 0 0 1 0-1.5h3a5.25 5.25 0 1 0 0-10.5H4.81l4.72 4.72a.75.75 0 1 1-1.06 1.06l-6-6a.75.75 0 0 1 0-1.06l6-6a.75.75 0 0 1 1.06 0Z" />
             </svg>
@@ -423,7 +423,7 @@ export default function EstimateForm({ estimateId, initialData }: EstimateFormPr
           <button
             onClick={() => handleSave('sent')}
             disabled={saving}
-            className="px-4 py-2 text-sm font-medium rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50"
+            className="px-4 py-2 text-sm font-medium rounded-lg bg-brand-600 text-white hover:bg-brand-700 disabled:opacity-50"
           >
             {saving ? 'Saving…' : 'Save & Send'}
           </button>
@@ -464,7 +464,7 @@ export default function EstimateForm({ estimateId, initialData }: EstimateFormPr
         <section className="bg-white rounded-xl border border-gray-200 p-6">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-base font-semibold text-gray-900">Measurements</h2>
-            <button onClick={addRow} className="flex items-center gap-1.5 text-sm font-medium text-blue-600 hover:text-blue-800">
+            <button onClick={addRow} className="flex items-center gap-1.5 text-sm font-medium text-brand-600 hover:text-brand-800">
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
               </svg>
@@ -496,7 +496,7 @@ export default function EstimateForm({ estimateId, initialData }: EstimateFormPr
                         <select
                           value={row.applicationKey}
                           onChange={e => updateRow(row.id, 'applicationKey', e.target.value)}
-                          className="w-full rounded-lg border border-gray-300 bg-white px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          className="w-full rounded-lg border border-gray-300 bg-white px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
                         >
                           <option value="">— Select —</option>
                           {groupedApps.map(group => (
@@ -514,7 +514,7 @@ export default function EstimateForm({ estimateId, initialData }: EstimateFormPr
                             type="number" min={0}
                             value={row[side] || ''}
                             onChange={e => updateRow(row.id, side, parseFloat(e.target.value) || 0)}
-                            className="w-full text-right rounded-lg border border-gray-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            className="w-full text-right rounded-lg border border-gray-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
                           />
                         </td>
                       ))}
@@ -553,8 +553,8 @@ export default function EstimateForm({ estimateId, initialData }: EstimateFormPr
               onClick={() => setWoodOpen(o => !o)}
               className={`px-4 py-2 rounded-lg text-sm font-semibold border transition-colors ${
                 woodOpen
-                  ? 'bg-blue-600 text-white border-blue-600'
-                  : 'bg-white text-gray-700 border-gray-300 hover:border-blue-400 hover:text-blue-600'
+                  ? 'bg-brand-600 text-white border-brand-600'
+                  : 'bg-white text-gray-700 border-gray-300 hover:border-brand-400 hover:text-brand-600'
               }`}
             >
               Wood Replacement
@@ -563,8 +563,8 @@ export default function EstimateForm({ estimateId, initialData }: EstimateFormPr
               onClick={() => setCustomOpen(o => !o)}
               className={`px-4 py-2 rounded-lg text-sm font-semibold border transition-colors ${
                 customOpen
-                  ? 'bg-blue-600 text-white border-blue-600'
-                  : 'bg-white text-gray-700 border-gray-300 hover:border-blue-400 hover:text-blue-600'
+                  ? 'bg-brand-600 text-white border-brand-600'
+                  : 'bg-white text-gray-700 border-gray-300 hover:border-brand-400 hover:text-brand-600'
               }`}
             >
               Custom Item
@@ -599,7 +599,7 @@ export default function EstimateForm({ estimateId, initialData }: EstimateFormPr
                             <select
                               value={row.itemKey}
                               onChange={e => updateWoodRow(row.id, 'itemKey', e.target.value)}
-                              className="w-full rounded-lg border border-gray-300 bg-white px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                              className="w-full rounded-lg border border-gray-300 bg-white px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
                             >
                               <option value="">— Wood Replacement —</option>
                               {WOOD_ITEMS.map(item => (
@@ -613,7 +613,7 @@ export default function EstimateForm({ estimateId, initialData }: EstimateFormPr
                                 type="number" min={0}
                                 value={row[side] || ''}
                                 onChange={e => updateWoodRow(row.id, side, parseFloat(e.target.value) || 0)}
-                                className="w-full text-right rounded-lg border border-gray-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                className="w-full text-right rounded-lg border border-gray-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
                               />
                             </td>
                           ))}
@@ -654,7 +654,7 @@ export default function EstimateForm({ estimateId, initialData }: EstimateFormPr
               </div>
               <button
                 onClick={addWoodRow}
-                className="mt-3 flex items-center gap-1.5 text-sm font-medium text-blue-600 hover:text-blue-800"
+                className="mt-3 flex items-center gap-1.5 text-sm font-medium text-brand-600 hover:text-brand-800"
               >
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
@@ -684,7 +684,7 @@ export default function EstimateForm({ estimateId, initialData }: EstimateFormPr
                             value={item.description}
                             onChange={e => updateCustomItem(item.id, 'description', e.target.value)}
                             placeholder="e.g. Exterior door replacement"
-                            className="w-full rounded-lg border border-gray-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            className="w-full rounded-lg border border-gray-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
                           />
                         </td>
                         <td className="py-1.5 pl-2">
@@ -693,7 +693,7 @@ export default function EstimateForm({ estimateId, initialData }: EstimateFormPr
                             value={item.price || ''}
                             onChange={e => updateCustomItem(item.id, 'price', parseFloat(e.target.value) || 0)}
                             placeholder="0.00"
-                            className="w-full text-right rounded-lg border border-gray-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            className="w-full text-right rounded-lg border border-gray-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
                           />
                         </td>
                         <td className="py-1.5 pl-1">
@@ -723,7 +723,7 @@ export default function EstimateForm({ estimateId, initialData }: EstimateFormPr
               </div>
               <button
                 onClick={addCustomItem}
-                className="mt-3 flex items-center gap-1.5 text-sm font-medium text-blue-600 hover:text-blue-800"
+                className="mt-3 flex items-center gap-1.5 text-sm font-medium text-brand-600 hover:text-brand-800"
               >
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
@@ -745,7 +745,7 @@ export default function EstimateForm({ estimateId, initialData }: EstimateFormPr
             </div>
             {photoUrls.length < 20 && (
               <label className={`flex items-center gap-1.5 text-sm font-medium cursor-pointer select-none ${
-                uploadingPhotos ? 'text-gray-400 pointer-events-none' : 'text-blue-600 hover:text-blue-800'
+                uploadingPhotos ? 'text-gray-400 pointer-events-none' : 'text-brand-600 hover:text-brand-800'
               }`}>
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
@@ -771,7 +771,7 @@ export default function EstimateForm({ estimateId, initialData }: EstimateFormPr
 
           {photoUrls.length === 0 ? (
             <label className={`flex flex-col items-center justify-center border-2 border-dashed border-gray-200 rounded-xl p-10 cursor-pointer transition-colors ${
-              uploadingPhotos ? 'opacity-50 pointer-events-none' : 'hover:border-blue-300 hover:bg-blue-50'
+              uploadingPhotos ? 'opacity-50 pointer-events-none' : 'hover:border-brand-300 hover:bg-brand-50'
             }`}>
               <svg className="w-8 h-8 text-gray-300 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="m2.25 15.75 5.159-5.159a2.25 2.25 0 0 1 3.182 0l5.159 5.159m-1.5-1.5 1.409-1.409a2.25 2.25 0 0 1 3.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 0 0 1.5-1.5V6a1.5 1.5 0 0 0-1.5-1.5H3.75A1.5 1.5 0 0 0 2.25 6v12a1.5 1.5 0 0 0 1.5 1.5Zm10.5-11.25h.008v.008h-.008V8.25Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Z" />
@@ -806,7 +806,7 @@ export default function EstimateForm({ estimateId, initialData }: EstimateFormPr
               ))}
               {photoUrls.length < 20 && (
                 <label className={`aspect-square rounded-lg border-2 border-dashed border-gray-200 flex flex-col items-center justify-center cursor-pointer transition-colors ${
-                  uploadingPhotos ? 'opacity-50 pointer-events-none' : 'hover:border-blue-300 hover:bg-blue-50'
+                  uploadingPhotos ? 'opacity-50 pointer-events-none' : 'hover:border-brand-300 hover:bg-brand-50'
                 }`}>
                   <svg className="w-6 h-6 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
@@ -836,8 +836,8 @@ export default function EstimateForm({ estimateId, initialData }: EstimateFormPr
                 onClick={() => selectBrand(brand.key)}
                 className={`px-5 py-2 rounded-lg text-sm font-semibold border transition-colors ${
                   selectedBrand === brand.key
-                    ? 'bg-blue-600 text-white border-blue-600'
-                    : 'bg-white text-gray-700 border-gray-300 hover:border-blue-400 hover:text-blue-600'
+                    ? 'bg-brand-600 text-white border-brand-600'
+                    : 'bg-white text-gray-700 border-gray-300 hover:border-brand-400 hover:text-brand-600'
                 }`}
               >
                 {brand.label}
@@ -962,7 +962,7 @@ export default function EstimateForm({ estimateId, initialData }: EstimateFormPr
           <button
             onClick={() => handleSave('sent')}
             disabled={saving}
-            className="px-6 py-2.5 text-sm font-medium rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50"
+            className="px-6 py-2.5 text-sm font-medium rounded-lg bg-brand-600 text-white hover:bg-brand-700 disabled:opacity-50"
           >
             {saving ? 'Saving…' : 'Save & Send'}
           </button>
@@ -1009,7 +1009,7 @@ function MaterialRow({ type, product, gallons, cost, products, selectedId, onPro
         <select
           value={selectedId}
           onChange={e => onProductChange(e.target.value)}
-          className="w-full text-sm border border-gray-200 rounded px-2 py-1 bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
+          className="w-full text-sm border border-gray-200 rounded px-2 py-1 bg-white focus:outline-none focus:ring-1 focus:ring-brand-500"
         >
           <option value="">— None —</option>
           {products.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
@@ -1034,7 +1034,7 @@ function ManualMaterialRow({ type, products, selectedId, onProductChange, gallon
         <select
           value={selectedId}
           onChange={e => onProductChange(e.target.value)}
-          className="w-full text-sm border border-gray-200 rounded px-2 py-1 bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
+          className="w-full text-sm border border-gray-200 rounded px-2 py-1 bg-white focus:outline-none focus:ring-1 focus:ring-brand-500"
         >
           <option value="">— None —</option>
           {products.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
@@ -1046,7 +1046,7 @@ function ManualMaterialRow({ type, products, selectedId, onProductChange, gallon
           type="number" min={0}
           value={gallons || ''}
           onChange={e => onGallonsChange(parseFloat(e.target.value) || 0)}
-          className="w-full text-right text-sm border border-gray-200 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-blue-500"
+          className="w-full text-right text-sm border border-gray-200 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-brand-500"
           placeholder="0"
         />
       </td>
