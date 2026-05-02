@@ -438,7 +438,7 @@ export default function EstimateForm({ estimateId, initialData }: EstimateFormPr
                 try {
                   const taxRate = clientAddress ? await lookupSalesTax(clientAddress) : null
                   await saveQuiet(taxRate)
-                  window.open(`/estimates/${estimateId}/proposal`, '_blank')
+                  window.open(`/p/${estimateId}`, '_blank')
                 } finally {
                   setSaving(false)
                 }
