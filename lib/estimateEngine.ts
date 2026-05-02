@@ -85,10 +85,12 @@ function surfaceAreaFactor(app: ApplicationItem, constants: ProductionConstants)
       if (app.isDownspout) return (constants.downspoutWidthIn / 12) * 4
       return constants.otherTrimWidthIn / 12
     case 'windows':
+      return app.trimLnFt * (constants.windowTrimWidthIn / 12)
     case 'doors':
     case 'sidelights':
+      return app.trimLnFt * (constants.otherTrimWidthIn / 12)
     case 'garageDoors':
-      return app.trimLnFt  // linear feet of trim per unit, from TrimRate
+      return app.trimLnFt * (constants.otherTrimWidthIn / 12)
     case 'railings':
       return constants.railingsTrimRatio / 100  // ratio stored as e.g. 26 → 0.26 sqft/lnft
     case 'shutters':
@@ -127,18 +129,46 @@ export function calcRow(
 ): RowResult {
   const total = row.front + row.right + row.back + row.left
   const hours = total * app.converter
-  const sqft = total * surfaceAreaFactor(app, constants)
-  const bucket = paintBucket(app)
+
+  let bodySqft = 0, trimSqft = 0, accentSqft = 0, stainSqft = 0
+
+  // Doors and sidelights with a trim frame need a face/frame paint split.
+  // faceLnFt (from static APP_META) = door/sidelight face lnFt → takes the item's color.
+  // Remainder (trimLnFt − faceLnFt) = trim frame lnFt → always trim color.
+  // When faceLnFt === trimLnFt there is no frame, so we fall through to single-bucket logic.
+  const hasFaceFrameSplit =
+    (app.categoryKey === 'doors' || app.categoryKey === 'sidelights') &&
+    app.faceLnFt !== undefined &&
+    app.trimLnFt > app.faceLnFt
+
+  if (hasFaceFrameSplit) {
+    const widthFactor = constants.otherTrimWidthIn / 12
+    const faceSqft  = total * (app.faceLnFt as number) * widthFactor
+    const frameSqft = total * (app.trimLnFt - (app.faceLnFt as number)) * widthFactor
+    // Frame always takes trim color
+    trimSqft = frameSqft
+    // Face takes the door's designated color
+    if (app.isAccent)          accentSqft = faceSqft
+    else if (!app.isBodyColor) trimSqft  += faceSqft  // isTrimColor or stainedToPainted
+    // isBodyColor face → body spray covers it, contributes 0 paint
+  } else {
+    const sqft   = total * surfaceAreaFactor(app, constants)
+    const bucket = paintBucket(app)
+    bodySqft   = bucket === 'body'   ? sqft : 0
+    trimSqft   = bucket === 'trim'   ? sqft : 0
+    accentSqft = bucket === 'accent' ? sqft : 0
+    stainSqft  = bucket === 'stain'  ? sqft : 0
+  }
 
   return {
     rowId: row.id,
     applicationKey: row.applicationKey,
     total,
     hours,
-    bodySqft:   bucket === 'body'   ? sqft : 0,
-    trimSqft:   bucket === 'trim'   ? sqft : 0,
-    accentSqft: bucket === 'accent' ? sqft : 0,
-    stainSqft:  bucket === 'stain'  ? sqft : 0,
+    bodySqft,
+    trimSqft,
+    accentSqft,
+    stainSqft,
   }
 }
 

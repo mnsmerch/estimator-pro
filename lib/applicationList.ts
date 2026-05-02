@@ -10,6 +10,13 @@ export interface ApplicationMeta {
   isBodyColor?: boolean
   isTrimColor?: boolean
   isDownspout?: boolean
+  /**
+   * For doors and sidelights only: the lnFt portion that represents the door/sidelight
+   * face (takes the item's color — accent, trim, or body). The remainder
+   * (trimLnFt − faceLnFt) is the trim frame, which always takes trim color.
+   * When faceLnFt === trimLnFt there is no frame, so the row is single-bucket.
+   */
+  faceLnFt?: number
 }
 
 export interface ApplicationItem extends ApplicationMeta {
@@ -97,23 +104,25 @@ const APP_META: ApplicationMeta[] = [
   { key: 'removeReinstallDownspouts', categoryKey: 'otherTrim', categoryLabel: 'Other Trim', label: 'Remove & Reinstall Downspouts',     unitLabel: 'LnFt', isDownspout: true },
   { key: 'justRemoveDownspouts',      categoryKey: 'otherTrim', categoryLabel: 'Other Trim', label: 'Just Remove Downspouts',            unitLabel: 'LnFt', isDownspout: true },
   // ── Doors ─────────────────────────────────────────────────
-  { key: 'bodyColorNoTrim',          categoryKey: 'doors', categoryLabel: 'Doors', label: 'Door — Body Color, No Trim',          unitLabel: 'Units', isBodyColor: true },
-  { key: 'bodyColorWithTrim',        categoryKey: 'doors', categoryLabel: 'Doors', label: 'Door — Body Color, With Trim',        unitLabel: 'Units', isBodyColor: true },
-  { key: 'trimColorNoTrim',          categoryKey: 'doors', categoryLabel: 'Doors', label: 'Door — Trim Color, No Trim',          unitLabel: 'Units', isTrimColor: true },
-  { key: 'trimColorWithTrim',        categoryKey: 'doors', categoryLabel: 'Doors', label: 'Door — Trim Color, With Trim',        unitLabel: 'Units', isTrimColor: true },
-  { key: 'accentColorNoTrim',        categoryKey: 'doors', categoryLabel: 'Doors', label: 'Door — Accent Color, No Trim',        unitLabel: 'Units', isAccent: true },
-  { key: 'accentColorWithTrim',      categoryKey: 'doors', categoryLabel: 'Doors', label: 'Door — Accent Color, With Trim',      unitLabel: 'Units', isAccent: true },
-  { key: 'stainedToPaintedNoTrim',   categoryKey: 'doors', categoryLabel: 'Doors', label: 'Door — Stained to Painted, No Trim',  unitLabel: 'Units' },
-  { key: 'stainedToPaintedWithTrim', categoryKey: 'doors', categoryLabel: 'Doors', label: 'Door — Stained to Painted, With Trim',unitLabel: 'Units' },
+  // faceLnFt = door face lnFt (takes the door's color); trimLnFt − faceLnFt = trim frame (trim color)
+  { key: 'bodyColorNoTrim',          categoryKey: 'doors', categoryLabel: 'Doors', label: 'Door — Body Color, No Trim',          unitLabel: 'Units', isBodyColor: true, faceLnFt: 0  },
+  { key: 'bodyColorWithTrim',        categoryKey: 'doors', categoryLabel: 'Doors', label: 'Door — Body Color, With Trim',        unitLabel: 'Units', isBodyColor: true, faceLnFt: 0  },
+  { key: 'trimColorNoTrim',          categoryKey: 'doors', categoryLabel: 'Doors', label: 'Door — Trim Color, No Trim',          unitLabel: 'Units', isTrimColor: true, faceLnFt: 70 },
+  { key: 'trimColorWithTrim',        categoryKey: 'doors', categoryLabel: 'Doors', label: 'Door — Trim Color, With Trim',        unitLabel: 'Units', isTrimColor: true, faceLnFt: 70 },
+  { key: 'accentColorNoTrim',        categoryKey: 'doors', categoryLabel: 'Doors', label: 'Door — Accent Color, No Trim',        unitLabel: 'Units', isAccent: true,    faceLnFt: 70 },
+  { key: 'accentColorWithTrim',      categoryKey: 'doors', categoryLabel: 'Doors', label: 'Door — Accent Color, With Trim',      unitLabel: 'Units', isAccent: true,    faceLnFt: 70 },
+  { key: 'stainedToPaintedNoTrim',   categoryKey: 'doors', categoryLabel: 'Doors', label: 'Door — Stained to Painted, No Trim',  unitLabel: 'Units', faceLnFt: 70 },
+  { key: 'stainedToPaintedWithTrim', categoryKey: 'doors', categoryLabel: 'Doors', label: 'Door — Stained to Painted, With Trim',unitLabel: 'Units', faceLnFt: 70 },
   // ── Sidelights ────────────────────────────────────────────
-  { key: 'bodyColorNoTrim',          categoryKey: 'sidelights', categoryLabel: 'Sidelights', label: 'Sidelight — Body Color, No Trim',          unitLabel: 'Units', isBodyColor: true },
-  { key: 'bodyColorWithTrim',        categoryKey: 'sidelights', categoryLabel: 'Sidelights', label: 'Sidelight — Body Color, With Trim',        unitLabel: 'Units', isBodyColor: true },
-  { key: 'trimColorNoTrim',          categoryKey: 'sidelights', categoryLabel: 'Sidelights', label: 'Sidelight — Trim Color, No Trim',          unitLabel: 'Units', isTrimColor: true },
-  { key: 'trimColorWithTrim',        categoryKey: 'sidelights', categoryLabel: 'Sidelights', label: 'Sidelight — Trim Color, With Trim',        unitLabel: 'Units', isTrimColor: true },
-  { key: 'accentColorNoTrim',        categoryKey: 'sidelights', categoryLabel: 'Sidelights', label: 'Sidelight — Accent Color, No Trim',        unitLabel: 'Units', isAccent: true },
-  { key: 'accentColorWithTrim',      categoryKey: 'sidelights', categoryLabel: 'Sidelights', label: 'Sidelight — Accent Color, With Trim',      unitLabel: 'Units', isAccent: true },
-  { key: 'stainedToPaintedNoTrim',   categoryKey: 'sidelights', categoryLabel: 'Sidelights', label: 'Sidelight — Stained to Painted, No Trim',  unitLabel: 'Units' },
-  { key: 'stainedToPaintedWithTrim', categoryKey: 'sidelights', categoryLabel: 'Sidelights', label: 'Sidelight — Stained to Painted, With Trim',unitLabel: 'Units' },
+  // faceLnFt = sidelight face lnFt; trimLnFt − faceLnFt = trim frame (trim color)
+  { key: 'bodyColorNoTrim',          categoryKey: 'sidelights', categoryLabel: 'Sidelights', label: 'Sidelight — Body Color, No Trim',          unitLabel: 'Units', isBodyColor: true, faceLnFt: 0  },
+  { key: 'bodyColorWithTrim',        categoryKey: 'sidelights', categoryLabel: 'Sidelights', label: 'Sidelight — Body Color, With Trim',        unitLabel: 'Units', isBodyColor: true, faceLnFt: 0  },
+  { key: 'trimColorNoTrim',          categoryKey: 'sidelights', categoryLabel: 'Sidelights', label: 'Sidelight — Trim Color, No Trim',          unitLabel: 'Units', isTrimColor: true, faceLnFt: 35 },
+  { key: 'trimColorWithTrim',        categoryKey: 'sidelights', categoryLabel: 'Sidelights', label: 'Sidelight — Trim Color, With Trim',        unitLabel: 'Units', isTrimColor: true, faceLnFt: 35 },
+  { key: 'accentColorNoTrim',        categoryKey: 'sidelights', categoryLabel: 'Sidelights', label: 'Sidelight — Accent Color, No Trim',        unitLabel: 'Units', isAccent: true,    faceLnFt: 35 },
+  { key: 'accentColorWithTrim',      categoryKey: 'sidelights', categoryLabel: 'Sidelights', label: 'Sidelight — Accent Color, With Trim',      unitLabel: 'Units', isAccent: true,    faceLnFt: 35 },
+  { key: 'stainedToPaintedNoTrim',   categoryKey: 'sidelights', categoryLabel: 'Sidelights', label: 'Sidelight — Stained to Painted, No Trim',  unitLabel: 'Units', faceLnFt: 35 },
+  { key: 'stainedToPaintedWithTrim', categoryKey: 'sidelights', categoryLabel: 'Sidelights', label: 'Sidelight — Stained to Painted, With Trim',unitLabel: 'Units', faceLnFt: 35 },
   // ── Garage Doors ──────────────────────────────────────────
   { key: 'singleBodyColor',          categoryKey: 'garageDoors', categoryLabel: 'Garage Doors', label: 'Single Garage — Body Color',              unitLabel: 'Units', isBodyColor: true },
   { key: 'singleBodyColorWindows',   categoryKey: 'garageDoors', categoryLabel: 'Garage Doors', label: 'Single Garage — Body Color w/ Windows',   unitLabel: 'Units', isBodyColor: true },
