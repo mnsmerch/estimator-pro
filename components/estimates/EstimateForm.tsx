@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { useAuth } from '@/context/AuthContext'
 import { getSettingsDoc } from '@/lib/firebase/settings'
 import { createEstimate, updateEstimate } from '@/lib/firebase/estimates'
+import { uploadPhoto, deletePhoto } from '@/lib/firebase/storage'
 import { buildApplicationList, CATEGORY_ORDER } from '@/lib/applicationList'
 import { calcEstimate, calcMarkup, calcPaintCost } from '@/lib/estimateEngine'
 import { SCOPE_DEFAULTS } from '@/types/estimate'
@@ -168,6 +169,8 @@ export default function EstimateForm({ estimateId, initialData }: EstimateFormPr
 
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState(false)
+  const [photoUrls, setPhotoUrls] = useState<string[]>(initialData?.photoUrls ?? [])
+  const [uploadingPhotos, setUploadingPhotos] = useState(false)
 
   // Load settings
   useEffect(() => {
@@ -254,6 +257,28 @@ export default function EstimateForm({ estimateId, initialData }: EstimateFormPr
   const updateCustomItem = useCallback((id: string, field: keyof CustomItem, value: string | number) => {
     setCustomItems(r => r.map(i => i.id === id ? { ...i, [field]: value } : i))
   }, [])
+
+  async function handlePhotoUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    if (!user || !e.target.files?.length) return
+    const remaining = 20 - photoUrls.length
+    const files = Array.from(e.target.files).slice(0, remaining)
+    if (!files.length) return
+    setUploadingPhotos(true)
+    try {
+      const urls = await Promise.all(files.map(f => uploadPhoto(user.uid, f)))
+      setPhotoUrls(prev => [...prev, ...urls].slice(0, 20))
+    } catch (err) {
+      console.error('Photo upload failed:', err)
+    } finally {
+      setUploadingPhotos(false)
+      e.target.value = ''
+    }
+  }
+
+  async function handleRemovePhoto(url: string) {
+    setPhotoUrls(prev => prev.filter(u => u !== url))
+    await deletePhoto(url)
+  }
   const updateRow = useCallback((id: string, field: keyof EstimateRow, value: string | number) => {
     setRows(r => {
       const updated = r.map(row => row.id === id ? { ...row, [field]: value } : row)
@@ -302,7 +327,7 @@ export default function EstimateForm({ estimateId, initialData }: EstimateFormPr
       scopeProject, scopePrepWork, scopePainting,
       scopeCleanUp, scopeWalkThrough, scopePaintProducts,
       totalColors, totalCoats,
-      photoUrls: initialData?.photoUrls ?? [],
+      photoUrls,
     }
     try {
       if (isEdit && estimateId) {
@@ -660,6 +685,92 @@ export default function EstimateForm({ estimateId, initialData }: EstimateFormPr
                 </svg>
                 Add Item
               </button>
+            </div>
+          )}
+        </section>
+
+        {/* ── Photos ────────────────────────────────────────────────────── */}
+        <section className="bg-white rounded-xl border border-gray-200 p-6">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <h2 className="text-base font-semibold text-gray-900">Photos</h2>
+              <span className="text-xs font-medium text-gray-400 bg-gray-100 rounded-full px-2 py-0.5">
+                {photoUrls.length} / 20
+              </span>
+            </div>
+            {photoUrls.length < 20 && (
+              <label className={`flex items-center gap-1.5 text-sm font-medium cursor-pointer select-none ${
+                uploadingPhotos ? 'text-gray-400 pointer-events-none' : 'text-blue-600 hover:text-blue-800'
+              }`}>
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                </svg>
+                {uploadingPhotos ? 'Uploading…' : 'Add Photos'}
+                <input
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  className="sr-only"
+                  disabled={uploadingPhotos}
+                  onChange={handlePhotoUpload}
+                />
+              </label>
+            )}
+          </div>
+
+          {photoUrls.length === 0 ? (
+            <label className={`flex flex-col items-center justify-center border-2 border-dashed border-gray-200 rounded-xl p-10 cursor-pointer transition-colors ${
+              uploadingPhotos ? 'opacity-50 pointer-events-none' : 'hover:border-blue-300 hover:bg-blue-50'
+            }`}>
+              <svg className="w-8 h-8 text-gray-300 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="m2.25 15.75 5.159-5.159a2.25 2.25 0 0 1 3.182 0l5.159 5.159m-1.5-1.5 1.409-1.409a2.25 2.25 0 0 1 3.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 0 0 1.5-1.5V6a1.5 1.5 0 0 0-1.5-1.5H3.75A1.5 1.5 0 0 0 2.25 6v12a1.5 1.5 0 0 0 1.5 1.5Zm10.5-11.25h.008v.008h-.008V8.25Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Z" />
+              </svg>
+              <p className="text-sm text-gray-400">Click to upload photos</p>
+              <p className="text-xs text-gray-300 mt-1">Up to 20 images</p>
+              <input
+                type="file"
+                accept="image/*"
+                multiple
+                className="sr-only"
+                disabled={uploadingPhotos}
+                onChange={handlePhotoUpload}
+              />
+            </label>
+          ) : (
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              {photoUrls.map((url, idx) => (
+                <div key={url} className="relative group aspect-square rounded-lg overflow-hidden bg-gray-100">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={url} alt={`Photo ${idx + 1}`} className="w-full h-full object-cover" />
+                  <button
+                    onClick={() => handleRemovePhoto(url)}
+                    className="absolute top-1.5 right-1.5 opacity-0 group-hover:opacity-100 bg-black/60 hover:bg-red-600 text-white rounded-full w-6 h-6 flex items-center justify-center transition-all"
+                    title="Remove photo"
+                  >
+                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+              ))}
+              {photoUrls.length < 20 && (
+                <label className={`aspect-square rounded-lg border-2 border-dashed border-gray-200 flex flex-col items-center justify-center cursor-pointer transition-colors ${
+                  uploadingPhotos ? 'opacity-50 pointer-events-none' : 'hover:border-blue-300 hover:bg-blue-50'
+                }`}>
+                  <svg className="w-6 h-6 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                  </svg>
+                  <span className="text-xs text-gray-400 mt-1">{uploadingPhotos ? 'Uploading…' : 'Add more'}</span>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    className="sr-only"
+                    disabled={uploadingPhotos}
+                    onChange={handlePhotoUpload}
+                  />
+                </label>
+              )}
             </div>
           )}
         </section>
