@@ -221,7 +221,21 @@ export function calcEstimate(
   const totalStainSqft  = rowResults.reduce((s, r) => s + r.stainSqft, 0)
 
   // Body is sprayed (higher multiplier); trim/accent are brush/roll
-  const bodyGallons   = bodyPaint.coverage > 0   ? (totalBodySqft   * constants.paintCoverageSpray)     / bodyPaint.coverage   : 0
+  const bodyGallonsRaw = bodyPaint.coverage > 0 ? (totalBodySqft * constants.paintCoverageSpray) / bodyPaint.coverage : 0
+
+  // Body reduction: accent door/sidelight faces displace body spray paint.
+  // GS column L for door rows = −M (body reduction = accent contribution, same rate).
+  // Matches: doorFaceSqft × paintCoverageBrushRoll / accentPaint.coverage
+  const doorSidelightAccentSqft = rowResults
+    .filter(r => {
+      const cat = appMap.get(r.applicationKey)?.categoryKey
+      return cat === 'doors' || cat === 'sidelights'
+    })
+    .reduce((s, r) => s + r.accentSqft, 0)
+  const bodyReduction = accentPaint.coverage > 0
+    ? (doorSidelightAccentSqft * constants.paintCoverageBrushRoll) / accentPaint.coverage
+    : 0
+  const bodyGallons   = Math.max(0, bodyGallonsRaw - bodyReduction)
   const trimGallons   = trimPaint.coverage > 0   ? (totalTrimSqft   * constants.paintCoverageBrushRoll) / trimPaint.coverage   : 0
   const accentGallons = accentPaint.coverage > 0 ? (totalAccentSqft * constants.paintCoverageBrushRoll) / accentPaint.coverage : 0
   const stainGallons  = stainPaint.coverage > 0  ? (totalStainSqft  * constants.stainCoverage)          / stainPaint.coverage  : 0
