@@ -47,9 +47,9 @@ const DEFAULT_ROW_KEYS = [
 
 const PAINT_BRANDS = [
   { key: 'superPaint',  label: 'Super Paint',          bodyId: 'sw-super-paint-flat',  trimId: 'sw-super-paint-satin',  accentId: 'sw-super-paint-flat',  stainId: 'sw-super-deck-stain' },
-  { key: 'duration',    label: 'Duration',              bodyId: 'sw-duration-flat',     trimId: 'sw-duration-satin',     accentId: 'sw-duration-flat',     stainId: 'sw-super-deck-stain' },
-  { key: 'emerald',     label: 'Emerald',               bodyId: 'sw-emerald-flat',      trimId: 'sw-emerald-satin',      accentId: 'sw-emerald-flat',      stainId: 'sw-super-deck-stain' },
-  { key: 'emeraldRR',   label: 'Emerald Rain Refresh',  bodyId: 'sw-emerald-rr-flat',   trimId: 'sw-emerald-rr-satin',   accentId: 'sw-emerald-rr-flat',   stainId: 'sw-super-deck-stain' },
+  { key: 'duration',    label: 'Duration',              bodyId: 'sw-duration-flat',     trimId: 'sw-duration-satin',     accentId: 'sw-super-paint-flat',  stainId: 'sw-super-deck-stain' },
+  { key: 'emerald',     label: 'Emerald',               bodyId: 'sw-emerald-flat',      trimId: 'sw-emerald-satin',      accentId: 'sw-super-paint-flat',  stainId: 'sw-super-deck-stain' },
+  { key: 'emeraldRR',   label: 'Emerald Rain Refresh',  bodyId: 'sw-emerald-rr-flat',   trimId: 'sw-emerald-rr-satin',   accentId: 'sw-super-paint-flat',  stainId: 'sw-super-deck-stain' },
 ]
 
 function fmt(n: number) {
