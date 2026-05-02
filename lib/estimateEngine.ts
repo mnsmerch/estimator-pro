@@ -151,6 +151,10 @@ export function calcRow(
     if (app.isAccent)          accentSqft = faceSqft
     else if (!app.isBodyColor) trimSqft  += faceSqft  // isTrimColor or stainedToPainted
     // isBodyColor face → body spray covers it, contributes 0 paint
+  } else if (app.categoryKey === 'garageDoors' && app.isBodyColor) {
+    // Body color garage doors: face is covered by body spray (0 paint).
+    // The trim frame (trimLnFt) is always painted and uses spray rate in calcEstimate.
+    trimSqft = total * surfaceAreaFactor(app, constants)
   } else {
     const sqft   = total * surfaceAreaFactor(app, constants)
     const bucket = paintBucket(app)
@@ -220,7 +224,7 @@ export function calcEstimate(
   const totalAccentSqft = rowResults.reduce((s, r) => s + r.accentSqft, 0)
   const totalStainSqft  = rowResults.reduce((s, r) => s + r.stainSqft, 0)
 
-  // Body is sprayed (higher multiplier); trim/accent are brush/roll
+  // Body is sprayed (higher multiplier); trim/accent are brush/roll except garage doors (always sprayed)
   const bodyGallonsRaw = bodyPaint.coverage > 0 ? (totalBodySqft * constants.paintCoverageSpray) / bodyPaint.coverage : 0
 
   // Body reduction: accent door/sidelight faces displace body spray paint.
@@ -235,9 +239,22 @@ export function calcEstimate(
   const bodyReduction = accentPaint.coverage > 0
     ? (doorSidelightAccentSqft * constants.paintCoverageBrushRoll) / accentPaint.coverage
     : 0
-  const bodyGallons   = Math.max(0, bodyGallonsRaw - bodyReduction)
-  const trimGallons   = trimPaint.coverage > 0   ? (totalTrimSqft   * constants.paintCoverageBrushRoll) / trimPaint.coverage   : 0
-  const accentGallons = accentPaint.coverage > 0 ? (totalAccentSqft * constants.paintCoverageBrushRoll) / accentPaint.coverage : 0
+  const bodyGallons = Math.max(0, bodyGallonsRaw - bodyReduction)
+
+  // Garage doors are always sprayed — separate their sqft to apply spray multiplier
+  const garageTrimSqft = rowResults
+    .filter(r => appMap.get(r.applicationKey)?.categoryKey === 'garageDoors')
+    .reduce((s, r) => s + r.trimSqft, 0)
+  const garageAccentSqft = rowResults
+    .filter(r => appMap.get(r.applicationKey)?.categoryKey === 'garageDoors')
+    .reduce((s, r) => s + r.accentSqft, 0)
+
+  const trimGallons = trimPaint.coverage > 0
+    ? ((totalTrimSqft - garageTrimSqft) * constants.paintCoverageBrushRoll + garageTrimSqft * constants.paintCoverageSpray) / trimPaint.coverage
+    : 0
+  const accentGallons = accentPaint.coverage > 0
+    ? ((totalAccentSqft - garageAccentSqft) * constants.paintCoverageBrushRoll + garageAccentSqft * constants.paintCoverageSpray) / accentPaint.coverage
+    : 0
   const stainGallons  = stainPaint.coverage > 0  ? (totalStainSqft  * constants.stainCoverage)          / stainPaint.coverage  : 0
 
   const body:   PaintBreakdown = { gallons: bodyGallons,   cost: calcPaintCost(bodyGallons,   bodyPaint)   }
