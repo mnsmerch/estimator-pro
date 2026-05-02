@@ -224,14 +224,19 @@ export default function ProposalPage({ params }: { params: Promise<{ id: string 
         </div>
 
         {/* ── Prepared for ───────────────────────────────────────────────── */}
-        <div className="bg-white rounded-2xl border border-gray-200 p-6">
-          <p className="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-2">Estimate Prepared For</p>
-          <h2 className="text-xl font-bold text-gray-900">{estimate.clientName || 'Valued Customer'}</h2>
-          {estimate.clientAddress && <p className="text-gray-500 mt-1 text-sm">{estimate.clientAddress}</p>}
-          <div className="flex gap-5 mt-2 text-sm text-gray-400">
-            {estimate.clientPhone && <span>{estimate.clientPhone}</span>}
-            {estimate.clientEmail && <span>{estimate.clientEmail}</span>}
+        <div className="bg-white rounded-2xl border border-gray-200 px-8 py-6 grid grid-cols-2 gap-8">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-widest text-gray-400 mb-3">Prepared For</p>
+            <p className="text-base font-semibold text-gray-800">{estimate.clientName || 'Valued Customer'}</p>
+            {estimate.clientPhone && <p className="text-sm text-gray-600 mt-1">{estimate.clientPhone}</p>}
+            {estimate.clientEmail && <p className="text-sm text-gray-600 mt-1">{estimate.clientEmail}</p>}
           </div>
+          {estimate.clientAddress && (
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-widest text-gray-400 mb-3">Project Location</p>
+              <p className="text-base font-semibold text-gray-800">{estimate.clientAddress}</p>
+            </div>
+          )}
         </div>
 
         {/* ── Scope of work ──────────────────────────────────────────────── */}
