@@ -28,11 +28,16 @@ const PAINT_BRANDS = [
 
 const emptyPaint: PaintProduct = { id: '', name: '', singleGallon: 0, fiveGallon: 0, coverage: 400 }
 
-function fmt(n: number) {
-  return n.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 })
-}
 function fmtD(n: number) {
   return n.toLocaleString('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 2 })
+}
+
+function parseCityFromAddress(address: string): string {
+  // "1234 Main St, Kirkland, WA 98033" → "Kirkland"
+  const parts = address.split(/[,\n]+/).map(s => s.trim()).filter(Boolean)
+  if (parts.length < 2) return ''
+  const cityChunk = parts[1] ?? ''
+  return cityChunk.replace(/\s+[A-Z]{2}\s+[\d-]+$/, '').replace(/\s+[A-Z]{2}$/, '').trim()
 }
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
@@ -134,7 +139,9 @@ export default function ProposalPage({ params }: { params: Promise<{ id: string 
   const taxRate           = estimate?.salesTaxRate ?? null
   const taxAmount         = taxRate != null ? discounted * taxRate : 0
   const grandTotal        = discounted + taxAmount
-  const depositAmount     = grandTotal * (rules.depositPercent ?? 0.20)
+  const depositPercent    = rules.depositPercent ?? 0.20
+  const depositAmount     = grandTotal * depositPercent
+  const balanceDue        = grandTotal - depositAmount
 
   const hasWoodData   = (estimate?.woodReplacementRows ?? []).some(r => r.itemKey && (r.front + r.right + r.back + r.left) > 0)
   const hasCustomData = (estimate?.customItems ?? []).some(i => i.description && (i.price ?? 0) > 0)
@@ -334,41 +341,55 @@ export default function ProposalPage({ params }: { params: Promise<{ id: string 
             <div className="bg-gray-800 text-white text-center text-xs font-bold py-2.5 tracking-widest uppercase">
               Your Estimate
             </div>
-            <div className="p-6 space-y-2.5">
-              <PriceLine label={`Exterior Painting — ${PAINT_BRANDS.find(b => b.key === selectedBrand)?.label}`} value={fmtD(paintingSubtotal)} />
-              {includeWood && woodTotal > 0 && <PriceLine label="Wood Replacement" value={fmtD(woodTotal)} />}
-              {includeCustom && (estimate.customItems ?? []).filter(i => i.description && i.price > 0).map(item => (
-                <PriceLine key={item.id} label={item.description} value={fmtD(item.price)} />
-              ))}
+            <div className="p-6">
 
-              <div className="border-t border-gray-100 pt-3 space-y-2">
+              {/* Line items */}
+              <div className="space-y-2.5">
+                <PriceLine label={`Exterior Painting — ${PAINT_BRANDS.find(b => b.key === selectedBrand)?.label}`} value={fmtD(paintingSubtotal)} />
+                {includeWood && woodTotal > 0 && <PriceLine label="Wood Replacement" value={fmtD(woodTotal)} />}
+                {includeCustom && (estimate.customItems ?? []).filter(i => i.description && i.price > 0).map(item => (
+                  <PriceLine key={item.id} label={item.description} value={fmtD(item.price)} />
+                ))}
+              </div>
+
+              {/* Subtotal / discount / tax */}
+              <div className="border-t border-gray-100 mt-4 pt-4 space-y-2.5">
                 <PriceLine label="Subtotal" value={fmtD(combinedSubtotal)} />
                 <div className="flex justify-between items-center">
-                  <span className="text-sm font-medium text-green-700">10% Loyalty Discount</span>
-                  <span className="text-sm font-medium text-green-700">− {fmtD(combinedSubtotal * 0.10)}</span>
+                  <span className="text-sm font-medium text-green-700">Discount (10% — Sign Today)</span>
+                  <span className="text-sm font-medium text-green-700 tabular-nums">− {fmtD(combinedSubtotal * 0.10)}</span>
                 </div>
                 {taxRate != null && (
                   <div className="flex justify-between items-center">
                     <span className="text-sm text-gray-600">
-                      Sales Tax ({(taxRate * 100).toFixed(1)}%)
+                      Sales Tax ({(taxRate * 100).toFixed(1)}%{parseCityFromAddress(estimate.clientAddress) ? ` — ${parseCityFromAddress(estimate.clientAddress)}` : ''})
                     </span>
-                    <span className="text-sm font-medium text-gray-900 tabular-nums">+ {fmtD(taxAmount)}</span>
+                    <span className="text-sm text-gray-900 tabular-nums">+ {fmtD(taxAmount)}</span>
                   </div>
                 )}
               </div>
 
-              <div className="border-t-2 border-gray-800 pt-4 flex justify-between items-center">
-                <span className="text-base font-bold text-gray-900">Your Total</span>
-                <span className="text-3xl font-bold text-brand-700">{fmt(grandTotal)}</span>
+              {/* Deposit + balance */}
+              <div className="border-t border-gray-100 mt-4 pt-4 space-y-2.5">
+                <div className="flex justify-between items-start">
+                  <div>
+                    <p className="text-sm font-semibold text-brand-700">Deposit Due ({Math.round(depositPercent * 100)}%)</p>
+                    <p className="text-xs text-gray-400 mt-0.5">Required to secure your project start date</p>
+                  </div>
+                  <span className="text-sm font-semibold text-brand-700 tabular-nums">{fmtD(depositAmount)}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-gray-500">Balance due on completion</span>
+                  <span className="text-sm text-gray-700 tabular-nums">{fmtD(balanceDue)}</span>
+                </div>
               </div>
 
-              <div className="bg-brand-50 border border-brand-100 rounded-xl px-4 py-3 flex justify-between items-center mt-1">
-                <div>
-                  <p className="text-sm font-semibold text-brand-800">Required Deposit</p>
-                  <p className="text-xs text-brand-500">{Math.round((rules.depositPercent ?? 0.20) * 100)}% due at project start</p>
-                </div>
-                <span className="text-lg font-bold text-brand-800">{fmt(depositAmount)}</span>
+              {/* Grand total */}
+              <div className="border-t-2 border-gray-800 mt-4 pt-4 flex justify-between items-center">
+                <span className="text-base font-bold text-gray-900">Your Total</span>
+                <span className="text-3xl font-bold text-brand-600">{fmtD(grandTotal)}</span>
               </div>
+
             </div>
           </div>
         )}
