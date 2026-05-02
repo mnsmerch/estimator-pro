@@ -63,6 +63,9 @@ export interface EstimateData {
   totalCoats: string
   // Photos
   photoUrls: string[]
+  // Signature / acceptance
+  signatureName?: string
+  signatureDate?: string
   // Timestamps
   createdAt?: Date
   updatedAt?: Date

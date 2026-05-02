@@ -40,6 +40,16 @@ export async function getEstimate(id: string): Promise<EstimateData | null> {
   return firestoreToEstimate(snap.id, snap.data())
 }
 
+export async function acceptEstimate(id: string, signatureName: string): Promise<void> {
+  const ref = doc(db, COLLECTION, id)
+  await updateDoc(ref, {
+    status: 'approved',
+    signatureName,
+    signatureDate: new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }),
+    updatedAt: serverTimestamp(),
+  })
+}
+
 export async function listEstimates(userId: string): Promise<EstimateData[]> {
   const q = query(
     collection(db, COLLECTION),

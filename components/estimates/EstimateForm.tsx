@@ -349,6 +349,35 @@ export default function EstimateForm({ estimateId, initialData }: EstimateFormPr
     }
   }
 
+  async function saveQuiet(): Promise<void> {
+    if (!user) return
+    const payload = {
+      userId: user.uid,
+      status: (initialData?.status ?? 'draft') as 'draft' | 'sent',
+      clientName, clientAddress, clientPhone, clientEmail,
+      clientFolderId, clientContactId,
+      rows,
+      woodReplacementRows: woodRows,
+      woodReplacementOpen: woodOpen,
+      customItems,
+      customItemsOpen: customOpen,
+      selectedBrand,
+      selectedBodyPaint:   bodyPaintId,
+      selectedTrimPaint:   trimPaintId,
+      selectedAccentPaint: accentPaintId,
+      selectedStainPaint:  stainPaintId,
+      manualPaintAProductId, manualPaintAGallons,
+      manualPaintBProductId, manualPaintBGallons,
+      scopeProject, scopePrepWork, scopePainting,
+      scopeCleanUp, scopeWalkThrough, scopePaintProducts,
+      totalColors, totalCoats,
+      photoUrls,
+    }
+    if (isEdit && estimateId) {
+      await updateEstimate(estimateId, payload)
+    }
+  }
+
   if (loadingSettings) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -372,6 +401,18 @@ export default function EstimateForm({ estimateId, initialData }: EstimateFormPr
         <div className="flex items-center gap-3">
           <a href="/estimates" className="text-sm text-gray-500 hover:text-gray-800">← Estimates</a>
           {saveError && <span className="text-sm text-red-600">Error saving. Try again.</span>}
+          {isEdit && estimateId && (
+            <button
+              onClick={async () => {
+                await saveQuiet()
+                window.open(`/estimates/${estimateId}/proposal`, '_blank')
+              }}
+              disabled={saving}
+              className="px-4 py-2 text-sm font-medium rounded-lg border border-green-600 text-green-700 bg-white hover:bg-green-50 disabled:opacity-50"
+            >
+              Generate Estimate ↗
+            </button>
+          )}
           <button
             onClick={() => handleSave('draft')}
             disabled={saving}
