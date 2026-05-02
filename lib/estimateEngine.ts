@@ -92,7 +92,7 @@ function surfaceAreaFactor(app: ApplicationItem, constants: ProductionConstants)
     case 'garageDoors':
       return app.trimLnFt * (constants.otherTrimWidthIn / 12)
     case 'railings':
-      return constants.railingsTrimRatio / 100  // ratio stored as e.g. 26 → 0.26 sqft/lnft
+      return constants.railingsTrimRatio / 3  // 26 sqft per 3 lnFt → 8.667 sqft/lnFt
     case 'shutters':
       return constants.shutterSqft  // sqft per shutter unit
     case 'staining':
