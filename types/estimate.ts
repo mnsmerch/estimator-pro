@@ -18,6 +18,12 @@ export interface WoodReplacementRow {
   left: number
 }
 
+export interface CustomItem {
+  id: string
+  description: string
+  price: number
+}
+
 export interface EstimateData {
   id?: string
   userId: string
@@ -34,6 +40,8 @@ export interface EstimateData {
   // Add ons
   woodReplacementRows?: WoodReplacementRow[]
   woodReplacementOpen?: boolean
+  customItems?: CustomItem[]
+  customItemsOpen?: boolean
   // Paint selections
   selectedBrand: string
   selectedBodyPaint: string

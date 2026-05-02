@@ -15,7 +15,7 @@ import {
   DEFAULT_PAINT_PRODUCTS,
 } from '@/lib/defaultSettings'
 import type { BusinessRules, ProductionConstants, PaintProduct, ProductionRates } from '@/types/settings'
-import type { EstimateData, EstimateRow, WoodReplacementRow } from '@/types/estimate'
+import type { EstimateData, EstimateRow, WoodReplacementRow, CustomItem } from '@/types/estimate'
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
 
@@ -25,6 +25,10 @@ function newRow(applicationKey = ''): EstimateRow {
 
 function newWoodRow(): WoodReplacementRow {
   return { id: crypto.randomUUID(), itemKey: '', front: 0, right: 0, back: 0, left: 0 }
+}
+
+function newCustomItem(): CustomItem {
+  return { id: crypto.randomUUID(), description: '', price: 0 }
 }
 
 const WOOD_ITEMS: { key: string; label: string }[] = [
@@ -133,6 +137,14 @@ export default function EstimateForm({ estimateId, initialData }: EstimateFormPr
   )
   const [woodOpen, setWoodOpen] = useState(initialData?.woodReplacementOpen ?? false)
 
+  // Custom items add-on
+  const [customItems, setCustomItems] = useState<CustomItem[]>(() =>
+    initialData?.customItems?.length
+      ? initialData.customItems
+      : [newCustomItem()]
+  )
+  const [customOpen, setCustomOpen] = useState(initialData?.customItemsOpen ?? false)
+
   // Paint
   const [selectedBrand,        setSelectedBrand]        = useState(initialData?.selectedBrand        ?? 'superPaint')
   const [bodyPaintId,          setBodyPaintId]           = useState(initialData?.selectedBodyPaint    ?? PAINT_BRANDS[0].bodyId)
@@ -212,6 +224,14 @@ export default function EstimateForm({ estimateId, initialData }: EstimateFormPr
     }, 0)
   }, [woodRows, woodOpen, rates, markup])
 
+  const customTotal = useMemo(() => {
+    if (!customOpen) return 0
+    return customItems.reduce((sum, item) => {
+      if (!item.description && !item.price) return sum
+      return sum + (item.price || 0)
+    }, 0)
+  }, [customItems, customOpen])
+
   function selectBrand(key: string) {
     const brand = PAINT_BRANDS.find(b => b.key === key)
     if (!brand) return
@@ -228,6 +248,11 @@ export default function EstimateForm({ estimateId, initialData }: EstimateFormPr
   const removeWoodRow = useCallback((id: string) => setWoodRows(r => r.filter(row => row.id !== id)), [])
   const updateWoodRow = useCallback((id: string, field: keyof WoodReplacementRow, value: string | number) => {
     setWoodRows(r => r.map(row => row.id === id ? { ...row, [field]: value } : row))
+  }, [])
+  const addCustomItem    = useCallback(() => setCustomItems(r => [...r, newCustomItem()]), [])
+  const removeCustomItem = useCallback((id: string) => setCustomItems(r => r.filter(i => i.id !== id)), [])
+  const updateCustomItem = useCallback((id: string, field: keyof CustomItem, value: string | number) => {
+    setCustomItems(r => r.map(i => i.id === id ? { ...i, [field]: value } : i))
   }, [])
   const updateRow = useCallback((id: string, field: keyof EstimateRow, value: string | number) => {
     setRows(r => {
@@ -265,6 +290,8 @@ export default function EstimateForm({ estimateId, initialData }: EstimateFormPr
       rows,
       woodReplacementRows: woodRows,
       woodReplacementOpen: woodOpen,
+      customItems,
+      customItemsOpen: customOpen,
       selectedBrand,
       selectedBodyPaint:   bodyPaintId,
       selectedTrimPaint:   trimPaintId,
@@ -462,7 +489,16 @@ export default function EstimateForm({ estimateId, initialData }: EstimateFormPr
             >
               Wood Replacement
             </button>
-            {/* Custom Item — coming soon */}
+            <button
+              onClick={() => setCustomOpen(o => !o)}
+              className={`px-4 py-2 rounded-lg text-sm font-semibold border transition-colors ${
+                customOpen
+                  ? 'bg-blue-600 text-white border-blue-600'
+                  : 'bg-white text-gray-700 border-gray-300 hover:border-blue-400 hover:text-blue-600'
+              }`}
+            >
+              Custom Item
+            </button>
           </div>
 
           {woodOpen && (
@@ -557,6 +593,75 @@ export default function EstimateForm({ estimateId, initialData }: EstimateFormPr
               </button>
             </div>
           )}
+
+          {customOpen && (
+            <div className="mt-4">
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-gray-200">
+                      <th className="text-left font-medium text-gray-500 pb-2 pr-3">Description</th>
+                      <th className="text-right font-medium text-gray-500 pb-2 pl-2 w-36">Price</th>
+                      <th className="w-8" />
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {customItems.map(item => (
+                      <tr key={item.id} className="group">
+                        <td className="py-1.5 pr-3">
+                          <input
+                            type="text"
+                            value={item.description}
+                            onChange={e => updateCustomItem(item.id, 'description', e.target.value)}
+                            placeholder="e.g. Exterior door replacement"
+                            className="w-full rounded-lg border border-gray-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          />
+                        </td>
+                        <td className="py-1.5 pl-2">
+                          <input
+                            type="number" min={0}
+                            value={item.price || ''}
+                            onChange={e => updateCustomItem(item.id, 'price', parseFloat(e.target.value) || 0)}
+                            placeholder="0.00"
+                            className="w-full text-right rounded-lg border border-gray-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          />
+                        </td>
+                        <td className="py-1.5 pl-1">
+                          <button
+                            onClick={() => removeCustomItem(item.id)}
+                            className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-red-500 transition-opacity"
+                            title="Remove item"
+                          >
+                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
+                            </svg>
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot>
+                    <tr className="border-t border-gray-200">
+                      <td className="pt-3 pr-3 text-right font-medium text-gray-500">Total</td>
+                      <td className="pt-3 pl-2 text-right font-bold text-gray-900 tabular-nums">
+                        {fmtCents(customTotal)}
+                      </td>
+                      <td />
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+              <button
+                onClick={addCustomItem}
+                className="mt-3 flex items-center gap-1.5 text-sm font-medium text-blue-600 hover:text-blue-800"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                </svg>
+                Add Item
+              </button>
+            </div>
+          )}
         </section>
 
         {/* ── Paint Selection ───────────────────────────────────────────── */}
@@ -639,10 +744,11 @@ export default function EstimateForm({ estimateId, initialData }: EstimateFormPr
                 <SummaryRow label="Sundries" value={fmtCents(totals.sundries)} />
                 <SummaryRow label="L&amp;M"  value={fmtCents(totals.landm)} />
                 <div className="border-t border-gray-200 pt-2 space-y-1.5">
-                  {woodTotal > 0 && <SummaryRow label="Painting Subtotal" value={fmtCents(totals.subtotal)} />}
-                  {woodTotal > 0 && <SummaryRow label="Wood Replacement"  value={fmtCents(woodTotal)} />}
-                  <SummaryRow label="Subtotal" value={fmtCents(totals.subtotal + woodTotal)} bold />
-                  <SummaryRow label="10% Off"  value={fmtCents((totals.subtotal + woodTotal) * 0.90)} />
+                  {(woodTotal > 0 || customTotal > 0) && <SummaryRow label="Painting Subtotal" value={fmtCents(totals.subtotal)} />}
+                  {woodTotal   > 0 && <SummaryRow label="Wood Replacement" value={fmtCents(woodTotal)} />}
+                  {customTotal > 0 && <SummaryRow label="Custom Items"     value={fmtCents(customTotal)} />}
+                  <SummaryRow label="Subtotal" value={fmtCents(totals.subtotal + woodTotal + customTotal)} bold />
+                  <SummaryRow label="10% Off"  value={fmtCents((totals.subtotal + woodTotal + customTotal) * 0.90)} />
                 </div>
               </div>
             </div>
