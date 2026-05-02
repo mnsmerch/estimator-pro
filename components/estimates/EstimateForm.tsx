@@ -15,13 +15,35 @@ import {
   DEFAULT_PAINT_PRODUCTS,
 } from '@/lib/defaultSettings'
 import type { BusinessRules, ProductionConstants, PaintProduct, ProductionRates } from '@/types/settings'
-import type { EstimateData, EstimateRow } from '@/types/estimate'
+import type { EstimateData, EstimateRow, WoodReplacementRow } from '@/types/estimate'
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
 
 function newRow(applicationKey = ''): EstimateRow {
   return { id: crypto.randomUUID(), applicationKey, front: 0, right: 0, back: 0, left: 0 }
 }
+
+function newWoodRow(): WoodReplacementRow {
+  return { id: crypto.randomUUID(), itemKey: '', front: 0, right: 0, back: 0, left: 0 }
+}
+
+const WOOD_ITEMS: { key: string; label: string }[] = [
+  { key: 'trim1Story',          label: '1st Story Trim' },
+  { key: 'trim2Story',          label: '2nd Story Trim' },
+  { key: 'regularSiding1Story', label: 'Regular Siding – 1st Story' },
+  { key: 'regularSiding2Story', label: 'Regular Siding – 2nd Story' },
+  { key: 'cementFiber1Story',   label: 'Cement Fiber – 1st Story' },
+  { key: 'cementFiber2Story',   label: 'Cement Fiber – 2nd Story' },
+  { key: 'doorFrame',           label: 'Door Frame (each)' },
+  { key: 'fascia1Story',        label: 'Fascia – 1st Story' },
+  { key: 'fascia2Story',        label: 'Fascia – 2nd Story' },
+  { key: 'fascia1StoryGutter',  label: 'Fascia – 1st Story w/ Gutter' },
+  { key: 'fascia2StoryGutter',  label: 'Fascia – 2nd Story w/ Gutter' },
+  { key: 'railings',            label: 'Railings' },
+  { key: 'eaveSoffit1Story',    label: 'Eave / Soffit – 1st Story' },
+  { key: 'eaveSoffit2Story',    label: 'Eave / Soffit – 2nd Story' },
+  { key: 'hardieBoard',         label: 'Hardie Board (SqFt)' },
+]
 
 const DEFAULT_ROW_KEYS = [
   'bodyApplication.sidingSpray',
@@ -103,6 +125,14 @@ export default function EstimateForm({ estimateId, initialData }: EstimateFormPr
       : DEFAULT_ROW_KEYS.map(k => newRow(k))
   )
 
+  // Wood replacement add-on
+  const [woodRows, setWoodRows] = useState<WoodReplacementRow[]>(() =>
+    initialData?.woodReplacementRows?.length
+      ? initialData.woodReplacementRows
+      : [newWoodRow(), newWoodRow(), newWoodRow()]
+  )
+  const [woodOpen, setWoodOpen] = useState(initialData?.woodReplacementOpen ?? false)
+
   // Paint
   const [selectedBrand,        setSelectedBrand]        = useState(initialData?.selectedBrand        ?? 'superPaint')
   const [bodyPaintId,          setBodyPaintId]           = useState(initialData?.selectedBodyPaint    ?? PAINT_BRANDS[0].bodyId)
@@ -172,6 +202,16 @@ export default function EstimateForm({ estimateId, initialData }: EstimateFormPr
 
   const markup = useMemo(() => calcMarkup(rules), [rules])
 
+  const woodTotal = useMemo(() => {
+    if (!woodOpen || markup <= 0) return 0
+    return woodRows.reduce((sum, row) => {
+      if (!row.itemKey) return sum
+      const rate = (rates.woodReplacement as Record<string, number>)[row.itemKey] ?? 0
+      const total = row.front + row.right + row.back + row.left
+      return sum + (total * rate / markup)
+    }, 0)
+  }, [woodRows, woodOpen, rates, markup])
+
   function selectBrand(key: string) {
     const brand = PAINT_BRANDS.find(b => b.key === key)
     if (!brand) return
@@ -182,8 +222,13 @@ export default function EstimateForm({ estimateId, initialData }: EstimateFormPr
     setStainPaintId(brand.stainId)
   }
 
-  const addRow    = useCallback(() => setRows(r => [...r, newRow()]), [])
-  const removeRow = useCallback((id: string) => setRows(r => r.filter(row => row.id !== id)), [])
+  const addRow       = useCallback(() => setRows(r => [...r, newRow()]), [])
+  const removeRow    = useCallback((id: string) => setRows(r => r.filter(row => row.id !== id)), [])
+  const addWoodRow   = useCallback(() => setWoodRows(r => [...r, newWoodRow()]), [])
+  const removeWoodRow = useCallback((id: string) => setWoodRows(r => r.filter(row => row.id !== id)), [])
+  const updateWoodRow = useCallback((id: string, field: keyof WoodReplacementRow, value: string | number) => {
+    setWoodRows(r => r.map(row => row.id === id ? { ...row, [field]: value } : row))
+  }, [])
   const updateRow = useCallback((id: string, field: keyof EstimateRow, value: string | number) => {
     setRows(r => {
       const updated = r.map(row => row.id === id ? { ...row, [field]: value } : row)
@@ -218,6 +263,8 @@ export default function EstimateForm({ estimateId, initialData }: EstimateFormPr
       clientName, clientAddress, clientPhone, clientEmail,
       clientFolderId, clientContactId,
       rows,
+      woodReplacementRows: woodRows,
+      woodReplacementOpen: woodOpen,
       selectedBrand,
       selectedBodyPaint:   bodyPaintId,
       selectedTrimPaint:   trimPaintId,
@@ -401,6 +448,117 @@ export default function EstimateForm({ estimateId, initialData }: EstimateFormPr
           </div>
         </section>
 
+        {/* ── Add Ons ───────────────────────────────────────────────────── */}
+        <section className="bg-white rounded-xl border border-gray-200 p-6">
+          <h2 className="text-base font-semibold text-gray-900 mb-4">Add Ons</h2>
+          <div className="flex gap-2 mb-2">
+            <button
+              onClick={() => setWoodOpen(o => !o)}
+              className={`px-4 py-2 rounded-lg text-sm font-semibold border transition-colors ${
+                woodOpen
+                  ? 'bg-blue-600 text-white border-blue-600'
+                  : 'bg-white text-gray-700 border-gray-300 hover:border-blue-400 hover:text-blue-600'
+              }`}
+            >
+              Wood Replacement
+            </button>
+            {/* Custom Item — coming soon */}
+          </div>
+
+          {woodOpen && (
+            <div className="mt-4">
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-gray-200">
+                      <th className="text-left font-medium text-gray-500 pb-2 pr-3 min-w-[220px]">Item</th>
+                      <th className="text-right font-medium text-gray-500 pb-2 px-2 w-20">Front</th>
+                      <th className="text-right font-medium text-gray-500 pb-2 px-2 w-20">Right</th>
+                      <th className="text-right font-medium text-gray-500 pb-2 px-2 w-20">Back</th>
+                      <th className="text-right font-medium text-gray-500 pb-2 px-2 w-20">Left</th>
+                      <th className="text-right font-medium text-gray-500 pb-2 px-2 w-20">Total</th>
+                      <th className="text-right font-medium text-gray-500 pb-2 px-2 w-28">Cost/LnFt</th>
+                      <th className="text-right font-medium text-gray-500 pb-2 pl-2 w-28">Price Total</th>
+                      <th className="w-8" />
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {woodRows.map(row => {
+                      const rate = row.itemKey ? ((rates.woodReplacement as Record<string, number>)[row.itemKey] ?? 0) : 0
+                      const total = row.front + row.right + row.back + row.left
+                      const price = markup > 0 ? total * rate / markup : 0
+                      return (
+                        <tr key={row.id} className="group">
+                          <td className="py-1.5 pr-3">
+                            <select
+                              value={row.itemKey}
+                              onChange={e => updateWoodRow(row.id, 'itemKey', e.target.value)}
+                              className="w-full rounded-lg border border-gray-300 bg-white px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            >
+                              <option value="">— Wood Replacement —</option>
+                              {WOOD_ITEMS.map(item => (
+                                <option key={item.key} value={item.key}>{item.label}</option>
+                              ))}
+                            </select>
+                          </td>
+                          {(['front', 'right', 'back', 'left'] as const).map(side => (
+                            <td key={side} className="py-1.5 px-2">
+                              <input
+                                type="number" min={0}
+                                value={row[side] || ''}
+                                onChange={e => updateWoodRow(row.id, side, parseFloat(e.target.value) || 0)}
+                                className="w-full text-right rounded-lg border border-gray-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                              />
+                            </td>
+                          ))}
+                          <td className="py-1.5 px-2 text-right font-medium text-gray-700 tabular-nums">
+                            {total > 0 ? total : '—'}
+                          </td>
+                          <td className="py-1.5 px-2 text-right text-gray-600 tabular-nums">
+                            {row.itemKey ? fmtCents(rate) : '—'}
+                          </td>
+                          <td className="py-1.5 pl-2 text-right font-medium text-gray-700 tabular-nums">
+                            {fmtCents(price)}
+                          </td>
+                          <td className="py-1.5 pl-1">
+                            <button
+                              onClick={() => removeWoodRow(row.id)}
+                              className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-red-500 transition-opacity"
+                              title="Remove row"
+                            >
+                              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
+                              </svg>
+                            </button>
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                  <tfoot>
+                    <tr className="border-t border-gray-200">
+                      <td colSpan={7} className="pt-3 pr-3 text-right font-medium text-gray-500">Price</td>
+                      <td className="pt-3 pl-2 text-right font-bold text-gray-900 tabular-nums">
+                        {fmtCents(woodTotal)}
+                      </td>
+                      <td />
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+              <button
+                onClick={addWoodRow}
+                className="mt-3 flex items-center gap-1.5 text-sm font-medium text-blue-600 hover:text-blue-800"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                </svg>
+                Add Row
+              </button>
+            </div>
+          )}
+        </section>
+
         {/* ── Paint Selection ───────────────────────────────────────────── */}
         <section className="bg-white rounded-xl border border-gray-200 p-6">
           <h2 className="text-base font-semibold text-gray-900 mb-4">Paint Selection</h2>
@@ -481,8 +639,10 @@ export default function EstimateForm({ estimateId, initialData }: EstimateFormPr
                 <SummaryRow label="Sundries" value={fmtCents(totals.sundries)} />
                 <SummaryRow label="L&amp;M"  value={fmtCents(totals.landm)} />
                 <div className="border-t border-gray-200 pt-2 space-y-1.5">
-                  <SummaryRow label="Subtotal" value={fmtCents(totals.subtotal)} bold />
-                  <SummaryRow label="10% Off"  value={fmtCents(totals.tenPercentOff)} />
+                  {woodTotal > 0 && <SummaryRow label="Painting Subtotal" value={fmtCents(totals.subtotal)} />}
+                  {woodTotal > 0 && <SummaryRow label="Wood Replacement"  value={fmtCents(woodTotal)} />}
+                  <SummaryRow label="Subtotal" value={fmtCents(totals.subtotal + woodTotal)} bold />
+                  <SummaryRow label="10% Off"  value={fmtCents((totals.subtotal + woodTotal) * 0.90)} />
                 </div>
               </div>
             </div>

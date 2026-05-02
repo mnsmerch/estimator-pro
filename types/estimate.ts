@@ -9,6 +9,15 @@ export interface EstimateRow {
   left: number
 }
 
+export interface WoodReplacementRow {
+  id: string
+  itemKey: string   // key of ProductionRates['woodReplacement'], or '' for blank
+  front: number
+  right: number
+  back: number
+  left: number
+}
+
 export interface EstimateData {
   id?: string
   userId: string
@@ -22,6 +31,9 @@ export interface EstimateData {
   clientContactId: string
   // Measurements
   rows: EstimateRow[]
+  // Add ons
+  woodReplacementRows?: WoodReplacementRow[]
+  woodReplacementOpen?: boolean
   // Paint selections
   selectedBrand: string
   selectedBodyPaint: string
