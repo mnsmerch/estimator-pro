@@ -186,7 +186,7 @@ export default function ProposalPage({ params }: { params: Promise<{ id: string 
                 <img
                   src={company.logoUrl}
                   alt={`${company.name} logo`}
-                  className="h-16 max-w-[140px] object-contain rounded-lg bg-white/10 p-1.5 shrink-0"
+                  className="h-16 max-w-[140px] object-contain rounded-lg bg-white p-2 shrink-0 shadow-sm"
                 />
               )}
               <div>
