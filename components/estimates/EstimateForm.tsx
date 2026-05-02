@@ -20,6 +20,35 @@ import type { EstimateData, EstimateRow, WoodReplacementRow, CustomItem } from '
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
 
+/** Best-effort parse of a freeform address into the fields WA DOR expects. */
+function parseAddressForTax(fullAddress: string): { addr: string; city: string; zip: string } {
+  const zipMatch  = fullAddress.match(/\b(\d{5}(?:-\d{4})?)\b/)
+  const zip       = zipMatch?.[1] ?? ''
+  // Split on commas or newlines; first chunk = street, second = "City, ST XXXXX"
+  const parts     = fullAddress.split(/[,\n]+/).map(s => s.trim()).filter(Boolean)
+  const addr      = parts[0] ?? ''
+  const cityChunk = parts[1] ?? ''
+  // Strip trailing state + zip from city chunk
+  const city      = cityChunk.replace(/\s+[A-Z]{2}\s+[\d-]+$/, '').replace(/\s+[A-Z]{2}$/, '').trim()
+  return { addr, city, zip }
+}
+
+async function lookupSalesTax(fullAddress: string): Promise<number | null> {
+  try {
+    const { addr, city, zip } = parseAddressForTax(fullAddress)
+    const res  = await fetch('/api/tax-lookup', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ addr, city, zip }),
+    })
+    if (!res.ok) return null
+    const { rate } = await res.json() as { rate: number }
+    return typeof rate === 'number' ? rate : null
+  } catch {
+    return null
+  }
+}
+
 function newRow(applicationKey = ''): EstimateRow {
   return { id: crypto.randomUUID(), applicationKey, front: 0, right: 0, back: 0, left: 0 }
 }
@@ -349,7 +378,7 @@ export default function EstimateForm({ estimateId, initialData }: EstimateFormPr
     }
   }
 
-  async function saveQuiet(): Promise<void> {
+  async function saveQuiet(salesTaxRate?: number | null): Promise<void> {
     if (!user) return
     const payload = {
       userId: user.uid,
@@ -372,6 +401,7 @@ export default function EstimateForm({ estimateId, initialData }: EstimateFormPr
       scopeCleanUp, scopeWalkThrough, scopePaintProducts,
       totalColors, totalCoats,
       photoUrls,
+      ...(salesTaxRate != null ? { salesTaxRate } : {}),
     }
     if (isEdit && estimateId) {
       await updateEstimate(estimateId, payload)
@@ -404,13 +434,19 @@ export default function EstimateForm({ estimateId, initialData }: EstimateFormPr
           {isEdit && estimateId && (
             <button
               onClick={async () => {
-                await saveQuiet()
-                window.open(`/estimates/${estimateId}/proposal`, '_blank')
+                setSaving(true)
+                try {
+                  const taxRate = clientAddress ? await lookupSalesTax(clientAddress) : null
+                  await saveQuiet(taxRate)
+                  window.open(`/estimates/${estimateId}/proposal`, '_blank')
+                } finally {
+                  setSaving(false)
+                }
               }}
               disabled={saving}
               className="px-4 py-2 text-sm font-medium rounded-lg border border-green-600 text-green-700 bg-white hover:bg-green-50 disabled:opacity-50"
             >
-              Generate Estimate ↗
+              {saving ? 'Saving…' : 'Generate Estimate ↗'}
             </button>
           )}
           <button

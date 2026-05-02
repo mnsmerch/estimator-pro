@@ -130,8 +130,11 @@ export default function ProposalPage({ params }: { params: Promise<{ id: string 
 
   const paintingSubtotal  = totals?.subtotal ?? 0
   const combinedSubtotal  = paintingSubtotal + woodTotal + customTotal
-  const tenPercentOff     = combinedSubtotal * 0.90
-  const depositAmount     = tenPercentOff * (rules.depositPercent ?? 0.20)
+  const discounted        = combinedSubtotal * 0.90
+  const taxRate           = estimate?.salesTaxRate ?? null
+  const taxAmount         = taxRate != null ? discounted * taxRate : 0
+  const grandTotal        = discounted + taxAmount
+  const depositAmount     = grandTotal * (rules.depositPercent ?? 0.20)
 
   const hasWoodData   = (estimate?.woodReplacementRows ?? []).some(r => r.itemKey && (r.front + r.right + r.back + r.left) > 0)
   const hasCustomData = (estimate?.customItems ?? []).some(i => i.description && (i.price ?? 0) > 0)
@@ -344,11 +347,19 @@ export default function ProposalPage({ params }: { params: Promise<{ id: string 
                   <span className="text-sm font-medium text-green-700">10% Loyalty Discount</span>
                   <span className="text-sm font-medium text-green-700">− {fmtD(combinedSubtotal * 0.10)}</span>
                 </div>
+                {taxRate != null && (
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-gray-600">
+                      Sales Tax ({(taxRate * 100).toFixed(1)}%)
+                    </span>
+                    <span className="text-sm font-medium text-gray-900 tabular-nums">+ {fmtD(taxAmount)}</span>
+                  </div>
+                )}
               </div>
 
               <div className="border-t-2 border-gray-800 pt-4 flex justify-between items-center">
                 <span className="text-base font-bold text-gray-900">Your Total</span>
-                <span className="text-3xl font-bold text-brand-700">{fmt(tenPercentOff)}</span>
+                <span className="text-3xl font-bold text-brand-700">{fmt(grandTotal)}</span>
               </div>
 
               <div className="bg-brand-50 border border-brand-100 rounded-xl px-4 py-3 flex justify-between items-center mt-1">

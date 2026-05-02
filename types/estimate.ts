@@ -63,6 +63,8 @@ export interface EstimateData {
   totalCoats: string
   // Photos
   photoUrls: string[]
+  // Tax
+  salesTaxRate?: number   // e.g. 0.101 — looked up from WA DOR at time of generation
   // Signature / acceptance
   signatureName?: string
   signatureDate?: string
