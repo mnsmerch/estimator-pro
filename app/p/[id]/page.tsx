@@ -76,13 +76,20 @@ export default function ProposalPage({ params }: { params: Promise<{ id: string 
   useEffect(() => {
     async function load() {
       try {
+      const tryRead = async <T,>(label: string, fn: () => Promise<T>): Promise<T> => {
+        try { return await fn() }
+        catch (e: unknown) {
+          const msg = e instanceof Error ? e.message : String(e)
+          throw new Error(`[${label}] ${msg}`)
+        }
+      }
       const [est, r, c, pp, rt, co] = await Promise.all([
-        getEstimate(id),
-        getSettingsDoc<BusinessRules>('businessRules', DEFAULT_BUSINESS_RULES),
-        getSettingsDoc<ProductionConstants>('productionConstants', DEFAULT_PRODUCTION_CONSTANTS),
-        getSettingsDoc<{ items: PaintProduct[] }>('paintProducts', { items: DEFAULT_PAINT_PRODUCTS }),
-        getSettingsDoc<ProductionRates>('rates', DEFAULT_RATES),
-        getSettingsDoc<CompanySettings>('company', DEFAULT_COMPANY),
+        tryRead('estimates', () => getEstimate(id)),
+        tryRead('settings/businessRules', () => getSettingsDoc<BusinessRules>('businessRules', DEFAULT_BUSINESS_RULES)),
+        tryRead('settings/productionConstants', () => getSettingsDoc<ProductionConstants>('productionConstants', DEFAULT_PRODUCTION_CONSTANTS)),
+        tryRead('settings/paintProducts', () => getSettingsDoc<{ items: PaintProduct[] }>('paintProducts', { items: DEFAULT_PAINT_PRODUCTS })),
+        tryRead('settings/rates', () => getSettingsDoc<ProductionRates>('rates', DEFAULT_RATES)),
+        tryRead('settings/company', () => getSettingsDoc<CompanySettings>('company', DEFAULT_COMPANY)),
       ])
       if (est) {
         setEstimate(est)
