@@ -171,6 +171,7 @@ export default function EstimateForm({ estimateId, initialData }: EstimateFormPr
   const [saveError, setSaveError] = useState(false)
   const [photoUrls, setPhotoUrls] = useState<string[]>(initialData?.photoUrls ?? [])
   const [uploadingPhotos, setUploadingPhotos] = useState(false)
+  const [uploadError, setUploadError] = useState<string | null>(null)
 
   // Load settings
   useEffect(() => {
@@ -264,11 +265,14 @@ export default function EstimateForm({ estimateId, initialData }: EstimateFormPr
     const files = Array.from(e.target.files).slice(0, remaining)
     if (!files.length) return
     setUploadingPhotos(true)
+    setUploadError(null)
     try {
       const urls = await Promise.all(files.map(f => uploadPhoto(user.uid, f)))
       setPhotoUrls(prev => [...prev, ...urls].slice(0, 20))
-    } catch (err) {
+    } catch (err: unknown) {
       console.error('Photo upload failed:', err)
+      const msg = err instanceof Error ? err.message : String(err)
+      setUploadError(msg)
     } finally {
       setUploadingPhotos(false)
       e.target.value = ''
@@ -717,6 +721,12 @@ export default function EstimateForm({ estimateId, initialData }: EstimateFormPr
               </label>
             )}
           </div>
+
+          {uploadError && (
+            <div className="mb-3 text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+              Upload failed: {uploadError}
+            </div>
+          )}
 
           {photoUrls.length === 0 ? (
             <label className={`flex flex-col items-center justify-center border-2 border-dashed border-gray-200 rounded-xl p-10 cursor-pointer transition-colors ${
