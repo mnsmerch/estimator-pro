@@ -54,9 +54,10 @@ export default function ProposalPage({ params }: { params: Promise<{ id: string 
   const [loading, setLoading]         = useState(true)
 
   // Customer-interactive state
-  const [selectedBrand, setSelectedBrand] = useState('superPaint')
-  const [includeWood,   setIncludeWood]   = useState(false)
-  const [includeCustom, setIncludeCustom] = useState(false)
+  const [selectedBrand,  setSelectedBrand]  = useState('superPaint')
+  const [includeWood,    setIncludeWood]    = useState(false)
+  const [includeCustom,  setIncludeCustom]  = useState(false)
+  const [applyDiscount,  setApplyDiscount]  = useState(true)
 
   // Signature state
   const [sigName,     setSigName]     = useState('')
@@ -135,7 +136,8 @@ export default function ProposalPage({ params }: { params: Promise<{ id: string 
 
   const paintingSubtotal  = totals?.subtotal ?? 0
   const combinedSubtotal  = paintingSubtotal + woodTotal + customTotal
-  const discounted        = combinedSubtotal * 0.90
+  const discountAmount    = applyDiscount ? combinedSubtotal * 0.10 : 0
+  const discounted        = combinedSubtotal - discountAmount
   const taxRate           = estimate?.salesTaxRate ?? null
   const taxAmount         = taxRate != null ? discounted * taxRate : 0
   const grandTotal        = discounted + taxAmount
@@ -335,6 +337,42 @@ export default function ProposalPage({ params }: { params: Promise<{ id: string 
           )}
         </div>
 
+        {/* ── Discount toggle ────────────────────────────────────────────── */}
+        {totals && (
+          <div className={`rounded-2xl border-2 p-5 transition-colors ${
+            applyDiscount ? 'bg-green-50 border-green-400' : 'bg-white border-gray-200'
+          }`}>
+            <div className="flex items-start justify-between gap-4">
+              <div className="flex-1">
+                <p className="text-base font-bold text-gray-900">Sign Today &amp; Save 10%</p>
+                <p className="text-sm text-gray-600 mt-0.5">
+                  Accept this estimate today and save{' '}
+                  <span className="font-semibold text-green-700">{fmtD(combinedSubtotal * 0.10)}</span>{' '}
+                  off your project.
+                </p>
+                {applyDiscount && (
+                  <p className="text-sm font-semibold text-green-700 mt-2">
+                    ✓ 10% discount applied — {fmtD(combinedSubtotal * 0.10)} savings included in your total
+                  </p>
+                )}
+              </div>
+              {/* Toggle */}
+              <button
+                role="switch"
+                aria-checked={applyDiscount}
+                onClick={() => setApplyDiscount(v => !v)}
+                className={`relative inline-flex h-7 w-12 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 ${
+                  applyDiscount ? 'bg-green-500' : 'bg-gray-300'
+                }`}
+              >
+                <span className={`pointer-events-none inline-block h-6 w-6 transform rounded-full bg-white shadow-md transition-transform ${
+                  applyDiscount ? 'translate-x-5' : 'translate-x-0'
+                }`} />
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* ── Pricing summary ────────────────────────────────────────────── */}
         {totals && (
           <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
@@ -355,10 +393,12 @@ export default function ProposalPage({ params }: { params: Promise<{ id: string 
               {/* Subtotal / discount / tax */}
               <div className="border-t border-gray-100 mt-4 pt-4 space-y-2.5">
                 <PriceLine label="Subtotal" value={fmtD(combinedSubtotal)} />
-                <div className="flex justify-between items-center">
-                  <span className="text-sm font-medium text-green-700">Discount (10% — Sign Today)</span>
-                  <span className="text-sm font-medium text-green-700 tabular-nums">− {fmtD(combinedSubtotal * 0.10)}</span>
-                </div>
+                {applyDiscount && (
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm font-medium text-green-700">Discount (10% — Sign Today)</span>
+                    <span className="text-sm font-medium text-green-700 tabular-nums">− {fmtD(discountAmount)}</span>
+                  </div>
+                )}
                 {taxRate != null && (
                   <div className="flex justify-between items-center">
                     <span className="text-sm text-gray-600">
