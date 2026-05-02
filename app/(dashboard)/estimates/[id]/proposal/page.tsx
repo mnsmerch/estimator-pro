@@ -59,6 +59,9 @@ export default function ProposalPage({ params }: { params: Promise<{ id: string 
   const [includeCustom,  setIncludeCustom]  = useState(false)
   const [applyDiscount,  setApplyDiscount]  = useState(true)
 
+  // Logo load state — hide the white box until the image file itself has downloaded
+  const [logoLoaded, setLogoLoaded] = useState(false)
+
   // Signature state
   const [sigName,     setSigName]     = useState('')
   const [sigDataUrl,  setSigDataUrl]  = useState<string | null>(null)
@@ -198,7 +201,10 @@ export default function ProposalPage({ params }: { params: Promise<{ id: string 
                 <img
                   src={company.logoUrl}
                   alt={`${company.name} logo`}
-                  className="h-16 max-w-[140px] object-contain rounded-lg bg-white p-2 shrink-0 shadow-sm"
+                  onLoad={() => setLogoLoaded(true)}
+                  className={`h-16 max-w-[140px] object-contain rounded-lg bg-white p-2 shrink-0 shadow-sm transition-opacity duration-300 ${
+                    logoLoaded ? 'opacity-100' : 'opacity-0'
+                  }`}
                 />
               )}
               <div>
