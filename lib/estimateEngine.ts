@@ -82,7 +82,7 @@ function surfaceAreaFactor(app: ApplicationItem, constants: ProductionConstants)
     case 'fascia':
       return constants.fasciaWidthIn / 12
     case 'otherTrim':
-      if (app.isDownspout) return (constants.downspoutWidthIn / 12) * 4
+      if (app.isDownspout) return constants.downspoutWidthIn / 12
       return constants.otherTrimWidthIn / 12
     case 'windows':
       return app.trimLnFt * (constants.windowTrimWidthIn / 12)
