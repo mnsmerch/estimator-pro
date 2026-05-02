@@ -369,25 +369,25 @@ export default function ProposalPage({ params }: { params: Promise<{ id: string 
                 )}
               </div>
 
-              {/* Deposit + balance */}
-              <div className="border-t border-gray-100 mt-4 pt-4 space-y-2.5">
-                <div className="flex justify-between items-start">
-                  <div>
-                    <p className="text-sm font-semibold text-brand-700">Deposit Due ({Math.round(depositPercent * 100)}%)</p>
-                    <p className="text-xs text-gray-400 mt-0.5">Required to secure your project start date</p>
-                  </div>
-                  <span className="text-sm font-semibold text-brand-700 tabular-nums">{fmtD(depositAmount)}</span>
+              {/* Deposit */}
+              <div className="bg-brand-50 border-t border-brand-200 mt-4 px-4 py-4 -mx-6 flex justify-between items-center">
+                <div>
+                  <p className="text-sm font-bold text-brand-700">Deposit Due ({Math.round(depositPercent * 100)}%)</p>
+                  <p className="text-xs text-brand-500 mt-0.5">Required to secure your project start date</p>
                 </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-gray-500">Balance due on completion</span>
-                  <span className="text-sm text-gray-700 tabular-nums">{fmtD(balanceDue)}</span>
-                </div>
+                <span className="text-xl font-bold text-brand-600 tabular-nums">{fmtD(depositAmount)}</span>
+              </div>
+
+              {/* Balance */}
+              <div className="border-t border-gray-100 pt-3 pb-1 flex justify-between items-center">
+                <span className="text-sm text-gray-400">Balance due on completion</span>
+                <span className="text-sm text-gray-400 tabular-nums">{fmtD(balanceDue)}</span>
               </div>
 
               {/* Grand total */}
-              <div className="border-t-2 border-gray-800 mt-4 pt-4 flex justify-between items-center">
-                <span className="text-base font-bold text-gray-900">Your Total</span>
-                <span className="text-3xl font-bold text-brand-600">{fmtD(grandTotal)}</span>
+              <div className="border-t border-gray-200 pt-4 flex justify-between items-center">
+                <span className="text-base font-bold text-gray-900">Total</span>
+                <span className="text-base font-bold text-gray-900 tabular-nums">{fmtD(grandTotal)}</span>
               </div>
 
             </div>
