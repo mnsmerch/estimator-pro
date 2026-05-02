@@ -62,6 +62,9 @@ export default function ProposalPage({ params }: { params: Promise<{ id: string 
   // Logo load state — hide the white box until the image file itself has downloaded
   const [logoLoaded, setLogoLoaded] = useState(false)
 
+  // Lightbox
+  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null)
+
   // Signature state
   const [sigName,     setSigName]     = useState('')
   const [sigDataUrl,  setSigDataUrl]  = useState<string | null>(null)
@@ -276,13 +279,32 @@ export default function ProposalPage({ params }: { params: Promise<{ id: string 
             <h3 className="text-base font-bold text-gray-900 mb-4">Project Photos</h3>
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
               {estimate.photoUrls!.map((url, idx) => (
-                <div key={url} className="aspect-square rounded-xl overflow-hidden bg-gray-100">
+                <button
+                  key={url}
+                  onClick={() => setLightboxIndex(idx)}
+                  className="aspect-square rounded-xl overflow-hidden bg-gray-100 cursor-zoom-in group focus:outline-none focus:ring-2 focus:ring-brand-500"
+                >
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={url} alt={`Photo ${idx + 1}`} className="w-full h-full object-cover" />
-                </div>
+                  <img
+                    src={url}
+                    alt={`Photo ${idx + 1}`}
+                    className="w-full h-full object-cover transition-transform duration-200 group-hover:scale-105"
+                  />
+                </button>
               ))}
             </div>
           </div>
+        )}
+
+        {/* ── Lightbox ───────────────────────────────────────────────────── */}
+        {lightboxIndex !== null && estimate.photoUrls && (
+          <Lightbox
+            urls={estimate.photoUrls}
+            index={lightboxIndex}
+            onClose={() => setLightboxIndex(null)}
+            onPrev={() => setLightboxIndex(i => (i! - 1 + estimate.photoUrls!.length) % estimate.photoUrls!.length)}
+            onNext={() => setLightboxIndex(i => (i! + 1) % estimate.photoUrls!.length)}
+          />
         )}
 
         {/* ── Paint options + add-ons ────────────────────────────────────── */}
@@ -569,6 +591,95 @@ function PriceLine({ label, value }: { label: string; value: string }) {
     <div className="flex justify-between items-center gap-4">
       <span className="text-sm text-gray-600">{label}</span>
       <span className="text-sm font-medium text-gray-900 tabular-nums shrink-0">{value}</span>
+    </div>
+  )
+}
+
+// ─── Lightbox ─────────────────────────────────────────────────────────────────
+
+function Lightbox({
+  urls, index, onClose, onPrev, onNext,
+}: {
+  urls: string[]
+  index: number
+  onClose: () => void
+  onPrev: () => void
+  onNext: () => void
+}) {
+  const hasPrev = urls.length > 1
+  const hasNext = urls.length > 1
+
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape')     onClose()
+      if (e.key === 'ArrowLeft')  onPrev()
+      if (e.key === 'ArrowRight') onNext()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onClose, onPrev, onNext])
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-sm"
+      onClick={onClose}
+    >
+      {/* Counter */}
+      <div className="absolute top-4 left-1/2 -translate-x-1/2 text-white/60 text-sm tabular-nums">
+        {index + 1} / {urls.length}
+      </div>
+
+      {/* Close */}
+      <button
+        onClick={onClose}
+        className="absolute top-4 right-4 text-white/70 hover:text-white p-2 rounded-full hover:bg-white/10 transition-colors"
+      >
+        <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
+        </svg>
+      </button>
+
+      {/* Prev */}
+      {hasPrev && (
+        <button
+          onClick={e => { e.stopPropagation(); onPrev() }}
+          className="absolute left-4 top-1/2 -translate-y-1/2 text-white/70 hover:text-white p-3 rounded-full hover:bg-white/10 transition-colors"
+        >
+          <svg className="w-7 h-7" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5" />
+          </svg>
+        </button>
+      )}
+
+      {/* Image */}
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={urls[index]}
+        alt={`Photo ${index + 1}`}
+        onClick={e => e.stopPropagation()}
+        className="max-h-[90vh] max-w-[90vw] rounded-2xl object-contain shadow-2xl"
+      />
+
+      {/* Next */}
+      {hasNext && (
+        <button
+          onClick={e => { e.stopPropagation(); onNext() }}
+          className="absolute right-4 top-1/2 -translate-y-1/2 text-white/70 hover:text-white p-3 rounded-full hover:bg-white/10 transition-colors"
+        >
+          <svg className="w-7 h-7" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
+          </svg>
+        </button>
+      )}
+
+      {/* Dot indicators */}
+      {urls.length > 1 && (
+        <div className="absolute bottom-5 left-1/2 -translate-x-1/2 flex gap-1.5">
+          {urls.map((_, i) => (
+            <div key={i} className={`w-1.5 h-1.5 rounded-full transition-colors ${i === index ? 'bg-white' : 'bg-white/30'}`} />
+          ))}
+        </div>
+      )}
     </div>
   )
 }
