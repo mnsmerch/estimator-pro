@@ -166,7 +166,7 @@ export default function ProposalPage({ params }: { params: Promise<{ id: string 
   const hasCustomData = (estimate?.customItems ?? []).some(i => i.description && (i.price ?? 0) > 0)
 
   async function handleSign() {
-    if (!sigName.trim() || !agreed || !sigDataUrl) return
+    if (!sigName.trim() || !agreed || !sigDataUrl || !estimate) return
     setSigning(true)
     try {
       const signatureDate = new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
