@@ -214,33 +214,35 @@ export default function ProposalPage({ params }: { params: Promise<{ id: string 
       <div className="max-w-2xl mx-auto space-y-5">
 
         {/* ── Company header ─────────────────────────────────────────────── */}
-        <div className="bg-brand-700 text-white rounded-2xl p-7">
-          <div className="flex items-start justify-between gap-4">
-            <div className="flex items-center gap-4">
+        <div className="bg-brand-700 text-white rounded-2xl p-5 sm:p-7">
+          {/* Row 1: logo + name + date */}
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex items-center gap-3 min-w-0">
               {company.logoUrl && (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
                   src={company.logoUrl}
                   alt={`${company.name} logo`}
                   onLoad={() => setLogoLoaded(true)}
-                  className={`h-16 max-w-[140px] object-contain rounded-lg bg-white p-2 shrink-0 shadow-sm transition-opacity duration-300 ${
+                  className={`h-12 w-12 sm:h-14 sm:w-14 object-contain rounded-lg bg-white p-1.5 shrink-0 shadow-sm transition-opacity duration-300 ${
                     logoLoaded ? 'opacity-100' : 'opacity-0'
                   }`}
                 />
               )}
-              <div>
-                <h1 className="text-2xl font-bold tracking-tight">{company.name}</h1>
-                <p className="text-brand-200 text-sm mt-1">{company.streetAddress} · {company.cityStateZip}</p>
-                <p className="text-brand-200 text-sm">{company.phone} · {company.email}</p>
-                {company.website && <p className="text-brand-200 text-sm">{company.website}</p>}
-              </div>
+              <h1 className="text-lg sm:text-2xl font-bold tracking-tight leading-tight">{company.name}</h1>
             </div>
             <div className="text-right shrink-0">
               <p className="text-brand-300 text-xs uppercase tracking-wide">Date</p>
-              <p className="text-sm font-semibold mt-0.5">
+              <p className="text-sm font-semibold mt-0.5 whitespace-nowrap">
                 {new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
               </p>
             </div>
+          </div>
+          {/* Row 2: contact details */}
+          <div className="mt-3 pt-3 border-t border-brand-600 space-y-0.5">
+            <p className="text-brand-200 text-sm">{company.streetAddress} · {company.cityStateZip}</p>
+            <p className="text-brand-200 text-sm">{company.phone} · {company.email}</p>
+            {company.website && <p className="text-brand-200 text-sm">{company.website}</p>}
           </div>
         </div>
 
