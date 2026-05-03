@@ -1,9 +1,24 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { renderToBuffer } from '@react-pdf/renderer'
-import { google } from 'googleapis'
-import { Readable } from 'stream'
 import { createElement } from 'react'
 import { ProposalPdf, type ProposalPdfData } from '@/lib/pdf/proposalPdf'
+import { initializeApp, cert, getApps } from 'firebase-admin/app'
+import { getStorage } from 'firebase-admin/storage'
+
+// ── Firebase Admin (singleton) ────────────────────────────────────────────────
+
+function getAdminStorage() {
+  const raw = process.env.GOOGLE_SERVICE_ACCOUNT_JSON
+  if (!raw) throw new Error('GOOGLE_SERVICE_ACCOUNT_JSON env var not set')
+  const credentials = JSON.parse(raw)
+  const bucket = process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET
+  if (!bucket) throw new Error('NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET env var not set')
+
+  if (!getApps().length) {
+    initializeApp({ credential: cert(credentials), storageBucket: bucket })
+  }
+  return getStorage().bucket()
+}
 
 export async function POST(req: NextRequest) {
   try {
@@ -13,7 +28,7 @@ export async function POST(req: NextRequest) {
       fileName: string
     }
 
-    const { data, folderId, fileName } = body
+    const { data, fileName } = body
 
     // ── 1. Generate PDF ────────────────────────────────────────────────────────
 
@@ -24,50 +39,33 @@ export async function POST(req: NextRequest) {
 
     const pdfBase64 = Buffer.from(pdfBuffer).toString('base64')
 
-    // ── 2. Try to upload to Google Drive (best-effort) ────────────────────────
+    // ── 2. Upload to Firebase Storage ─────────────────────────────────────────
 
-    let fileId:      string | null = null
-    let webViewLink: string | null = null
-    let driveError:  string | null = null
+    let storageUrl:  string | null = null
+    let storageError: string | null = null
 
-    if (folderId) {
-      try {
-        const raw = process.env.GOOGLE_SERVICE_ACCOUNT_JSON
-        if (!raw) throw new Error('GOOGLE_SERVICE_ACCOUNT_JSON env var not set')
-        const credentials = JSON.parse(raw)
+    try {
+      const bucket     = getAdminStorage()
+      const storagePath = `signed-contracts/${fileName}`
+      const file       = bucket.file(storagePath)
 
-        const auth = new google.auth.GoogleAuth({
-          credentials,
-          scopes: ['https://www.googleapis.com/auth/drive'],
-        })
+      await file.save(pdfBuffer, {
+        metadata: { contentType: 'application/pdf' },
+      })
 
-        const drive = google.drive({ version: 'v3', auth })
-        const stream = Readable.from(pdfBuffer)
-
-        const uploaded = await drive.files.create({
-          supportsAllDrives: true,
-          requestBody: {
-            name:     fileName,
-            parents:  [folderId],
-            mimeType: 'application/pdf',
-          },
-          media: {
-            mimeType: 'application/pdf',
-            body:     stream,
-          },
-          fields: 'id, webViewLink',
-        })
-
-        fileId      = uploaded.data.id      ?? null
-        webViewLink = uploaded.data.webViewLink ?? null
-        console.log('[generate-pdf] Drive upload OK:', fileName, '→', fileId)
-      } catch (err: unknown) {
-        driveError = err instanceof Error ? err.message : String(err)
-        console.error('[generate-pdf] Drive upload failed:', driveError)
-      }
+      // Signed URL valid for 10 years
+      const [url] = await file.getSignedUrl({
+        action:  'read',
+        expires: '2099-01-01',
+      })
+      storageUrl = url
+      console.log('[generate-pdf] Uploaded to Firebase Storage:', storagePath)
+    } catch (err: unknown) {
+      storageError = err instanceof Error ? err.message : String(err)
+      console.error('[generate-pdf] Storage upload failed:', storageError)
     }
 
-    return NextResponse.json({ pdfBase64, fileName, fileId, webViewLink, driveError })
+    return NextResponse.json({ pdfBase64, fileName, storageUrl, storageError })
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err)
     console.error('[generate-pdf] Error:', msg)

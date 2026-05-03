@@ -231,8 +231,8 @@ export default function ProposalPage({ params }: { params: Promise<{ id: string 
           })
           const json = await res.json() as {
             pdfBase64?: string; fileName?: string
-            fileId?: string; webViewLink?: string
-            driveError?: string; error?: string
+            storageUrl?: string; storageError?: string
+            error?: string
           }
 
           if (json.error) {
@@ -251,14 +251,14 @@ export default function ProposalPage({ params }: { params: Promise<{ id: string 
               a.click()
               URL.revokeObjectURL(url)
             }
-            // Drive upload result
-            if (json.driveError) {
+            // Storage upload result
+            if (json.storageError) {
               setPdfStatus('error')
-              setPdfError(`Drive upload failed: ${json.driveError}`)
+              setPdfError(json.storageError)
               setPdfLink(null)
             } else {
               setPdfStatus('done')
-              setPdfLink(json.webViewLink ?? null)
+              setPdfLink(json.storageUrl ?? null)
             }
           }
         } catch (err) {
@@ -635,18 +635,18 @@ export default function ProposalPage({ params }: { params: Promise<{ id: string 
                 )}
                 {pdfStatus === 'done' && (
                   <div className="flex flex-col items-center gap-1">
-                    <p className="text-sm text-green-600 font-medium">✓ PDF downloaded &amp; saved to Google Drive</p>
+                    <p className="text-sm text-green-600 font-medium">✓ PDF downloaded &amp; saved to cloud</p>
                     {pdfLink && (
                       <a href={pdfLink} target="_blank" rel="noopener noreferrer"
                         className="text-xs text-brand-600 underline hover:text-brand-800">
-                        Open in Drive
+                        Download again
                       </a>
                     )}
                   </div>
                 )}
                 {pdfStatus === 'error' && (
                   <div className="bg-yellow-50 border border-yellow-200 rounded-xl px-4 py-3 text-left">
-                    <p className="text-sm font-semibold text-yellow-800">PDF downloaded — Drive upload failed</p>
+                    <p className="text-sm font-semibold text-yellow-800">PDF downloaded — cloud save failed</p>
                     <p className="text-xs text-yellow-600 mt-1">Check your downloads folder for the signed contract.</p>
                     {pdfError && <p className="text-xs text-yellow-500 mt-1 font-mono break-all">{pdfError}</p>}
                   </div>
