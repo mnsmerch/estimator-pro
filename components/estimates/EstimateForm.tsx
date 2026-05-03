@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/context/AuthContext'
 import { getSettingsDoc } from '@/lib/firebase/settings'
-import { createEstimate, updateEstimate } from '@/lib/firebase/estimates'
+import { createEstimate, updateEstimate, resetSignatureForChangeOrder } from '@/lib/firebase/estimates'
 import { uploadPhoto, deletePhoto } from '@/lib/firebase/storage'
 import { buildApplicationList, CATEGORY_ORDER } from '@/lib/applicationList'
 import { calcEstimate, calcMarkup, calcPaintCost } from '@/lib/estimateEngine'
@@ -475,22 +475,36 @@ export default function EstimateForm({ estimateId, initialData }: EstimateFormPr
           <a href="/estimates" className="text-sm text-gray-500 hover:text-gray-800">← Estimates</a>
           {saveError && <span className="text-sm text-red-600">Error saving. Try again.</span>}
           {isEdit && estimateId && (
-            <button
-              onClick={async () => {
-                setSaving(true)
-                try {
-                  const taxRate = clientAddress ? await lookupSalesTax(clientAddress) : null
-                  await saveQuiet(taxRate)
-                  window.open(`/p/${estimateId}`, '_blank')
-                } finally {
-                  setSaving(false)
-                }
-              }}
-              disabled={saving}
-              className="px-4 py-2 text-sm font-medium rounded-lg border border-green-600 text-green-700 bg-white hover:bg-green-50 disabled:opacity-50"
-            >
-              {saving ? 'Saving…' : 'Generate Estimate ↗'}
-            </button>
+            <>
+              {initialData?.status === 'approved' && (
+                <span className="flex items-center gap-1.5 text-xs font-semibold text-green-700 bg-green-50 border border-green-200 rounded-full px-3 py-1">
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
+                  </svg>
+                  Signed
+                </span>
+              )}
+              <button
+                onClick={async () => {
+                  setSaving(true)
+                  try {
+                    const taxRate = clientAddress ? await lookupSalesTax(clientAddress) : null
+                    await saveQuiet(taxRate)
+                    // If previously signed, reset signature so client can sign the updated version
+                    if (initialData?.status === 'approved') {
+                      await resetSignatureForChangeOrder(estimateId)
+                    }
+                    window.open(`/p/${estimateId}`, '_blank')
+                  } finally {
+                    setSaving(false)
+                  }
+                }}
+                disabled={saving}
+                className="px-4 py-2 text-sm font-medium rounded-lg border border-green-600 text-green-700 bg-white hover:bg-green-50 disabled:opacity-50"
+              >
+                {saving ? 'Saving…' : initialData?.status === 'approved' ? 'Send Change Order ↗' : 'Generate Estimate ↗'}
+              </button>
+            </>
           )}
           <button
             onClick={() => handleSave('draft')}

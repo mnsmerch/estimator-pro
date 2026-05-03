@@ -55,6 +55,17 @@ export async function acceptEstimate(
   })
 }
 
+export async function resetSignatureForChangeOrder(id: string): Promise<void> {
+  const ref = doc(db, COLLECTION, id)
+  await updateDoc(ref, {
+    status: 'sent',
+    signatureName: '',
+    signatureDate: '',
+    signatureDataUrl: '',
+    updatedAt: serverTimestamp(),
+  })
+}
+
 export async function listEstimates(userId: string): Promise<EstimateData[]> {
   const q = query(
     collection(db, COLLECTION),
