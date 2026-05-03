@@ -13,6 +13,7 @@ import {
   DEFAULT_COMPANY,
 } from '@/lib/defaultSettings'
 import type { EstimateData } from '@/types/estimate'
+import { getDefaultScopeForBrand } from '@/types/estimate'
 import type {
   BusinessRules, ProductionConstants, PaintProduct, ProductionRates, CompanySettings,
 } from '@/types/settings'
@@ -188,14 +189,14 @@ export default function ProposalPage({ params }: { params: Promise<{ id: string 
           clientAddress:      estimate.clientAddress,
           clientPhone:        estimate.clientPhone,
           clientEmail:        estimate.clientEmail,
-          scopeProject:       estimate.scopeProject,
-          scopePrepWork:      estimate.scopePrepWork,
-          scopePainting:      estimate.scopePainting,
-          scopeCleanUp:       estimate.scopeCleanUp,
-          scopeWalkThrough:   estimate.scopeWalkThrough,
-          scopePaintProducts: scopePaintProductsText,
-          totalColors:        estimate.totalColors,
-          totalCoats:         estimate.totalCoats,
+          scopeProject,
+          scopePrepWork,
+          scopePainting,
+          scopeCleanUp,
+          scopeWalkThrough,
+          scopePaintProducts,
+          totalColors,
+          totalCoats,
           selectedBrandLabel: brandPreset.label,
           paintingSubtotal,
           woodTotal,
@@ -263,11 +264,22 @@ export default function ProposalPage({ params }: { params: Promise<{ id: string 
     )
   }
 
-  const scopePaintProductsText =
-    estimate.scopePaintProductsByBrand?.[selectedBrand] ?? estimate.scopePaintProducts ?? ''
+  // Resolve all scope fields for the active brand
+  const brandScope = estimate.scopeByBrand?.[selectedBrand]
+  const fallbackScope = getDefaultScopeForBrand(selectedBrand)
+  const scopeProject       = brandScope?.scopeProject       ?? estimate.scopeProject       ?? ''
+  const scopePrepWork      = brandScope?.scopePrepWork      ?? estimate.scopePrepWork       ?? ''
+  const scopePainting      = brandScope?.scopePainting      ?? estimate.scopePainting       ?? ''
+  const scopeCleanUp       = brandScope?.scopeCleanUp       ?? estimate.scopeCleanUp        ?? ''
+  const scopeWalkThrough   = brandScope?.scopeWalkThrough   ?? estimate.scopeWalkThrough    ?? ''
+  const scopePaintProducts = brandScope?.scopePaintProducts
+    ?? estimate.scopePaintProductsByBrand?.[selectedBrand]
+    ?? fallbackScope.scopePaintProducts
+  const totalColors = brandScope?.totalColors ?? estimate.totalColors ?? ''
+  const totalCoats  = brandScope?.totalCoats  ?? estimate.totalCoats  ?? ''
 
-  const hasScope = estimate.scopePrepWork || estimate.scopePainting || estimate.scopeProject ||
-                   estimate.scopeCleanUp  || estimate.scopeWalkThrough || scopePaintProductsText
+  const hasScope = scopePrepWork || scopePainting || scopeProject ||
+                   scopeCleanUp  || scopeWalkThrough || scopePaintProducts
 
   // ── Render ───────────────────────────────────────────────────────────────────
 
@@ -330,24 +342,24 @@ export default function ProposalPage({ params }: { params: Promise<{ id: string 
           <div className="bg-white rounded-2xl border border-gray-200 p-6">
             <h3 className="text-base font-bold text-gray-900 mb-4">Scope of Work</h3>
             <div className="space-y-4">
-              {estimate.scopeProject      && <ScopeBlock label="Project"        text={estimate.scopeProject} />}
-              {estimate.scopePrepWork     && <ScopeBlock label="Prep Work"      text={estimate.scopePrepWork} />}
-              {estimate.scopePainting     && <ScopeBlock label="Painting"       text={estimate.scopePainting} />}
-              {estimate.scopeCleanUp      && <ScopeBlock label="Clean Up"       text={estimate.scopeCleanUp} />}
-              {estimate.scopeWalkThrough  && <ScopeBlock label="Walk Through"   text={estimate.scopeWalkThrough} />}
-              {scopePaintProductsText && <ScopeBlock label="Paint Products" text={scopePaintProductsText} />}
-              {(estimate.totalColors || estimate.totalCoats) && (
+              {scopeProject      && <ScopeBlock label="Project"        text={scopeProject} />}
+              {scopePrepWork     && <ScopeBlock label="Prep Work"      text={scopePrepWork} />}
+              {scopePainting     && <ScopeBlock label="Painting"       text={scopePainting} />}
+              {scopeCleanUp      && <ScopeBlock label="Clean Up"       text={scopeCleanUp} />}
+              {scopeWalkThrough  && <ScopeBlock label="Walk Through"   text={scopeWalkThrough} />}
+              {scopePaintProducts && <ScopeBlock label="Paint Products" text={scopePaintProducts} />}
+              {(totalColors || totalCoats) && (
                 <div className="flex gap-6 pt-3 border-t border-gray-100">
-                  {estimate.totalColors && (
+                  {totalColors && (
                     <div>
                       <span className="text-xs text-gray-400 uppercase tracking-wide">Colors: </span>
-                      <span className="text-sm font-medium text-gray-700">{estimate.totalColors}</span>
+                      <span className="text-sm font-medium text-gray-700">{totalColors}</span>
                     </div>
                   )}
-                  {estimate.totalCoats && (
+                  {totalCoats && (
                     <div>
                       <span className="text-xs text-gray-400 uppercase tracking-wide">Coats: </span>
-                      <span className="text-sm font-medium text-gray-700">{estimate.totalCoats}</span>
+                      <span className="text-sm font-medium text-gray-700">{totalCoats}</span>
                     </div>
                   )}
                 </div>

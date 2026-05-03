@@ -8,7 +8,8 @@ import { createEstimate, updateEstimate } from '@/lib/firebase/estimates'
 import { uploadPhoto, deletePhoto } from '@/lib/firebase/storage'
 import { buildApplicationList, CATEGORY_ORDER } from '@/lib/applicationList'
 import { calcEstimate, calcMarkup, calcPaintCost } from '@/lib/estimateEngine'
-import { SCOPE_DEFAULTS } from '@/types/estimate'
+import { SCOPE_DEFAULTS, getDefaultScopeForBrand } from '@/types/estimate'
+import type { ScopeFields } from '@/types/estimate'
 import {
   DEFAULT_BUSINESS_RULES,
   DEFAULT_PRODUCTION_CONSTANTS,
@@ -186,17 +187,39 @@ export default function EstimateForm({ estimateId, initialData }: EstimateFormPr
   const [manualPaintBProductId, setManualPaintBProductId] = useState(initialData?.manualPaintBProductId ?? '')
   const [manualPaintBGallons,   setManualPaintBGallons]   = useState(initialData?.manualPaintBGallons   ?? 0)
 
-  // Scope
-  const [scopeProject,       setScopeProject]       = useState(initialData?.scopeProject       ?? SCOPE_DEFAULTS.scopeProject)
-  const [scopePrepWork,      setScopePrepWork]       = useState(initialData?.scopePrepWork      ?? SCOPE_DEFAULTS.scopePrepWork)
-  const [scopePainting,      setScopePainting]       = useState(initialData?.scopePainting      ?? SCOPE_DEFAULTS.scopePainting)
-  const [scopeCleanUp,       setScopeCleanUp]        = useState(initialData?.scopeCleanUp       ?? SCOPE_DEFAULTS.scopeCleanUp)
-  const [scopeWalkThrough,   setScopeWalkThrough]    = useState(initialData?.scopeWalkThrough   ?? SCOPE_DEFAULTS.scopeWalkThrough)
-  const [scopePaintProductsByBrand, setScopePaintProductsByBrand] = useState<Record<string, string>>(
-    initialData?.scopePaintProductsByBrand ?? { ...SCOPE_DEFAULTS.scopePaintProductsByBrand }
-  )
-  const [totalColors,        setTotalColors]         = useState(initialData?.totalColors        ?? '')
-  const [totalCoats,         setTotalCoats]          = useState(initialData?.totalCoats         ?? '')
+  // Scope — all fields stored per brand
+  const [scopeByBrand, setScopeByBrand] = useState<Record<string, ScopeFields>>(() => {
+    const defaults = Object.fromEntries(
+      PAINT_BRANDS.map(b => [b.key, getDefaultScopeForBrand(b.key)])
+    )
+    if (!initialData) return defaults
+    if (initialData.scopeByBrand) {
+      // Already per-brand — merge with defaults so any new brands get their defaults
+      return { ...defaults, ...initialData.scopeByBrand }
+    }
+    // Migration: existing estimate without scopeByBrand — seed active brand with saved values
+    const activeBrand = initialData.selectedBrand ?? 'superPaint'
+    const existing: ScopeFields = {
+      scopeProject:       initialData.scopeProject       ?? SCOPE_DEFAULTS.scopeProject,
+      scopePrepWork:      initialData.scopePrepWork      ?? SCOPE_DEFAULTS.scopePrepWork,
+      scopePainting:      initialData.scopePainting      ?? SCOPE_DEFAULTS.scopePainting,
+      scopeCleanUp:       initialData.scopeCleanUp       ?? SCOPE_DEFAULTS.scopeCleanUp,
+      scopeWalkThrough:   initialData.scopeWalkThrough   ?? SCOPE_DEFAULTS.scopeWalkThrough,
+      scopePaintProducts: initialData.scopePaintProductsByBrand?.[activeBrand] ?? initialData.scopePaintProducts ?? getDefaultScopeForBrand(activeBrand).scopePaintProducts,
+      totalColors:        initialData.totalColors        ?? '',
+      totalCoats:         initialData.totalCoats         ?? '',
+    }
+    return { ...defaults, [activeBrand]: existing }
+  })
+
+  function updateScope(field: keyof ScopeFields, value: string) {
+    setScopeByBrand(prev => ({
+      ...prev,
+      [selectedBrand]: { ...(prev[selectedBrand] ?? getDefaultScopeForBrand(selectedBrand)), [field]: value },
+    }))
+  }
+
+  const currentScope = scopeByBrand[selectedBrand] ?? getDefaultScopeForBrand(selectedBrand)
 
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState(false)
@@ -359,11 +382,18 @@ export default function EstimateForm({ estimateId, initialData }: EstimateFormPr
       selectedStainPaint:  stainPaintId,
       manualPaintAProductId, manualPaintAGallons,
       manualPaintBProductId, manualPaintBGallons,
-      scopeProject, scopePrepWork, scopePainting,
-      scopeCleanUp, scopeWalkThrough,
-      scopePaintProducts: scopePaintProductsByBrand[selectedBrand] ?? '',
-      scopePaintProductsByBrand,
-      totalColors, totalCoats,
+      scopeProject:       currentScope.scopeProject,
+      scopePrepWork:      currentScope.scopePrepWork,
+      scopePainting:      currentScope.scopePainting,
+      scopeCleanUp:       currentScope.scopeCleanUp,
+      scopeWalkThrough:   currentScope.scopeWalkThrough,
+      scopePaintProducts: currentScope.scopePaintProducts,
+      scopePaintProductsByBrand: Object.fromEntries(
+        Object.entries(scopeByBrand).map(([k, v]) => [k, v.scopePaintProducts])
+      ),
+      scopeByBrand,
+      totalColors: currentScope.totalColors,
+      totalCoats:  currentScope.totalCoats,
       photoUrls,
     }
     try {
@@ -401,11 +431,18 @@ export default function EstimateForm({ estimateId, initialData }: EstimateFormPr
       selectedStainPaint:  stainPaintId,
       manualPaintAProductId, manualPaintAGallons,
       manualPaintBProductId, manualPaintBGallons,
-      scopeProject, scopePrepWork, scopePainting,
-      scopeCleanUp, scopeWalkThrough,
-      scopePaintProducts: scopePaintProductsByBrand[selectedBrand] ?? '',
-      scopePaintProductsByBrand,
-      totalColors, totalCoats,
+      scopeProject:       currentScope.scopeProject,
+      scopePrepWork:      currentScope.scopePrepWork,
+      scopePainting:      currentScope.scopePainting,
+      scopeCleanUp:       currentScope.scopeCleanUp,
+      scopeWalkThrough:   currentScope.scopeWalkThrough,
+      scopePaintProducts: currentScope.scopePaintProducts,
+      scopePaintProductsByBrand: Object.fromEntries(
+        Object.entries(scopeByBrand).map(([k, v]) => [k, v.scopePaintProducts])
+      ),
+      scopeByBrand,
+      totalColors: currentScope.totalColors,
+      totalCoats:  currentScope.totalCoats,
       photoUrls,
       ...(salesTaxRate != null ? { salesTaxRate } : {}),
     }
@@ -963,36 +1000,36 @@ export default function EstimateForm({ estimateId, initialData }: EstimateFormPr
 
         {/* ── Scope of Work ─────────────────────────────────────────────── */}
         <section className="bg-white rounded-xl border border-gray-200 p-6">
-          <h2 className="text-base font-semibold text-gray-900 mb-4">Scope of Work</h2>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-base font-semibold text-gray-900">Scope of Work</h2>
+            <span className="text-xs font-medium text-brand-600 bg-brand-50 border border-brand-200 rounded-full px-3 py-1">
+              {PAINT_BRANDS.find(b => b.key === selectedBrand)?.label ?? selectedBrand}
+            </span>
+          </div>
           <div className="grid grid-cols-2 gap-4">
             <Field label="Project Description">
-              <textarea rows={3} value={scopeProject} onChange={e => setScopeProject(e.target.value)} className="input resize-none" />
+              <textarea rows={3} value={currentScope.scopeProject} onChange={e => updateScope('scopeProject', e.target.value)} className="input resize-none" />
             </Field>
             <Field label="Prep Work">
-              <textarea rows={6} value={scopePrepWork} onChange={e => setScopePrepWork(e.target.value)} className="input resize-none" />
+              <textarea rows={6} value={currentScope.scopePrepWork} onChange={e => updateScope('scopePrepWork', e.target.value)} className="input resize-none" />
             </Field>
             <Field label="Painting">
-              <textarea rows={6} value={scopePainting} onChange={e => setScopePainting(e.target.value)} className="input resize-none" />
+              <textarea rows={6} value={currentScope.scopePainting} onChange={e => updateScope('scopePainting', e.target.value)} className="input resize-none" />
             </Field>
             <Field label="Clean Up">
-              <textarea rows={4} value={scopeCleanUp} onChange={e => setScopeCleanUp(e.target.value)} className="input resize-none" />
+              <textarea rows={4} value={currentScope.scopeCleanUp} onChange={e => updateScope('scopeCleanUp', e.target.value)} className="input resize-none" />
             </Field>
             <Field label="Walk Through">
-              <textarea rows={3} value={scopeWalkThrough} onChange={e => setScopeWalkThrough(e.target.value)} className="input resize-none" />
+              <textarea rows={3} value={currentScope.scopeWalkThrough} onChange={e => updateScope('scopeWalkThrough', e.target.value)} className="input resize-none" />
             </Field>
-            <Field label={`Paint Products — ${PAINT_BRANDS.find(b => b.key === selectedBrand)?.label ?? selectedBrand}`}>
-              <textarea
-                rows={3}
-                value={scopePaintProductsByBrand[selectedBrand] ?? ''}
-                onChange={e => setScopePaintProductsByBrand(prev => ({ ...prev, [selectedBrand]: e.target.value }))}
-                className="input resize-none"
-              />
+            <Field label="Paint Products">
+              <textarea rows={3} value={currentScope.scopePaintProducts} onChange={e => updateScope('scopePaintProducts', e.target.value)} className="input resize-none" />
             </Field>
             <Field label="Total Colors">
-              <input type="text" value={totalColors} onChange={e => setTotalColors(e.target.value)} className="input" />
+              <input type="text" value={currentScope.totalColors} onChange={e => updateScope('totalColors', e.target.value)} className="input" />
             </Field>
             <Field label="Total Coats">
-              <input type="text" value={totalCoats} onChange={e => setTotalCoats(e.target.value)} className="input" />
+              <input type="text" value={currentScope.totalCoats} onChange={e => updateScope('totalCoats', e.target.value)} className="input" />
             </Field>
           </div>
         </section>

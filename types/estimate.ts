@@ -24,6 +24,17 @@ export interface CustomItem {
   price: number
 }
 
+export interface ScopeFields {
+  scopeProject: string
+  scopePrepWork: string
+  scopePainting: string
+  scopeCleanUp: string
+  scopeWalkThrough: string
+  scopePaintProducts: string
+  totalColors: string
+  totalCoats: string
+}
+
 export interface EstimateData {
   id?: string
   userId: string
@@ -52,7 +63,7 @@ export interface EstimateData {
   manualPaintAGallons: number
   manualPaintBProductId: string
   manualPaintBGallons: number
-  // Scope of work
+  // Scope of work — individual fields kept for backward compat
   scopeProject: string
   scopePrepWork: string
   scopePainting: string
@@ -60,6 +71,8 @@ export interface EstimateData {
   scopeWalkThrough: string
   scopePaintProducts: string
   scopePaintProductsByBrand?: Record<string, string>
+  // Per-brand scope (source of truth going forward)
+  scopeByBrand?: Record<string, ScopeFields>
   totalColors: string
   totalCoats: string
   // Photos
@@ -75,7 +88,14 @@ export interface EstimateData {
   updatedAt?: Date
 }
 
-export const SCOPE_DEFAULTS = {
+const BRAND_PAINT_NAMES: Record<string, string> = {
+  superPaint: 'SuperPaint',
+  duration:   'Duration',
+  emerald:    'Emerald',
+  emeraldRR:  'Emerald Rain Refresh',
+}
+
+export const SCOPE_DEFAULTS: ScopeFields = {
   scopeProject: '',
   scopePrepWork:
     '- Power wash the house.\n- Protect surrounding areas.\n- Mask areas not to be painted.\n- Scrape any peeling paint.\n- Prime any bare wood areas.\n- Caulk the cracks around the windows, trim, siding and other areas as necessary.',
@@ -87,12 +107,14 @@ export const SCOPE_DEFAULTS = {
     '- Walk thru inspection with owner.\n- Balance remaining is paid upon completion.',
   scopePaintProducts:
     'Sherwin Williams "SuperPaint" exterior acrylic latex paint or similar product if this one is not available.',
-  scopePaintProductsByBrand: {
-    superPaint: 'Sherwin Williams "SuperPaint" exterior acrylic latex paint or similar product if this one is not available.',
-    duration:   'Sherwin Williams "Duration" exterior acrylic latex paint or similar product if this one is not available.',
-    emerald:    'Sherwin Williams "Emerald" exterior acrylic latex paint or similar product if this one is not available.',
-    emeraldRR:  'Sherwin Williams "Emerald Rain Refresh" exterior acrylic latex paint or similar product if this one is not available.',
-  },
   totalColors: '',
   totalCoats: '',
+}
+
+export function getDefaultScopeForBrand(brandKey: string): ScopeFields {
+  const brandName = BRAND_PAINT_NAMES[brandKey] ?? 'SuperPaint'
+  return {
+    ...SCOPE_DEFAULTS,
+    scopePaintProducts: `Sherwin Williams "${brandName}" exterior acrylic latex paint or similar product if this one is not available.`,
+  }
 }
