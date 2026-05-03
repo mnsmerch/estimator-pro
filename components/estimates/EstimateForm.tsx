@@ -523,7 +523,7 @@ export default function EstimateForm({ estimateId, initialData }: EstimateFormPr
         </div>
       </header>
 
-      <div className="max-w-7xl mx-auto px-6 py-8 space-y-6">
+      <div className="max-w-4xl mx-auto px-6 py-8 space-y-6">
         <h1 className="text-2xl font-bold text-gray-900">
           {isEdit ? `Edit — ${initialData?.clientName || 'Estimate'}` : 'New Estimate'}
         </h1>
@@ -976,7 +976,7 @@ export default function EstimateForm({ estimateId, initialData }: EstimateFormPr
         <section className="bg-white rounded-xl border border-gray-200 p-6">
           <h2 className="text-base font-semibold text-gray-900 mb-4">Estimate Summary</h2>
           {totals ? (
-            <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="grid grid-cols-1 gap-6 sm:grid-cols-3">
               <div className="space-y-2">
                 <p className="text-xs font-semibold uppercase tracking-wider text-gray-400">Hours</p>
                 <SummaryRow label="Prep Hours"       value={fmtHrsTenths(totals.prepHours) + ' hrs'} />
@@ -1020,31 +1020,33 @@ export default function EstimateForm({ estimateId, initialData }: EstimateFormPr
               {PAINT_BRANDS.find(b => b.key === selectedBrand)?.label ?? selectedBrand}
             </span>
           </div>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-4">
             <Field label="Project Description">
-              <textarea rows={3} value={currentScope.scopeProject} onChange={e => updateScope('scopeProject', e.target.value)} className="input resize-none" />
+              <textarea rows={2} value={currentScope.scopeProject} onChange={e => updateScope('scopeProject', e.target.value)} className="input resize-none" />
             </Field>
             <Field label="Prep Work">
-              <textarea rows={6} value={currentScope.scopePrepWork} onChange={e => updateScope('scopePrepWork', e.target.value)} className="input resize-none" />
+              <textarea rows={5} value={currentScope.scopePrepWork} onChange={e => updateScope('scopePrepWork', e.target.value)} className="input resize-none" />
             </Field>
             <Field label="Painting">
-              <textarea rows={6} value={currentScope.scopePainting} onChange={e => updateScope('scopePainting', e.target.value)} className="input resize-none" />
+              <textarea rows={5} value={currentScope.scopePainting} onChange={e => updateScope('scopePainting', e.target.value)} className="input resize-none" />
             </Field>
             <Field label="Clean Up">
-              <textarea rows={4} value={currentScope.scopeCleanUp} onChange={e => updateScope('scopeCleanUp', e.target.value)} className="input resize-none" />
+              <textarea rows={3} value={currentScope.scopeCleanUp} onChange={e => updateScope('scopeCleanUp', e.target.value)} className="input resize-none" />
             </Field>
             <Field label="Walk Through">
-              <textarea rows={3} value={currentScope.scopeWalkThrough} onChange={e => updateScope('scopeWalkThrough', e.target.value)} className="input resize-none" />
+              <textarea rows={2} value={currentScope.scopeWalkThrough} onChange={e => updateScope('scopeWalkThrough', e.target.value)} className="input resize-none" />
             </Field>
             <Field label="Paint Products">
-              <textarea rows={3} value={currentScope.scopePaintProducts} onChange={e => updateScope('scopePaintProducts', e.target.value)} className="input resize-none" />
+              <textarea rows={2} value={currentScope.scopePaintProducts} onChange={e => updateScope('scopePaintProducts', e.target.value)} className="input resize-none" />
             </Field>
-            <Field label="Total Colors">
-              <input type="text" value={currentScope.totalColors} onChange={e => updateScope('totalColors', e.target.value)} className="input" />
-            </Field>
-            <Field label="Total Coats">
-              <input type="text" value={currentScope.totalCoats} onChange={e => updateScope('totalCoats', e.target.value)} className="input" />
-            </Field>
+            <div className="grid grid-cols-2 gap-4">
+              <Field label="Total Colors">
+                <input type="text" value={currentScope.totalColors} onChange={e => updateScope('totalColors', e.target.value)} className="input" />
+              </Field>
+              <Field label="Total Coats">
+                <input type="text" value={currentScope.totalCoats} onChange={e => updateScope('totalCoats', e.target.value)} className="input" />
+              </Field>
+            </div>
           </div>
         </section>
 
