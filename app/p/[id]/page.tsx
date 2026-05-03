@@ -76,6 +76,7 @@ export default function ProposalPage({ params }: { params: Promise<{ id: string 
   const [pdfStatus,   setPdfStatus]   = useState<'idle' | 'uploading' | 'done' | 'error'>('idle')
   const [pdfLink,     setPdfLink]     = useState<string | null>(null)
   const [pdfError,    setPdfError]    = useState<string | null>(null)
+  const [savedToDrive, setSavedToDrive] = useState(false)
 
   useEffect(() => {
     async function load() {
@@ -256,10 +257,12 @@ export default function ProposalPage({ params }: { params: Promise<{ id: string 
             if (json.driveLink) {
               setPdfStatus('done')
               setPdfLink(json.driveLink)
+              setSavedToDrive(true)
             } else if (json.storageUrl) {
-              setPdfStatus('error')
-              setPdfError(json.driveError ?? 'Drive upload failed — backup saved to cloud instead.')
+              // Drive failed but Firebase Storage backup succeeded — treat as success
+              setPdfStatus('done')
               setPdfLink(json.storageUrl)
+              setSavedToDrive(false)
             } else {
               setPdfStatus('error')
               setPdfError(json.driveError ?? 'Upload failed.')
@@ -640,11 +643,13 @@ export default function ProposalPage({ params }: { params: Promise<{ id: string 
                 )}
                 {pdfStatus === 'done' && (
                   <div className="flex flex-col items-center gap-1">
-                    <p className="text-sm text-green-600 font-medium">✓ PDF saved to Google Drive</p>
+                    <p className="text-sm text-green-600 font-medium">
+                      ✓ PDF {savedToDrive ? 'saved to Google Drive' : 'saved to cloud backup'}
+                    </p>
                     {pdfLink && (
                       <a href={pdfLink} target="_blank" rel="noopener noreferrer"
                         className="text-xs text-brand-600 underline hover:text-brand-800">
-                        Open in Drive
+                        {savedToDrive ? 'Open in Drive' : 'Download backup'}
                       </a>
                     )}
                   </div>
