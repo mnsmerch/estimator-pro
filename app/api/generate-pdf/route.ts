@@ -13,12 +13,13 @@ function getAdminStorage() {
   const raw = process.env.GOOGLE_SERVICE_ACCOUNT_JSON
   if (!raw) throw new Error('GOOGLE_SERVICE_ACCOUNT_JSON env var not set')
   const credentials = JSON.parse(raw)
-  const bucket = process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET
-  if (!bucket) throw new Error('NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET env var not set')
+  const bucketName = process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET
+  if (!bucketName) throw new Error('NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET env var not set')
   if (!getApps().length) {
-    initializeApp({ credential: cert(credentials), storageBucket: bucket })
+    initializeApp({ credential: cert(credentials), storageBucket: bucketName })
   }
-  return getStorage().bucket()
+  // Explicitly pass bucket name so it works regardless of default app config
+  return getStorage().bucket(bucketName)
 }
 
 export async function POST(req: NextRequest) {
@@ -89,9 +90,10 @@ export async function POST(req: NextRequest) {
     let storageError: string | null = null
 
     try {
-      const bucket      = getAdminStorage()
+      const bucketName  = process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET!
       const storagePath = `signed-contracts/${fileName}`
-      const file        = bucket.file(storagePath)
+      console.log('[generate-pdf] Storage bucket:', bucketName, 'path:', storagePath)
+      const file        = getAdminStorage().file(storagePath)
       await file.save(pdfBuffer, { metadata: { contentType: 'application/pdf' } })
       const [url] = await file.getSignedUrl({ action: 'read', expires: '2099-01-01' })
       storageUrl = url
