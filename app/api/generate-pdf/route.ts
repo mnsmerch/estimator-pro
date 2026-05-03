@@ -45,11 +45,15 @@ export async function POST(req: NextRequest) {
     let driveLink:  string | null = null
     let driveError: string | null = null
 
+    console.log('[generate-pdf] folderId received:', JSON.stringify(folderId))
+    console.log('[generate-pdf] fileName:', fileName)
+
     if (folderId) {
       try {
         const raw = process.env.GOOGLE_SERVICE_ACCOUNT_JSON
         if (!raw) throw new Error('GOOGLE_SERVICE_ACCOUNT_JSON env var not set')
         const credentials = JSON.parse(raw)
+        console.log('[generate-pdf] service account:', credentials.client_email)
 
         const auth = new google.auth.GoogleAuth({
           credentials,
