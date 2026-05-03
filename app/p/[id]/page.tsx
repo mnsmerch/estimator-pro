@@ -165,9 +165,67 @@ export default function ProposalPage({ params }: { params: Promise<{ id: string 
     if (!sigName.trim() || !agreed || !sigDataUrl) return
     setSigning(true)
     try {
+      const signatureDate = new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
+
+      // 1. Save signature to Firestore
       await acceptEstimate(id, sigName.trim(), sigDataUrl)
       setSigned(true)
       setEstimate(prev => prev ? { ...prev, status: 'approved', signatureName: sigName.trim() } : prev)
+
+      // 2. Generate PDF and upload to Drive (best-effort — don't block success UI)
+      if (estimate?.clientFolderId) {
+        const brandPreset = PAINT_BRANDS.find(b => b.key === selectedBrand) ?? PAINT_BRANDS[0]
+        const pdfData = {
+          companyName:        company.name,
+          companyAddress:     company.streetAddress,
+          companyCityStateZip: company.cityStateZip,
+          companyPhone:       company.phone,
+          companyEmail:       company.email,
+          companyWebsite:     company.website,
+          companyLogoUrl:     company.logoUrl,
+          clientName:         estimate.clientName,
+          clientAddress:      estimate.clientAddress,
+          clientPhone:        estimate.clientPhone,
+          clientEmail:        estimate.clientEmail,
+          scopeProject:       estimate.scopeProject,
+          scopePrepWork:      estimate.scopePrepWork,
+          scopePainting:      estimate.scopePainting,
+          scopeCleanUp:       estimate.scopeCleanUp,
+          scopeWalkThrough:   estimate.scopeWalkThrough,
+          scopePaintProducts: estimate.scopePaintProducts,
+          totalColors:        estimate.totalColors,
+          totalCoats:         estimate.totalCoats,
+          selectedBrandLabel: brandPreset.label,
+          paintingSubtotal,
+          woodTotal,
+          customItems:        (estimate.customItems ?? []).filter(i => includeCustom && i.description && i.price > 0),
+          combinedSubtotal,
+          applyDiscount,
+          discountAmount,
+          taxRate,
+          taxCity:            parseCityFromAddress(estimate.clientAddress),
+          taxAmount,
+          grandTotal,
+          depositPercent,
+          depositAmount,
+          balanceDue,
+          signatureName:      sigName.trim(),
+          signatureDate,
+          signatureDataUrl:   sigDataUrl,
+          generatedDate:      signatureDate,
+        }
+
+        const fileName = `${estimate.clientName} - Signed Contract - ${signatureDate}.pdf`
+
+        fetch('/api/generate-pdf', {
+          method:  'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body:    JSON.stringify({ data: pdfData, folderId: estimate.clientFolderId, fileName }),
+        }).then(r => r.json()).then(res => {
+          if (res.error) console.error('[PDF upload]', res.error)
+          else console.log('[PDF upload] Done:', res.webViewLink)
+        }).catch(err => console.error('[PDF upload]', err))
+      }
     } catch (err) {
       console.error('Failed to accept estimate:', err)
     } finally {
