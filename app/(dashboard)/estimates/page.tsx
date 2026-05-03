@@ -1,14 +1,26 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import { useAuth } from '@/context/AuthContext'
 import { listEstimates } from '@/lib/firebase/estimates'
 import type { EstimateData } from '@/types/estimate'
 
+// ─── constants ───────────────────────────────────────────────────────────────
+
+type FilterKey = 'all' | 'draft' | 'sent' | 'approved'
+
+const FILTERS: { key: FilterKey; label: string }[] = [
+  { key: 'all',      label: 'All'    },
+  { key: 'draft',    label: 'Draft'  },
+  { key: 'sent',     label: 'Sent'   },
+  { key: 'approved', label: 'Signed' },
+]
+
 const STATUS_LABEL: Record<string, string> = {
   draft:    'Draft',
   sent:     'Sent',
-  approved: 'Approved',
+  approved: 'Signed',
   rejected: 'Rejected',
 }
 
@@ -19,10 +31,16 @@ const STATUS_COLOR: Record<string, string> = {
   rejected: 'bg-red-50 text-red-600',
 }
 
+// ─── component ───────────────────────────────────────────────────────────────
+
 export default function EstimatesPage() {
   const { user } = useAuth()
-  const [estimates, setEstimates] = useState<EstimateData[]>([])
-  const [loading, setLoading] = useState(true)
+  const router = useRouter()
+
+  const [estimates, setEstimates]   = useState<EstimateData[]>([])
+  const [loading, setLoading]       = useState(true)
+  const [filter, setFilter]         = useState<FilterKey>('all')
+  const [modalOpen, setModalOpen]   = useState(false)
 
   useEffect(() => {
     if (!user) return
@@ -32,9 +50,22 @@ export default function EstimatesPage() {
     })
   }, [user])
 
+  // Close modal on Escape
+  useEffect(() => {
+    if (!modalOpen) return
+    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') setModalOpen(false) }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [modalOpen])
+
+  const filtered = filter === 'all'
+    ? estimates
+    : estimates.filter(e => e.status === filter)
+
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header */}
+
+      {/* ── Global header ────────────────────────────────────────────────── */}
       <header className="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 rounded-lg bg-brand-600 flex items-center justify-center">
@@ -44,57 +75,88 @@ export default function EstimatesPage() {
           </div>
           <span className="font-bold text-gray-900 text-lg">Estimator Pro</span>
         </div>
-        <div className="flex items-center gap-4">
-          <a href="/settings" className="text-sm text-gray-600 hover:text-gray-900 font-medium">Settings</a>
-          <a href="/dashboard" className="text-sm text-gray-500 hover:text-gray-800">← Dashboard</a>
-        </div>
+        <a href="/settings" className="text-sm text-gray-600 hover:text-gray-900 font-medium transition-colors">
+          Settings
+        </a>
       </header>
 
+      {/* ── Main content ─────────────────────────────────────────────────── */}
       <main className="max-w-5xl mx-auto px-6 py-10">
-        <div className="flex items-center justify-between mb-6">
-          <h1 className="text-2xl font-bold text-gray-900">Estimates</h1>
-          <a
-            href="/estimates/new"
-            className="px-4 py-2 bg-brand-600 text-white text-sm font-medium rounded-lg hover:bg-brand-700"
+
+        {/* Page title row */}
+        <div className="flex items-start justify-between mb-6">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">Estimates</h1>
+            <p className="text-sm text-gray-500 mt-1">Create and manage all your estimates</p>
+          </div>
+          <button
+            onClick={() => setModalOpen(true)}
+            className="px-4 py-2 bg-brand-600 text-white text-sm font-medium rounded-lg hover:bg-brand-700 active:bg-brand-800 transition-colors shrink-0"
           >
             + New Estimate
-          </a>
+          </button>
         </div>
 
+        {/* Filter pill row */}
+        <div className="flex items-center gap-2 mb-6">
+          {FILTERS.map(f => (
+            <button
+              key={f.key}
+              onClick={() => setFilter(f.key)}
+              className={`px-4 py-1.5 rounded-full text-sm font-medium transition-colors ${
+                filter === f.key
+                  ? 'bg-brand-600 text-white'
+                  : 'bg-gray-100 text-gray-600 hover:bg-brand-50 hover:text-brand-700'
+              }`}
+            >
+              {f.label}
+            </button>
+          ))}
+        </div>
+
+        {/* ── Estimates list ───────────────────────────────────────────────── */}
         {loading ? (
           <div className="flex justify-center py-20">
             <div className="w-6 h-6 border-2 border-brand-600 border-t-transparent rounded-full animate-spin" />
           </div>
-        ) : estimates.length === 0 ? (
+        ) : filtered.length === 0 ? (
           <div className="bg-white rounded-xl border border-gray-200 p-12 text-center">
-            <p className="text-gray-500 mb-4">No estimates yet.</p>
-            <a
-              href="/estimates/new"
-              className="inline-block px-4 py-2 bg-brand-600 text-white text-sm font-medium rounded-lg hover:bg-brand-700"
-            >
-              Create your first estimate
-            </a>
+            {filter === 'all' ? (
+              <>
+                <p className="text-gray-500 mb-4">No estimates yet.</p>
+                <button
+                  onClick={() => setModalOpen(true)}
+                  className="inline-block px-4 py-2 bg-brand-600 text-white text-sm font-medium rounded-lg hover:bg-brand-700 transition-colors"
+                >
+                  Create your first estimate
+                </button>
+              </>
+            ) : (
+              <p className="text-gray-500">
+                No <span className="font-medium">{FILTERS.find(f => f.key === filter)?.label.toLowerCase()}</span> estimates.
+              </p>
+            )}
           </div>
         ) : (
           <div className="bg-white rounded-xl border border-gray-200 divide-y divide-gray-100">
-            {estimates.map(est => (
+            {filtered.map(est => (
               <a
                 key={est.id}
                 href={est.status === 'draft' ? `/estimates/${est.id}/edit` : `/estimates/${est.id}`}
                 className="flex items-center justify-between px-6 py-4 hover:bg-gray-50 transition-colors"
               >
                 <div>
-                  <p className="font-medium text-gray-900">{est.clientName || 'Unnamed Client'}</p>
+                  <p className="font-semibold text-gray-900">{est.clientName || 'Unnamed Client'}</p>
                   <p className="text-sm text-gray-500 mt-0.5">{est.clientAddress || '—'}</p>
                 </div>
                 <div className="flex items-center gap-4">
                   <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${STATUS_COLOR[est.status] ?? STATUS_COLOR.draft}`}>
                     {STATUS_LABEL[est.status] ?? est.status}
                   </span>
-                  <span className="text-sm text-gray-400">
+                  <span className="text-sm text-gray-400 tabular-nums">
                     {est.createdAt ? new Date(est.createdAt).toLocaleDateString() : ''}
                   </span>
-                  <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <svg className="w-4 h-4 text-gray-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
                   </svg>
                 </div>
@@ -103,6 +165,78 @@ export default function EstimatesPage() {
           </div>
         )}
       </main>
+
+      {/* ── New Estimate modal ───────────────────────────────────────────────── */}
+      {modalOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          aria-modal="true"
+          role="dialog"
+        >
+          {/* Backdrop */}
+          <div
+            className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+            onClick={() => setModalOpen(false)}
+          />
+
+          {/* Panel */}
+          <div className="relative bg-white rounded-2xl shadow-xl w-full max-w-sm p-6 z-10">
+
+            {/* Close button */}
+            <button
+              onClick={() => setModalOpen(false)}
+              className="absolute top-4 right-4 p-1 text-gray-400 hover:text-gray-600 transition-colors rounded-md hover:bg-gray-100"
+              aria-label="Close"
+            >
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+
+            <h2 className="text-lg font-bold text-gray-900 mb-0.5">New Estimate</h2>
+            <p className="text-sm text-gray-500 mb-5">Choose estimate type</p>
+
+            <div className="flex flex-col gap-3">
+
+              {/* Exterior — active */}
+              <button
+                onClick={() => { setModalOpen(false); router.push('/estimates/new') }}
+                className="w-full text-left px-4 py-3.5 rounded-xl border border-gray-200 hover:border-brand-400 hover:bg-brand-50 transition-colors group"
+              >
+                <p className="font-semibold text-gray-900 group-hover:text-brand-700 transition-colors">
+                  Exterior Estimate
+                </p>
+                <p className="text-sm text-gray-500 mt-0.5">
+                  Exterior painting, wood replacement, prep work
+                </p>
+              </button>
+
+              {/* Interior — coming soon */}
+              <div className="w-full text-left px-4 py-3.5 rounded-xl border border-gray-100 bg-gray-50 cursor-not-allowed opacity-60">
+                <div className="flex items-center justify-between">
+                  <p className="font-semibold text-gray-500">Interior Estimate</p>
+                  <span className="text-[10px] font-semibold uppercase tracking-wide bg-gray-200 text-gray-500 px-2 py-0.5 rounded-full">
+                    Coming soon
+                  </span>
+                </div>
+                <p className="text-sm text-gray-400 mt-0.5">Interior rooms, ceilings, trim</p>
+              </div>
+
+              {/* Cabinet — coming soon */}
+              <div className="w-full text-left px-4 py-3.5 rounded-xl border border-gray-100 bg-gray-50 cursor-not-allowed opacity-60">
+                <div className="flex items-center justify-between">
+                  <p className="font-semibold text-gray-500">Cabinet Estimate</p>
+                  <span className="text-[10px] font-semibold uppercase tracking-wide bg-gray-200 text-gray-500 px-2 py-0.5 rounded-full">
+                    Coming soon
+                  </span>
+                </div>
+                <p className="text-sm text-gray-400 mt-0.5">Cabinet painting and refinishing</p>
+              </div>
+
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

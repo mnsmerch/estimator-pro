@@ -5,12 +5,14 @@ import CompanyForm from '@/components/settings/CompanyForm'
 import BusinessRulesForm from '@/components/settings/BusinessRulesForm'
 import PaintProductsTable from '@/components/settings/PaintProductsTable'
 import RatesAccordion from '@/components/settings/RatesAccordion'
+import TermsForm from '@/components/settings/TermsForm'
 
 const TABS = [
   { key: 'company',      label: 'Company'         },
   { key: 'business',     label: 'Business Rules'  },
   { key: 'paints',       label: 'Paint Products'  },
   { key: 'rates',        label: 'Production Rates'},
+  { key: 'terms',        label: 'Terms & Conditions'},
 ]
 
 export default function SettingsPage() {
@@ -60,6 +62,7 @@ export default function SettingsPage() {
           {activeTab === 'business' && <BusinessRulesForm />}
           {activeTab === 'paints'   && <PaintProductsTable />}
           {activeTab === 'rates'    && <RatesAccordion />}
+          {activeTab === 'terms'    && <TermsForm />}
         </div>
       </div>
     </div>

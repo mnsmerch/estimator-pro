@@ -4,10 +4,11 @@ import { createElement } from 'react'
 import { ProposalPdf, type ProposalPdfData } from '@/lib/pdf/proposalPdf'
 import { initializeApp, cert, getApps } from 'firebase-admin/app'
 import { getStorage } from 'firebase-admin/storage'
+import { getFirestore } from 'firebase-admin/firestore'
 import { google } from 'googleapis'
 import { Readable } from 'stream'
 
-// ── Firebase Admin (singleton) ────────────────────────────────────────────────
+// ── Firebase Admin — estimator-pro (singleton) ────────────────────────────────
 
 function getAdminStorage() {
   const raw = process.env.GOOGLE_SERVICE_ACCOUNT_JSON
@@ -15,11 +16,69 @@ function getAdminStorage() {
   const credentials = JSON.parse(raw)
   const bucketName = process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET
   if (!bucketName) throw new Error('NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET env var not set')
-  if (!getApps().length) {
+  if (!getApps().find(a => a.name === '[DEFAULT]')) {
     initializeApp({ credential: cert(credentials), storageBucket: bucketName })
   }
   // Explicitly pass bucket name so it works regardless of default app config
   return getStorage().bucket(bucketName)
+}
+
+// ── Firebase Admin — access-vlad (GHL tokens) ────────────────────────────────
+
+function getGhlDb() {
+  const raw = process.env.GHL_SERVICE_ACCOUNT_JSON
+  if (!raw) throw new Error('GHL_SERVICE_ACCOUNT_JSON env var not set')
+  const existing = getApps().find(a => a.name === 'ghl')
+  const app = existing ?? initializeApp({ credential: cert(JSON.parse(raw)) }, 'ghl')
+  return getFirestore(app)
+}
+
+async function getGhlLocationToken(): Promise<string> {
+  const db = getGhlDb()
+  const doc = await db.collection('ghl_location_tokens').doc('KmTuAFWyGn4ijrs1sIzJ').get()
+  const data = doc.data()
+  if (!data?.access_token) throw new Error('GHL location token not found')
+  return data.access_token as string
+}
+
+async function uploadToGhl(pdfBuffer: Buffer, fileName: string, contactId: string): Promise<string> {
+  const token      = await getGhlLocationToken()
+  const locationId = 'KmTuAFWyGn4ijrs1sIzJ'
+  const fieldId    = 'yRKdZINUML56aYQcevFk'
+  const headers    = { 'Authorization': `Bearer ${token}`, 'Version': '2023-02-21' }
+
+  // Step 1: upload file
+  const form = new FormData()
+  form.append('id', contactId)
+  form.append('maxFiles', '25')
+  const uint8 = new Uint8Array(pdfBuffer)
+  form.append(fieldId, new Blob([uint8], { type: 'application/pdf' }), fileName)
+
+  const uploadRes = await fetch(
+    `https://services.leadconnectorhq.com/locations/${locationId}/customFields/upload`,
+    { method: 'POST', headers, body: form }
+  )
+  const uploadJson = await uploadRes.json() as { uploadedFiles?: Record<string, string> }
+  const fileUrl = uploadJson.uploadedFiles?.[fileName]
+  if (!fileUrl) throw new Error('GHL upload returned no file URL')
+
+  // Step 2: attach to contact custom field
+  const updateRes = await fetch(
+    `https://services.leadconnectorhq.com/contacts/${contactId}`,
+    {
+      method: 'PUT',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        customFields: [{ id: fieldId, field_value: fileUrl }]
+      }),
+    }
+  )
+  if (!updateRes.ok) {
+    const err = await updateRes.text()
+    throw new Error(`GHL contact update failed: ${err}`)
+  }
+
+  return fileUrl
 }
 
 export async function POST(req: NextRequest) {
@@ -28,9 +87,10 @@ export async function POST(req: NextRequest) {
       data: ProposalPdfData
       folderId?: string
       fileName: string
+      contactId?: string
     }
 
-    const { data, folderId, fileName } = body
+    const { data, folderId, fileName, contactId } = body
 
     // ── 1. Generate PDF ────────────────────────────────────────────────────────
 
@@ -103,6 +163,21 @@ export async function POST(req: NextRequest) {
       console.error('[generate-pdf] Firebase Storage backup failed:', storageError)
     }
 
+    // ── 4. GHL — upload PDF to contact's Files custom field ───────────────────
+
+    let ghlUrl:   string | null = null
+    let ghlError: string | null = null
+
+    if (contactId) {
+      try {
+        ghlUrl = await uploadToGhl(pdfBuffer, fileName, contactId)
+        console.log('[generate-pdf] GHL upload OK:', ghlUrl)
+      } catch (err: unknown) {
+        ghlError = err instanceof Error ? err.message : String(err)
+        console.error('[generate-pdf] GHL upload failed:', ghlError)
+      }
+    }
+
     return NextResponse.json({
       pdfBase64,
       fileName,
@@ -110,6 +185,8 @@ export async function POST(req: NextRequest) {
       driveError,
       storageUrl,
       storageError,
+      ghlUrl,
+      ghlError,
     })
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err)

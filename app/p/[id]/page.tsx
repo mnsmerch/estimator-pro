@@ -170,7 +170,9 @@ export default function ProposalPage({ params }: { params: Promise<{ id: string 
     if (!sigName.trim() || !agreed || !sigDataUrl || !estimate) return
     setSigning(true)
     try {
-      const signatureDate = new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
+      const now = new Date()
+      const signatureDate = now.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
+      const fileTimestamp = now.toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true }).replace(/,/g, '').replace(/:/g, '-').replace(/ /g, '_')
 
       // 1. Save signature to Firestore
       await acceptEstimate(id, sigName.trim(), sigDataUrl)
@@ -222,18 +224,19 @@ export default function ProposalPage({ params }: { params: Promise<{ id: string 
           generatedDate:      signatureDate,
         }
 
-        const fileName = `${estimate.clientName} - Signed Contract - ${signatureDate}.pdf`
+        const fileName = `${estimate.clientName} - Signed Contract - ${fileTimestamp}.pdf`
 
         try {
           const res = await fetch('/api/generate-pdf', {
             method:  'POST',
             headers: { 'Content-Type': 'application/json' },
-            body:    JSON.stringify({ data: pdfData, folderId: estimate.clientFolderId, fileName }),
+            body:    JSON.stringify({ data: pdfData, folderId: estimate.clientFolderId, fileName, contactId: estimate.clientContactId || undefined }),
           })
           const json = await res.json() as {
             pdfBase64?: string; fileName?: string
             driveLink?: string; driveError?: string
             storageUrl?: string; storageError?: string
+            ghlUrl?: string; ghlError?: string
             error?: string
           }
 
@@ -608,6 +611,9 @@ export default function ProposalPage({ params }: { params: Promise<{ id: string 
           </div>
         )}
 
+        {/* ── Terms & Conditions ─────────────────────────────────────────── */}
+        <TermsAndConditions companyName={company.name} />
+
         {/* ── Accept / Signature ─────────────────────────────────────────── */}
         <div className="bg-white rounded-2xl border border-gray-200 p-6">
           {signed ? (
@@ -743,6 +749,27 @@ export default function ProposalPage({ params }: { params: Promise<{ id: string 
           )}
         </div>
 
+        {/* ── Not ready to sign ──────────────────────────────────────────── */}
+        {!signed && (
+          <div className="bg-gray-50 border border-gray-200 rounded-2xl p-6 text-center">
+            <p className="text-sm font-semibold text-gray-700 mb-1">Not ready to sign right now?</p>
+            <p className="text-sm text-gray-400 mb-4">
+              We&apos;ll send this estimate to your email so you can review and sign it later.
+            </p>
+            <button
+              disabled
+              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl border border-gray-300 bg-white text-sm font-medium text-gray-400 cursor-not-allowed"
+              title="Coming soon"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 0 1-2.25 2.25h-15a2.25 2.25 0 0 1-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0 0 19.5 4.5h-15a2.25 2.25 0 0 0-2.25 2.25m19.5 0v.243a2.25 2.25 0 0 1-1.07 1.916l-7.5 4.615a2.25 2.25 0 0 1-2.36 0L3.32 8.91a2.25 2.25 0 0 1-1.07-1.916V6.75" />
+              </svg>
+              Send Estimate
+            </button>
+            <p className="text-xs text-gray-300 mt-3">Email and text coming soon.</p>
+          </div>
+        )}
+
         {/* Footer */}
         <p className="text-center text-xs text-gray-400 pb-6">
           {company.name} · {company.phone} · {company.email}
@@ -753,6 +780,95 @@ export default function ProposalPage({ params }: { params: Promise<{ id: string 
 }
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
+
+const DEFAULT_TERMS = `WARRANTY
+
+• Vanhousing Painters LLC gives workmanship warranty for a period of 3 years from date of significant completion of the project. If paint failure appears, we will supply labor and materials to correct the condition without cost. This warranty is in lieu of all other warranties, expressed or implied. Our responsibility is limited to correcting the condition as indicated above.
+
+• This warranty excludes, and in no event will Vanhousing Painters LLC be responsible for consequential or incidental damage caused by accident or abuse, temperature or humidity changes, settlement, or moisture — i.e., cracks caused by moving parts as siding hardieplanks, expansion and/or contraction.
+
+INSURANCE
+
+• Vanhousing Painters LLC carries full liability and auto insurance.
+
+• Certificate of insurance available upon request.
+
+STANDARDS
+
+• All work is to be completed in a workmanlike manner according to standard practices. It is essential that the work area be available to us free from other trades in the immediate working area. Workers will remain on the job until completion of project, weather permitting. All agreements contingent upon strikes, accidents, or delays beyond our control.
+
+• All work will be done as per standards of the PCA (Painting Contractors of America).
+
+• The painting contractor will produce a "properly painted surface." A properly painted surface is uniform in color and sheen, free of foreign material, lumps, skins, sags, holidays, misses, strike-through, or insufficient coverage. It is a surface free of drips, spatters, spills, or overspray caused by the contractor's workforce. Compliance shall be determined when viewed without magnification at a distance of five feet or more under normal lighting conditions.
+
+• All materials will be applied in accordance with the manufacturer's recommendations.
+
+GENERAL CONDITIONS
+
+• If after you agree to this work you desire any changes or additional work, such changes must be agreed upon in writing before work is performed. Workers are instructed not to undertake additional work without authorization.
+
+• Any interruptions that require re-mobilization of workers and/or equipment may result in additional costs.
+
+• It is essential that the work area be available to us free from other trades. Trade interference may result in additional charges.
+
+• Price is valid for 90 days, unless otherwise noted.
+
+• Job starting date will happen sooner if we finish existing projects earlier.
+
+The following are to be provided by the customer:
+• Power  • Water  • Parking  • Wash-out area
+
+CHANGE ORDERS
+
+• Any change orders, additions, or descopes must be agreed upon in writing and signed by both parties before proceeding. All change orders are billed extra.
+
+PAYMENT TERMS
+
+• We require a 20% deposit upfront to secure your project start date.
+
+• Change orders will be billed and due at the next billing cycle.
+
+• The project will be billed in full and due upon completion of the scope.`
+
+function TermsAndConditions({ companyName: _ }: { companyName: string }) {
+  const [open, setOpen] = useState(false)
+  return (
+    <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden">
+      <button
+        onClick={() => setOpen(o => !o)}
+        className="w-full flex items-center justify-between px-6 py-4 text-left hover:bg-gray-50 transition-colors"
+      >
+        <div className="flex items-center gap-3">
+          <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
+          </svg>
+          <span className="text-sm font-bold text-gray-900">Terms &amp; Conditions</span>
+        </div>
+        <svg
+          className={`w-4 h-4 text-gray-400 transition-transform duration-200 ${open ? 'rotate-180' : ''}`}
+          fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}
+        >
+          <path strokeLinecap="round" strokeLinejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
+        </svg>
+      </button>
+      {open && (
+        <div className="px-6 pb-6 border-t border-gray-100">
+          <div className="mt-4 text-xs text-gray-600 whitespace-pre-line leading-relaxed space-y-1">
+            {DEFAULT_TERMS}
+          </div>
+          <a
+            href="https://www.pcapainted.org/resource-center/painting-standards/"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1 mt-4 text-xs text-brand-600 hover:text-brand-800 font-medium"
+          >
+            View PCA Painting Standards (PDF) →
+          </a>
+        </div>
+      )}
+    </div>
+  )
+}
 
 function ScopeBlock({ label, text }: { label: string; text: string }) {
   return (

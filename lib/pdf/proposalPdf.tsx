@@ -179,7 +179,7 @@ export function ProposalPdf({ data }: { data: ProposalPdfData }) {
         )}
 
         {/* ── Pricing ── */}
-        <View style={s.card}>
+        <View style={s.card} wrap={false}>
           <Text style={[s.sectionLabel, { fontSize: 9, color: DARK, marginBottom: 8 }]}>Your Estimate</Text>
 
           {/* Line items */}
@@ -230,30 +230,33 @@ export function ProposalPdf({ data }: { data: ProposalPdfData }) {
           </View>
         </View>
 
-        {/* ── Deposit band ── */}
-        <View style={s.depositBand}>
-          <View>
-            <Text style={s.depositTitle}>Deposit Due ({Math.round(data.depositPercent * 100)}%)</Text>
-            <Text style={s.depositSub}>Required to secure your project start date</Text>
+        {/* ── Deposit + Total + Signature (keep together) ── */}
+        <View wrap={false}>
+          {/* Deposit band */}
+          <View style={s.depositBand}>
+            <View>
+              <Text style={s.depositTitle}>Deposit Due ({Math.round(data.depositPercent * 100)}%)</Text>
+              <Text style={s.depositSub}>Required to secure your project start date</Text>
+            </View>
+            <Text style={s.depositAmt}>{fmtD(data.depositAmount)}</Text>
           </View>
-          <Text style={s.depositAmt}>{fmtD(data.depositAmount)}</Text>
-        </View>
 
-        {/* ── Grand total ── */}
-        <View style={s.totalRow}>
-          <Text style={s.totalLabel}>Total</Text>
-          <Text style={s.totalValue}>{fmtD(data.grandTotal)}</Text>
-        </View>
+          {/* Grand total */}
+          <View style={s.totalRow}>
+            <Text style={s.totalLabel}>Total</Text>
+            <Text style={s.totalValue}>{fmtD(data.grandTotal)}</Text>
+          </View>
 
-        {/* ── Signature ── */}
-        <View style={s.sigBox}>
-          <Text style={s.sigTitle}>Signed &amp; Accepted</Text>
-          <Text style={s.sigName}>{data.signatureName}</Text>
-          {data.signatureDataUrl && (
-            <Image style={s.sigImg} src={data.signatureDataUrl} />
-          )}
-          <View style={s.sigLine} />
-          <Text style={s.sigDate}>{data.signatureDate}</Text>
+          {/* Signature */}
+          <View style={s.sigBox}>
+            <Text style={s.sigTitle}>Signed &amp; Accepted</Text>
+            <Text style={s.sigName}>{data.signatureName}</Text>
+            {data.signatureDataUrl && (
+              <Image style={s.sigImg} src={data.signatureDataUrl} />
+            )}
+            <View style={s.sigLine} />
+            <Text style={s.sigDate}>{data.signatureDate}</Text>
+          </View>
         </View>
 
       </Page>

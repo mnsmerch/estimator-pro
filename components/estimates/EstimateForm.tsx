@@ -472,7 +472,10 @@ export default function EstimateForm({ estimateId, initialData }: EstimateFormPr
           <span className="font-bold text-gray-900 text-lg">Estimator Pro</span>
         </div>
         <div className="flex items-center gap-3">
-          <a href="/estimates" className="text-sm text-gray-500 hover:text-gray-800">← Estimates</a>
+          <a href="/estimates" className="text-sm text-gray-500 hover:text-gray-800">
+            <span className="sm:hidden">←</span>
+            <span className="hidden sm:inline">← Estimates</span>
+          </a>
           {saveError && <span className="text-sm text-red-600">Error saving. Try again.</span>}
           {isEdit && estimateId && (
             <>
@@ -500,9 +503,9 @@ export default function EstimateForm({ estimateId, initialData }: EstimateFormPr
                   }
                 }}
                 disabled={saving}
-                className="px-4 py-2 text-sm font-medium rounded-lg border border-green-600 text-green-700 bg-white hover:bg-green-50 disabled:opacity-50"
+                className="hidden sm:inline-flex px-4 py-2 text-sm font-medium rounded-lg bg-brand-600 text-white hover:bg-brand-700 disabled:opacity-50"
               >
-                {saving ? 'Saving…' : initialData?.status === 'approved' ? 'Send Change Order ↗' : 'Generate Estimate ↗'}
+                {saving ? 'Saving…' : initialData?.status === 'approved' ? 'Generate New Estimate ↗' : 'Generate Estimate ↗'}
               </button>
             </>
           )}
@@ -511,27 +514,20 @@ export default function EstimateForm({ estimateId, initialData }: EstimateFormPr
             disabled={saving}
             className="px-4 py-2 text-sm font-medium rounded-lg border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 disabled:opacity-50"
           >
-            Save Draft
-          </button>
-          <button
-            onClick={() => handleSave('sent')}
-            disabled={saving}
-            className="px-4 py-2 text-sm font-medium rounded-lg bg-brand-600 text-white hover:bg-brand-700 disabled:opacity-50"
-          >
-            {saving ? 'Saving…' : 'Save & Send'}
+            {saving ? 'Saving…' : 'Save'}
           </button>
         </div>
       </header>
 
-      <div className="max-w-4xl mx-auto px-6 py-8 space-y-6">
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-6">
         <h1 className="text-2xl font-bold text-gray-900">
           {isEdit ? `Edit — ${initialData?.clientName || 'Estimate'}` : 'New Estimate'}
         </h1>
 
         {/* ── Client Info ───────────────────────────────────────────────── */}
-        <section className="bg-white rounded-xl border border-gray-200 p-6">
+        <section className="bg-white rounded-xl border border-gray-200 p-4 sm:p-6">
           <h2 className="text-base font-semibold text-gray-900 mb-4">Client Information</h2>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Field label="Name">
               <input type="text" value={clientName} onChange={e => setClientName(e.target.value)} placeholder="John Smith" className="input" />
             </Field>
@@ -544,17 +540,21 @@ export default function EstimateForm({ estimateId, initialData }: EstimateFormPr
             <Field label="Email">
               <input type="email" value={clientEmail} onChange={e => setClientEmail(e.target.value)} placeholder="client@email.com" className="input" />
             </Field>
-            <Field label="Folder ID">
-              <input type="text" value={clientFolderId} onChange={e => setClientFolderId(e.target.value)} placeholder="Folder ID" className="input" />
-            </Field>
-            <Field label="Contact ID">
-              <input type="text" value={clientContactId} onChange={e => setClientContactId(e.target.value)} placeholder="Contact ID" className="input" />
-            </Field>
+            {clientFolderId && (
+              <Field label="Folder ID">
+                <input type="text" value={clientFolderId} readOnly className="input bg-gray-50 text-gray-500 cursor-not-allowed" />
+              </Field>
+            )}
+            {clientContactId && (
+              <Field label="Contact ID">
+                <input type="text" value={clientContactId} readOnly className="input bg-gray-50 text-gray-500 cursor-not-allowed" />
+              </Field>
+            )}
           </div>
         </section>
 
         {/* ── Measurements ──────────────────────────────────────────────── */}
-        <section className="bg-white rounded-xl border border-gray-200 p-6">
+        <section className="bg-white rounded-xl border border-gray-200 p-4 sm:p-6">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-base font-semibold text-gray-900">Measurements</h2>
             <button onClick={addRow} className="flex items-center gap-1.5 text-sm font-medium text-brand-600 hover:text-brand-800">
@@ -564,7 +564,7 @@ export default function EstimateForm({ estimateId, initialData }: EstimateFormPr
               Add Row
             </button>
           </div>
-          <div className="overflow-x-auto">
+          <div className="hidden sm:block overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-gray-200">
@@ -636,10 +636,59 @@ export default function EstimateForm({ estimateId, initialData }: EstimateFormPr
               </tbody>
             </table>
           </div>
+          <div className="sm:hidden space-y-3">
+            {rows.map(row => {
+              const app = appMap.get(row.applicationKey)
+              const total = row.front + row.right + row.back + row.left
+              const hours = app ? total * app.converter : 0
+              return (
+                <div key={row.id} className="border border-gray-200 rounded-xl p-3 space-y-2.5 bg-gray-50">
+                  <select
+                    value={row.applicationKey}
+                    onChange={e => updateRow(row.id, 'applicationKey', e.target.value)}
+                    className="w-full rounded-lg border border-gray-300 bg-white px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+                  >
+                    <option value="">— Select Application —</option>
+                    {groupedApps.map(group => (
+                      <optgroup key={group.label} label={group.label}>
+                        {group.options.map(opt => (
+                          <option key={opt.uniqueKey} value={opt.uniqueKey}>{opt.label} ({opt.unitLabel})</option>
+                        ))}
+                      </optgroup>
+                    ))}
+                  </select>
+                  <div className="grid grid-cols-2 gap-2">
+                    {(['front', 'right', 'back', 'left'] as const).map(side => (
+                      <div key={side}>
+                        <label className="block text-xs font-medium text-gray-500 mb-1 capitalize">{side}</label>
+                        <input
+                          type="number" min={0}
+                          value={row[side] || ''}
+                          onChange={e => updateRow(row.id, side, parseFloat(e.target.value) || 0)}
+                          className="w-full text-right rounded-lg border border-gray-300 bg-white px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+                        />
+                      </div>
+                    ))}
+                  </div>
+                  <div className="flex items-center justify-between text-xs text-gray-500 pt-1">
+                    <span>Total: <span className="font-medium text-gray-700">{total > 0 ? total.toLocaleString() : '—'}</span></span>
+                    <span>Hours: <span className="font-medium text-gray-700">{hours > 0 ? fmtHrs(hours) : '—'}</span></span>
+                    {rows.length > 1 && (
+                      <button onClick={() => removeRow(row.id)} className="text-red-400 hover:text-red-600 p-1">
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
+                        </svg>
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
         </section>
 
         {/* ── Add Ons ───────────────────────────────────────────────────── */}
-        <section className="bg-white rounded-xl border border-gray-200 p-6">
+        <section className="bg-white rounded-xl border border-gray-200 p-4 sm:p-6">
           <h2 className="text-base font-semibold text-gray-900 mb-4">Add Ons</h2>
           <div className="flex gap-2 mb-2">
             <button
@@ -666,7 +715,7 @@ export default function EstimateForm({ estimateId, initialData }: EstimateFormPr
 
           {woodOpen && (
             <div className="mt-4">
-              <div className="overflow-x-auto">
+              <div className="hidden sm:block overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b border-gray-200">
@@ -744,6 +793,53 @@ export default function EstimateForm({ estimateId, initialData }: EstimateFormPr
                     </tr>
                   </tfoot>
                 </table>
+              </div>
+              <div className="sm:hidden space-y-3">
+                {woodRows.map(row => {
+                  const rate = row.itemKey ? ((rates.woodReplacement as Record<string, number>)[row.itemKey] ?? 0) : 0
+                  const total = row.front + row.right + row.back + row.left
+                  const price = markup > 0 ? total * rate / markup : 0
+                  return (
+                    <div key={row.id} className="border border-gray-200 rounded-xl p-3 space-y-2.5 bg-gray-50">
+                      <select
+                        value={row.itemKey}
+                        onChange={e => updateWoodRow(row.id, 'itemKey', e.target.value)}
+                        className="w-full rounded-lg border border-gray-300 bg-white px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+                      >
+                        <option value="">— Wood Replacement —</option>
+                        {WOOD_ITEMS.map(item => (
+                          <option key={item.key} value={item.key}>{item.label}</option>
+                        ))}
+                      </select>
+                      <div className="grid grid-cols-2 gap-2">
+                        {(['front', 'right', 'back', 'left'] as const).map(side => (
+                          <div key={side}>
+                            <label className="block text-xs font-medium text-gray-500 mb-1 capitalize">{side}</label>
+                            <input
+                              type="number" min={0}
+                              value={row[side] || ''}
+                              onChange={e => updateWoodRow(row.id, side, parseFloat(e.target.value) || 0)}
+                              className="w-full text-right rounded-lg border border-gray-300 bg-white px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+                            />
+                          </div>
+                        ))}
+                      </div>
+                      <div className="flex items-center justify-between text-xs text-gray-500 pt-1">
+                        <span>Total: <span className="font-medium text-gray-700">{total > 0 ? total : '—'}</span></span>
+                        <span>Price: <span className="font-medium text-gray-700">{fmtCents(price)}</span></span>
+                        <button onClick={() => removeWoodRow(row.id)} className="text-red-400 hover:text-red-600 p-1">
+                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
+                          </svg>
+                        </button>
+                      </div>
+                    </div>
+                  )
+                })}
+                <div className="flex justify-between items-center px-1 font-medium text-sm text-gray-700 pt-1">
+                  <span>Total Price</span>
+                  <span className="font-bold tabular-nums">{fmtCents(woodTotal)}</span>
+                </div>
               </div>
               <button
                 onClick={addWoodRow}
@@ -828,7 +924,7 @@ export default function EstimateForm({ estimateId, initialData }: EstimateFormPr
         </section>
 
         {/* ── Photos ────────────────────────────────────────────────────── */}
-        <section className="bg-white rounded-xl border border-gray-200 p-6">
+        <section className="bg-white rounded-xl border border-gray-200 p-4 sm:p-6">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2">
               <h2 className="text-base font-semibold text-gray-900">Photos</h2>
@@ -920,7 +1016,7 @@ export default function EstimateForm({ estimateId, initialData }: EstimateFormPr
         </section>
 
         {/* ── Paint Selection ───────────────────────────────────────────── */}
-        <section className="bg-white rounded-xl border border-gray-200 p-6">
+        <section className="bg-white rounded-xl border border-gray-200 p-4 sm:p-6">
           <h2 className="text-base font-semibold text-gray-900 mb-4">Paint Selection</h2>
           <div className="flex flex-wrap gap-2 mb-6">
             {PAINT_BRANDS.map(brand => (
@@ -937,6 +1033,7 @@ export default function EstimateForm({ estimateId, initialData }: EstimateFormPr
               </button>
             ))}
           </div>
+          <div className="overflow-x-auto">
           <div className="border border-gray-200 rounded-lg overflow-hidden">
             <div className="bg-gray-700 text-white text-center text-sm font-bold py-2 tracking-wide">MATERIALS</div>
             <table className="w-full text-sm">
@@ -970,10 +1067,11 @@ export default function EstimateForm({ estimateId, initialData }: EstimateFormPr
               </tfoot>
             </table>
           </div>
+          </div>
         </section>
 
         {/* ── Summary ───────────────────────────────────────────────────── */}
-        <section className="bg-white rounded-xl border border-gray-200 p-6">
+        <section className="bg-white rounded-xl border border-gray-200 p-4 sm:p-6">
           <h2 className="text-base font-semibold text-gray-900 mb-4">Estimate Summary</h2>
           {totals ? (
             <div className="grid grid-cols-1 gap-6 sm:grid-cols-3">
@@ -1013,7 +1111,7 @@ export default function EstimateForm({ estimateId, initialData }: EstimateFormPr
         </section>
 
         {/* ── Scope of Work ─────────────────────────────────────────────── */}
-        <section className="bg-white rounded-xl border border-gray-200 p-6">
+        <section className="bg-white rounded-xl border border-gray-200 p-4 sm:p-6">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-base font-semibold text-gray-900">Scope of Work</h2>
             <span className="text-xs font-medium text-brand-600 bg-brand-50 border border-brand-200 rounded-full px-3 py-1">
@@ -1051,20 +1149,34 @@ export default function EstimateForm({ estimateId, initialData }: EstimateFormPr
         </section>
 
         {/* ── Bottom save ───────────────────────────────────────────────── */}
-        <div className="flex justify-end gap-3 pb-10">
+        <div className="flex flex-col sm:flex-row justify-end gap-3 pb-10">
+          {isEdit && estimateId && (
+            <button
+              onClick={async () => {
+                setSaving(true)
+                try {
+                  const taxRate = clientAddress ? await lookupSalesTax(clientAddress) : null
+                  await saveQuiet(taxRate)
+                  if (initialData?.status === 'approved') {
+                    await resetSignatureForChangeOrder(estimateId)
+                  }
+                  window.open(`/p/${estimateId}`, '_blank')
+                } finally {
+                  setSaving(false)
+                }
+              }}
+              disabled={saving}
+              className="px-6 py-2.5 text-sm font-medium rounded-lg bg-brand-600 text-white hover:bg-brand-700 disabled:opacity-50"
+            >
+              {saving ? 'Saving…' : initialData?.status === 'approved' ? 'Generate New Estimate ↗' : 'Generate Estimate ↗'}
+            </button>
+          )}
           <button
             onClick={() => handleSave('draft')}
             disabled={saving}
             className="px-6 py-2.5 text-sm font-medium rounded-lg border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 disabled:opacity-50"
           >
-            Save Draft
-          </button>
-          <button
-            onClick={() => handleSave('sent')}
-            disabled={saving}
-            className="px-6 py-2.5 text-sm font-medium rounded-lg bg-brand-600 text-white hover:bg-brand-700 disabled:opacity-50"
-          >
-            {saving ? 'Saving…' : 'Save & Send'}
+            {saving ? 'Saving…' : 'Save'}
           </button>
         </div>
       </div>

@@ -69,7 +69,7 @@ export async function resetSignatureForChangeOrder(id: string): Promise<void> {
 export async function listEstimates(userId: string): Promise<EstimateData[]> {
   const q = query(
     collection(db, COLLECTION),
-    where('userId', '==', userId),
+    where('userId', 'in', [userId, 'webhook']),
     orderBy('createdAt', 'desc'),
   )
   const snap = await getDocs(q)
