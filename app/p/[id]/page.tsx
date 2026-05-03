@@ -176,11 +176,8 @@ export default function ProposalPage({ params }: { params: Promise<{ id: string 
       setSigned(true)
       setEstimate(prev => prev ? { ...prev, status: 'approved', signatureName: sigName.trim() } : prev)
 
-      // 2. Generate PDF and upload to Drive
-      if (!estimate?.clientFolderId) {
-        setPdfStatus('error')
-        setPdfError('No folder ID on this estimate — PDF not uploaded.')
-      } else {
+      // 2. Generate PDF (always) and try Drive upload if folder ID is set
+      {
         setPdfStatus('uploading')
         const brandPreset = PAINT_BRANDS.find(b => b.key === selectedBrand) ?? PAINT_BRANDS[0]
         const pdfData = {
@@ -232,13 +229,37 @@ export default function ProposalPage({ params }: { params: Promise<{ id: string 
             headers: { 'Content-Type': 'application/json' },
             body:    JSON.stringify({ data: pdfData, folderId: estimate.clientFolderId, fileName }),
           })
-          const json = await res.json() as { fileId?: string; webViewLink?: string; error?: string }
+          const json = await res.json() as {
+            pdfBase64?: string; fileName?: string
+            fileId?: string; webViewLink?: string
+            driveError?: string; error?: string
+          }
+
           if (json.error) {
+            // Total failure (PDF couldn't even be generated)
             setPdfStatus('error')
             setPdfError(json.error)
           } else {
-            setPdfStatus('done')
-            setPdfLink(json.webViewLink ?? null)
+            // PDF was generated — trigger browser download
+            if (json.pdfBase64) {
+              const bytes = Uint8Array.from(atob(json.pdfBase64), c => c.charCodeAt(0))
+              const blob  = new Blob([bytes], { type: 'application/pdf' })
+              const url   = URL.createObjectURL(blob)
+              const a     = document.createElement('a')
+              a.href     = url
+              a.download = json.fileName ?? fileName
+              a.click()
+              URL.revokeObjectURL(url)
+            }
+            // Drive upload result
+            if (json.driveError) {
+              setPdfStatus('error')
+              setPdfError(`Drive upload failed: ${json.driveError}`)
+              setPdfLink(null)
+            } else {
+              setPdfStatus('done')
+              setPdfLink(json.webViewLink ?? null)
+            }
           }
         } catch (err) {
           setPdfStatus('error')
@@ -614,7 +635,7 @@ export default function ProposalPage({ params }: { params: Promise<{ id: string 
                 )}
                 {pdfStatus === 'done' && (
                   <div className="flex flex-col items-center gap-1">
-                    <p className="text-sm text-green-600 font-medium">PDF saved to Google Drive</p>
+                    <p className="text-sm text-green-600 font-medium">✓ PDF downloaded &amp; saved to Google Drive</p>
                     {pdfLink && (
                       <a href={pdfLink} target="_blank" rel="noopener noreferrer"
                         className="text-xs text-brand-600 underline hover:text-brand-800">
@@ -624,9 +645,10 @@ export default function ProposalPage({ params }: { params: Promise<{ id: string 
                   </div>
                 )}
                 {pdfStatus === 'error' && (
-                  <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-left">
-                    <p className="text-sm font-semibold text-red-700">PDF upload failed</p>
-                    {pdfError && <p className="text-xs text-red-500 mt-1 font-mono break-all">{pdfError}</p>}
+                  <div className="bg-yellow-50 border border-yellow-200 rounded-xl px-4 py-3 text-left">
+                    <p className="text-sm font-semibold text-yellow-800">PDF downloaded — Drive upload failed</p>
+                    <p className="text-xs text-yellow-600 mt-1">Check your downloads folder for the signed contract.</p>
+                    {pdfError && <p className="text-xs text-yellow-500 mt-1 font-mono break-all">{pdfError}</p>}
                   </div>
                 )}
               </div>
