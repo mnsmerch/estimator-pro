@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/context/AuthContext'
-import { listEstimates } from '@/lib/firebase/estimates'
+import { listEstimates, deleteEstimate } from '@/lib/firebase/estimates'
 import type { EstimateData } from '@/types/estimate'
 
 // ─── constants ───────────────────────────────────────────────────────────────
@@ -41,6 +41,7 @@ export default function EstimatesPage() {
   const [loading, setLoading]       = useState(true)
   const [filter, setFilter]         = useState<FilterKey>('all')
   const [modalOpen, setModalOpen]   = useState(false)
+  const [deletingId, setDeletingId] = useState<string | null>(null)
 
   useEffect(() => {
     if (!user) return
@@ -57,6 +58,16 @@ export default function EstimatesPage() {
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
   }, [modalOpen])
+
+  async function handleDelete(e: React.MouseEvent, id: string, name: string) {
+    e.preventDefault()
+    e.stopPropagation()
+    if (!confirm(`Delete estimate for "${name}"? This cannot be undone.`)) return
+    setDeletingId(id)
+    await deleteEstimate(id)
+    setEstimates(prev => prev.filter(est => est.id !== id))
+    setDeletingId(null)
+  }
 
   const filtered = filter === 'all'
     ? estimates
@@ -143,19 +154,33 @@ export default function EstimatesPage() {
               <a
                 key={est.id}
                 href={est.status === 'draft' ? `/estimates/${est.id}/edit` : `/estimates/${est.id}`}
-                className="flex items-center justify-between px-6 py-4 hover:bg-gray-50 transition-colors"
+                className="flex items-center justify-between px-6 py-4 hover:bg-gray-50 transition-colors group"
               >
                 <div>
                   <p className="font-semibold text-gray-900">{est.clientName || 'Unnamed Client'}</p>
                   <p className="text-sm text-gray-500 mt-0.5">{est.clientAddress || '—'}</p>
                 </div>
-                <div className="flex items-center gap-4">
+                <div className="flex items-center gap-3">
                   <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${STATUS_COLOR[est.status] ?? STATUS_COLOR.draft}`}>
                     {STATUS_LABEL[est.status] ?? est.status}
                   </span>
                   <span className="text-sm text-gray-400 tabular-nums">
                     {est.createdAt ? new Date(est.createdAt).toLocaleDateString() : ''}
                   </span>
+                  <button
+                    onClick={e => handleDelete(e, est.id!, est.clientName || 'Unnamed Client')}
+                    disabled={deletingId === est.id}
+                    className="p-1.5 rounded-md text-gray-300 hover:text-red-500 hover:bg-red-50 opacity-0 group-hover:opacity-100 transition-all disabled:opacity-50"
+                    aria-label="Delete estimate"
+                  >
+                    {deletingId === est.id ? (
+                      <div className="w-4 h-4 border-2 border-red-400 border-t-transparent rounded-full animate-spin" />
+                    ) : (
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      </svg>
+                    )}
+                  </button>
                   <svg className="w-4 h-4 text-gray-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
                   </svg>

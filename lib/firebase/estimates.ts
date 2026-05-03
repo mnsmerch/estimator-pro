@@ -5,6 +5,7 @@ import {
   updateDoc,
   getDoc,
   getDocs,
+  deleteDoc,
   query,
   where,
   orderBy,
@@ -64,6 +65,10 @@ export async function resetSignatureForChangeOrder(id: string): Promise<void> {
     signatureDataUrl: '',
     updatedAt: serverTimestamp(),
   })
+}
+
+export async function deleteEstimate(id: string): Promise<void> {
+  await deleteDoc(doc(db, COLLECTION, id))
 }
 
 export async function listEstimates(userId: string): Promise<EstimateData[]> {
