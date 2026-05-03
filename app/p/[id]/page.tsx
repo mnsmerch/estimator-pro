@@ -73,6 +73,9 @@ export default function ProposalPage({ params }: { params: Promise<{ id: string 
   const [agreed,      setAgreed]      = useState(false)
   const [signing,     setSigning]     = useState(false)
   const [signed,      setSigned]      = useState(false)
+  const [pdfStatus,   setPdfStatus]   = useState<'idle' | 'uploading' | 'done' | 'error'>('idle')
+  const [pdfLink,     setPdfLink]     = useState<string | null>(null)
+  const [pdfError,    setPdfError]    = useState<string | null>(null)
 
   useEffect(() => {
     async function load() {
@@ -173,8 +176,12 @@ export default function ProposalPage({ params }: { params: Promise<{ id: string 
       setSigned(true)
       setEstimate(prev => prev ? { ...prev, status: 'approved', signatureName: sigName.trim() } : prev)
 
-      // 2. Generate PDF and upload to Drive (best-effort — don't block success UI)
-      if (estimate?.clientFolderId) {
+      // 2. Generate PDF and upload to Drive
+      if (!estimate?.clientFolderId) {
+        setPdfStatus('error')
+        setPdfError('No folder ID on this estimate — PDF not uploaded.')
+      } else {
+        setPdfStatus('uploading')
         const brandPreset = PAINT_BRANDS.find(b => b.key === selectedBrand) ?? PAINT_BRANDS[0]
         const pdfData = {
           companyName:        company.name,
@@ -219,14 +226,24 @@ export default function ProposalPage({ params }: { params: Promise<{ id: string 
 
         const fileName = `${estimate.clientName} - Signed Contract - ${signatureDate}.pdf`
 
-        fetch('/api/generate-pdf', {
-          method:  'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body:    JSON.stringify({ data: pdfData, folderId: estimate.clientFolderId, fileName }),
-        }).then(r => r.json()).then(res => {
-          if (res.error) console.error('[PDF upload]', res.error)
-          else console.log('[PDF upload] Done:', res.webViewLink)
-        }).catch(err => console.error('[PDF upload]', err))
+        try {
+          const res = await fetch('/api/generate-pdf', {
+            method:  'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body:    JSON.stringify({ data: pdfData, folderId: estimate.clientFolderId, fileName }),
+          })
+          const json = await res.json() as { fileId?: string; webViewLink?: string; error?: string }
+          if (json.error) {
+            setPdfStatus('error')
+            setPdfError(json.error)
+          } else {
+            setPdfStatus('done')
+            setPdfLink(json.webViewLink ?? null)
+          }
+        } catch (err) {
+          setPdfStatus('error')
+          setPdfError(err instanceof Error ? err.message : String(err))
+        }
       }
     } catch (err) {
       console.error('Failed to accept estimate:', err)
@@ -586,6 +603,33 @@ export default function ProposalPage({ params }: { params: Promise<{ id: string 
               <p className="text-sm text-gray-400 mt-3">
                 Thank you! We will reach out shortly to schedule your project.
               </p>
+
+              {/* PDF status */}
+              <div className="mt-4">
+                {pdfStatus === 'uploading' && (
+                  <div className="flex items-center justify-center gap-2 text-sm text-gray-400">
+                    <div className="w-4 h-4 border-2 border-gray-300 border-t-brand-600 rounded-full animate-spin" />
+                    Generating PDF…
+                  </div>
+                )}
+                {pdfStatus === 'done' && (
+                  <div className="flex flex-col items-center gap-1">
+                    <p className="text-sm text-green-600 font-medium">PDF saved to Google Drive</p>
+                    {pdfLink && (
+                      <a href={pdfLink} target="_blank" rel="noopener noreferrer"
+                        className="text-xs text-brand-600 underline hover:text-brand-800">
+                        Open in Drive
+                      </a>
+                    )}
+                  </div>
+                )}
+                {pdfStatus === 'error' && (
+                  <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-left">
+                    <p className="text-sm font-semibold text-red-700">PDF upload failed</p>
+                    {pdfError && <p className="text-xs text-red-500 mt-1 font-mono break-all">{pdfError}</p>}
+                  </div>
+                )}
+              </div>
             </div>
           ) : (
             <>
