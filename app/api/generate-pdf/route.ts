@@ -44,6 +44,7 @@ export async function POST(req: NextRequest) {
     const stream = Readable.from(pdfBuffer)
 
     const uploaded = await drive.files.create({
+      supportsAllDrives: true,
       requestBody: {
         name:    fileName,
         parents: [folderId],
