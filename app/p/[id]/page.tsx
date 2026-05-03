@@ -182,6 +182,7 @@ export default function ProposalPage({ params }: { params: Promise<{ id: string 
           companyPhone:       company.phone,
           companyEmail:       company.email,
           companyWebsite:     company.website,
+          companyLicense:     company.licenseNumber,
           companyLogoUrl:     company.logoUrl,
           clientName:         estimate.clientName,
           clientAddress:      estimate.clientAddress,
@@ -301,6 +302,7 @@ export default function ProposalPage({ params }: { params: Promise<{ id: string 
             <p className="text-brand-200 text-sm">{company.streetAddress} · {company.cityStateZip}</p>
             <p className="text-brand-200 text-sm">{company.phone} · {company.email}</p>
             {company.website && <p className="text-brand-200 text-sm">{company.website}</p>}
+            {company.licenseNumber && <p className="text-brand-200 text-sm">License #: {company.licenseNumber}</p>}
           </div>
         </div>
 

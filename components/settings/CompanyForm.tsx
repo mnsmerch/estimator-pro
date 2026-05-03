@@ -14,6 +14,7 @@ const FIELDS: { key: keyof CompanySettings; label: string; placeholder: string }
   { key: 'website',       label: 'Website (optional)', placeholder: 'www.example.com' },
   { key: 'streetAddress', label: 'Street Address',     placeholder: '1234 Paintbrush Dr.' },
   { key: 'cityStateZip',  label: 'City, State, Zip',   placeholder: 'Denver, CO 80220' },
+  { key: 'licenseNumber', label: 'License # (optional)', placeholder: 'VANHOPL820C6' },
 ]
 
 export default function CompanyForm() {

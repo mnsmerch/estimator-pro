@@ -12,6 +12,7 @@ export interface ProposalPdfData {
   companyPhone: string
   companyEmail: string
   companyWebsite?: string
+  companyLicense?: string
   companyLogoUrl?: string
   // Client
   clientName: string
@@ -131,6 +132,7 @@ export function ProposalPdf({ data }: { data: ProposalPdfData }) {
               <Text style={s.companyDetail}>{data.companyAddress} · {data.companyCityStateZip}</Text>
               <Text style={s.companyDetail}>{data.companyPhone} · {data.companyEmail}</Text>
               {data.companyWebsite && <Text style={s.companyDetail}>{data.companyWebsite}</Text>}
+              {data.companyLicense && <Text style={s.companyDetail}>License #: {data.companyLicense}</Text>}
             </View>
           </View>
           <View>
