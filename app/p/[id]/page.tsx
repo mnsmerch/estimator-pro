@@ -193,7 +193,7 @@ export default function ProposalPage({ params }: { params: Promise<{ id: string 
           scopePainting:      estimate.scopePainting,
           scopeCleanUp:       estimate.scopeCleanUp,
           scopeWalkThrough:   estimate.scopeWalkThrough,
-          scopePaintProducts: estimate.scopePaintProducts,
+          scopePaintProducts: scopePaintProductsText,
           totalColors:        estimate.totalColors,
           totalCoats:         estimate.totalCoats,
           selectedBrandLabel: brandPreset.label,
@@ -263,8 +263,11 @@ export default function ProposalPage({ params }: { params: Promise<{ id: string 
     )
   }
 
+  const scopePaintProductsText =
+    estimate.scopePaintProductsByBrand?.[selectedBrand] ?? estimate.scopePaintProducts ?? ''
+
   const hasScope = estimate.scopePrepWork || estimate.scopePainting || estimate.scopeProject ||
-                   estimate.scopeCleanUp  || estimate.scopeWalkThrough || estimate.scopePaintProducts
+                   estimate.scopeCleanUp  || estimate.scopeWalkThrough || scopePaintProductsText
 
   // ── Render ───────────────────────────────────────────────────────────────────
 
@@ -332,7 +335,7 @@ export default function ProposalPage({ params }: { params: Promise<{ id: string 
               {estimate.scopePainting     && <ScopeBlock label="Painting"       text={estimate.scopePainting} />}
               {estimate.scopeCleanUp      && <ScopeBlock label="Clean Up"       text={estimate.scopeCleanUp} />}
               {estimate.scopeWalkThrough  && <ScopeBlock label="Walk Through"   text={estimate.scopeWalkThrough} />}
-              {estimate.scopePaintProducts && <ScopeBlock label="Paint Products" text={estimate.scopePaintProducts} />}
+              {scopePaintProductsText && <ScopeBlock label="Paint Products" text={scopePaintProductsText} />}
               {(estimate.totalColors || estimate.totalCoats) && (
                 <div className="flex gap-6 pt-3 border-t border-gray-100">
                   {estimate.totalColors && (

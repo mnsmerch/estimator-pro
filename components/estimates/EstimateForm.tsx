@@ -192,7 +192,9 @@ export default function EstimateForm({ estimateId, initialData }: EstimateFormPr
   const [scopePainting,      setScopePainting]       = useState(initialData?.scopePainting      ?? SCOPE_DEFAULTS.scopePainting)
   const [scopeCleanUp,       setScopeCleanUp]        = useState(initialData?.scopeCleanUp       ?? SCOPE_DEFAULTS.scopeCleanUp)
   const [scopeWalkThrough,   setScopeWalkThrough]    = useState(initialData?.scopeWalkThrough   ?? SCOPE_DEFAULTS.scopeWalkThrough)
-  const [scopePaintProducts, setScopePaintProducts]  = useState(initialData?.scopePaintProducts ?? SCOPE_DEFAULTS.scopePaintProducts)
+  const [scopePaintProductsByBrand, setScopePaintProductsByBrand] = useState<Record<string, string>>(
+    initialData?.scopePaintProductsByBrand ?? { ...SCOPE_DEFAULTS.scopePaintProductsByBrand }
+  )
   const [totalColors,        setTotalColors]         = useState(initialData?.totalColors        ?? '')
   const [totalCoats,         setTotalCoats]          = useState(initialData?.totalCoats         ?? '')
 
@@ -358,7 +360,9 @@ export default function EstimateForm({ estimateId, initialData }: EstimateFormPr
       manualPaintAProductId, manualPaintAGallons,
       manualPaintBProductId, manualPaintBGallons,
       scopeProject, scopePrepWork, scopePainting,
-      scopeCleanUp, scopeWalkThrough, scopePaintProducts,
+      scopeCleanUp, scopeWalkThrough,
+      scopePaintProducts: scopePaintProductsByBrand[selectedBrand] ?? '',
+      scopePaintProductsByBrand,
       totalColors, totalCoats,
       photoUrls,
     }
@@ -398,7 +402,9 @@ export default function EstimateForm({ estimateId, initialData }: EstimateFormPr
       manualPaintAProductId, manualPaintAGallons,
       manualPaintBProductId, manualPaintBGallons,
       scopeProject, scopePrepWork, scopePainting,
-      scopeCleanUp, scopeWalkThrough, scopePaintProducts,
+      scopeCleanUp, scopeWalkThrough,
+      scopePaintProducts: scopePaintProductsByBrand[selectedBrand] ?? '',
+      scopePaintProductsByBrand,
       totalColors, totalCoats,
       photoUrls,
       ...(salesTaxRate != null ? { salesTaxRate } : {}),
@@ -974,8 +980,13 @@ export default function EstimateForm({ estimateId, initialData }: EstimateFormPr
             <Field label="Walk Through">
               <textarea rows={3} value={scopeWalkThrough} onChange={e => setScopeWalkThrough(e.target.value)} className="input resize-none" />
             </Field>
-            <Field label="Paint Products">
-              <textarea rows={3} value={scopePaintProducts} onChange={e => setScopePaintProducts(e.target.value)} className="input resize-none" />
+            <Field label={`Paint Products — ${PAINT_BRANDS.find(b => b.key === selectedBrand)?.label ?? selectedBrand}`}>
+              <textarea
+                rows={3}
+                value={scopePaintProductsByBrand[selectedBrand] ?? ''}
+                onChange={e => setScopePaintProductsByBrand(prev => ({ ...prev, [selectedBrand]: e.target.value }))}
+                className="input resize-none"
+              />
             </Field>
             <Field label="Total Colors">
               <input type="text" value={totalColors} onChange={e => setTotalColors(e.target.value)} className="input" />

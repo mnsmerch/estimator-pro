@@ -59,6 +59,7 @@ export interface EstimateData {
   scopeCleanUp: string
   scopeWalkThrough: string
   scopePaintProducts: string
+  scopePaintProductsByBrand?: Record<string, string>
   totalColors: string
   totalCoats: string
   // Photos
@@ -86,6 +87,12 @@ export const SCOPE_DEFAULTS = {
     '- Walk thru inspection with owner.\n- Balance remaining is paid upon completion.',
   scopePaintProducts:
     'Sherwin Williams "SuperPaint" exterior acrylic latex paint or similar product if this one is not available.',
+  scopePaintProductsByBrand: {
+    superPaint: 'Sherwin Williams "SuperPaint" exterior acrylic latex paint or similar product if this one is not available.',
+    duration:   'Sherwin Williams "Duration" exterior acrylic latex paint or similar product if this one is not available.',
+    emerald:    'Sherwin Williams "Emerald" exterior acrylic latex paint or similar product if this one is not available.',
+    emeraldRR:  'Sherwin Williams "Emerald Rain Refresh" exterior acrylic latex paint or similar product if this one is not available.',
+  },
   totalColors: '',
   totalCoats: '',
 }
