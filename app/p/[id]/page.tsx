@@ -231,6 +231,7 @@ export default function ProposalPage({ params }: { params: Promise<{ id: string 
           })
           const json = await res.json() as {
             pdfBase64?: string; fileName?: string
+            driveLink?: string; driveError?: string
             storageUrl?: string; storageError?: string
             error?: string
           }
@@ -251,14 +252,18 @@ export default function ProposalPage({ params }: { params: Promise<{ id: string 
               a.click()
               URL.revokeObjectURL(url)
             }
-            // Storage upload result
-            if (json.storageError) {
-              setPdfStatus('error')
-              setPdfError(json.storageError)
-              setPdfLink(null)
-            } else {
+            // Show Drive link if successful, fall back to storage URL
+            if (json.driveLink) {
               setPdfStatus('done')
-              setPdfLink(json.storageUrl ?? null)
+              setPdfLink(json.driveLink)
+            } else if (json.storageUrl) {
+              setPdfStatus('error')
+              setPdfError(json.driveError ?? 'Drive upload failed — backup saved to cloud instead.')
+              setPdfLink(json.storageUrl)
+            } else {
+              setPdfStatus('error')
+              setPdfError(json.driveError ?? 'Upload failed.')
+              setPdfLink(null)
             }
           }
         } catch (err) {
@@ -635,20 +640,26 @@ export default function ProposalPage({ params }: { params: Promise<{ id: string 
                 )}
                 {pdfStatus === 'done' && (
                   <div className="flex flex-col items-center gap-1">
-                    <p className="text-sm text-green-600 font-medium">✓ PDF downloaded &amp; saved to cloud</p>
+                    <p className="text-sm text-green-600 font-medium">✓ PDF saved to Google Drive</p>
                     {pdfLink && (
                       <a href={pdfLink} target="_blank" rel="noopener noreferrer"
                         className="text-xs text-brand-600 underline hover:text-brand-800">
-                        Download again
+                        Open in Drive
                       </a>
                     )}
                   </div>
                 )}
                 {pdfStatus === 'error' && (
                   <div className="bg-yellow-50 border border-yellow-200 rounded-xl px-4 py-3 text-left">
-                    <p className="text-sm font-semibold text-yellow-800">PDF downloaded — cloud save failed</p>
-                    <p className="text-xs text-yellow-600 mt-1">Check your downloads folder for the signed contract.</p>
-                    {pdfError && <p className="text-xs text-yellow-500 mt-1 font-mono break-all">{pdfError}</p>}
+                    <p className="text-sm font-semibold text-yellow-800">Drive upload failed — backup saved</p>
+                    <p className="text-xs text-yellow-600 mt-1">PDF was downloaded to your device and saved as a backup.</p>
+                    {pdfLink && (
+                      <a href={pdfLink} target="_blank" rel="noopener noreferrer"
+                        className="text-xs text-brand-600 underline mt-1 block">
+                        Download backup
+                      </a>
+                    )}
+                    {pdfError && <p className="text-xs text-yellow-500 mt-2 font-mono break-all">{pdfError}</p>}
                   </div>
                 )}
               </div>
