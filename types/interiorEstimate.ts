@@ -109,6 +109,7 @@ export interface InteriorEstimateDraft {
   clientName: string
   address:    string
   options:    RoomOption[]
+  photoUrls:  string[]
 }
 
 export interface OptionOverview {

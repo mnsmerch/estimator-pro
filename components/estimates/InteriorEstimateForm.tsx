@@ -6,6 +6,7 @@ import { useAuth } from '@/context/AuthContext'
 import { getSettingsDoc } from '@/lib/firebase/settings'
 import { DEFAULT_INTERIOR_PAINT_PRODUCTS } from '@/lib/defaultSettings'
 import { createInteriorEstimate, updateInteriorEstimate } from '@/lib/firebase/interiorEstimates'
+import { uploadPhoto, deletePhoto } from '@/lib/firebase/storage'
 import type { InteriorEstimateRecord } from '@/lib/firebase/interiorEstimates'
 import { computeOverview } from '@/types/interiorEstimate'
 import type {
@@ -243,7 +244,7 @@ function newOption(name = ''): RoomOption {
 }
 
 function recordToDraft(r: InteriorEstimateRecord): InteriorEstimateDraft {
-  return { clientName: r.clientName, address: r.address, options: r.options }
+  return { clientName: r.clientName, address: r.address, options: r.options, photoUrls: r.photoUrls ?? [] }
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
@@ -261,12 +262,14 @@ export default function InteriorEstimateForm({
   const firstOpt = initialRecord ? initialRecord.options[0] : newOption('Room 1')
 
   const [draft, setDraft]       = useState<InteriorEstimateDraft>(() =>
-    initialRecord ? recordToDraft(initialRecord) : { clientName: '', address: '', options: [firstOpt] }
+    initialRecord ? recordToDraft(initialRecord) : { clientName: '', address: '', options: [firstOpt], photoUrls: [] }
   )
   const [activeId, setActiveId] = useState<string>(firstOpt?.id ?? '')
   const [products, setProducts] = useState<InteriorPaintProduct[]>(DEFAULT_INTERIOR_PAINT_PRODUCTS)
-  const [saving, setSaving]     = useState(false)
-  const [saved, setSaved]       = useState(false)
+  const [saving, setSaving]         = useState(false)
+  const [saved, setSaved]           = useState(false)
+  const [uploadingPhotos, setUploadingPhotos] = useState(false)
+  const [uploadError, setUploadError]         = useState<string | null>(null)
 
   useEffect(() => {
     getSettingsDoc<{ items: InteriorPaintProduct[] }>('interiorPaintProducts', { items: DEFAULT_INTERIOR_PAINT_PRODUCTS })
@@ -450,6 +453,31 @@ export default function InteriorEstimateForm({
   }
   function patchOtherEntry(optId: string, eid: string, patch: Partial<OtherEntry>) {
     setDraft(prev => ({ ...prev, options: prev.options.map(o => o.id !== optId ? o : { ...o, otherEntries: o.otherEntries.map(e => e.id !== eid ? e : { ...e, ...patch }) }) }))
+  }
+
+  // ── Photo handlers ───────────────────────────────────────────────────────────
+
+  async function handlePhotoUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    if (!user || !e.target.files?.length) return
+    const remaining = 20 - draft.photoUrls.length
+    const files = Array.from(e.target.files).slice(0, remaining)
+    if (!files.length) return
+    setUploadingPhotos(true)
+    setUploadError(null)
+    try {
+      const urls = await Promise.all(files.map(f => uploadPhoto(user.uid, f)))
+      setDraft(prev => ({ ...prev, photoUrls: [...prev.photoUrls, ...urls].slice(0, 20) }))
+    } catch (err: unknown) {
+      setUploadError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setUploadingPhotos(false)
+      e.target.value = ''
+    }
+  }
+
+  async function handleRemovePhoto(url: string) {
+    setDraft(prev => ({ ...prev, photoUrls: prev.photoUrls.filter(u => u !== url) }))
+    await deletePhoto(url)
   }
 
   // ── Save ─────────────────────────────────────────────────────────────────────
@@ -807,6 +835,77 @@ export default function InteriorEstimateForm({
                   Add Task
                 </button>
               </div>
+            </div>
+
+            {/* ── Photos ───────────────────────────────────────────────────── */}
+            <SectionHeader label="Photos" />
+
+            <div className="bg-white rounded-xl border border-gray-200 p-5">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-medium text-gray-700">Project Photos</span>
+                  <span className="text-xs font-medium text-gray-400 bg-gray-100 rounded-full px-2 py-0.5">
+                    {draft.photoUrls.length} / 20
+                  </span>
+                </div>
+                {draft.photoUrls.length < 20 && (
+                  <label className={`flex items-center gap-1.5 text-sm font-medium cursor-pointer select-none ${
+                    uploadingPhotos ? 'text-gray-400 pointer-events-none' : 'text-brand-600 hover:text-brand-800'
+                  }`}>
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                    </svg>
+                    {uploadingPhotos ? 'Uploading…' : 'Add Photos'}
+                    <input type="file" accept="image/*" multiple className="sr-only"
+                      disabled={uploadingPhotos} onChange={handlePhotoUpload} />
+                  </label>
+                )}
+              </div>
+
+              {uploadError && (
+                <div className="mb-3 text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+                  Upload failed: {uploadError}
+                </div>
+              )}
+
+              {draft.photoUrls.length === 0 ? (
+                <label className="flex flex-col items-center justify-center border-2 border-dashed border-gray-200 rounded-xl py-10 cursor-pointer hover:border-brand-300 hover:bg-brand-50 transition-colors">
+                  <svg className="w-8 h-8 text-gray-300 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="m2.25 15.75 5.159-5.159a2.25 2.25 0 0 1 3.182 0l5.159 5.159m-1.5-1.5 1.409-1.409a2.25 2.25 0 0 1 3.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 0 0 1.5-1.5V6a1.5 1.5 0 0 0-1.5-1.5H3.75A1.5 1.5 0 0 0 2.25 6v12a1.5 1.5 0 0 0 1.5 1.5Zm10.5-11.25h.008v.008h-.008V8.25Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Z" />
+                  </svg>
+                  <p className="text-sm text-gray-400">Click to upload photos</p>
+                  <p className="text-xs text-gray-300 mt-1">Up to 20 images</p>
+                  <input type="file" accept="image/*" multiple className="sr-only"
+                    disabled={uploadingPhotos} onChange={handlePhotoUpload} />
+                </label>
+              ) : (
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  {draft.photoUrls.map((url, idx) => (
+                    <div key={url} className="relative group aspect-square rounded-lg overflow-hidden bg-gray-100">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={url} alt={`Photo ${idx + 1}`} className="w-full h-full object-cover" />
+                      <button
+                        onClick={() => handleRemovePhoto(url)}
+                        className="absolute top-1.5 right-1.5 opacity-0 group-hover:opacity-100 bg-black/60 hover:bg-red-600 text-white rounded-full w-6 h-6 flex items-center justify-center transition-all"
+                      >
+                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
+                        </svg>
+                      </button>
+                    </div>
+                  ))}
+                  {draft.photoUrls.length < 20 && (
+                    <label className="aspect-square rounded-lg border-2 border-dashed border-gray-200 flex flex-col items-center justify-center cursor-pointer hover:border-brand-300 hover:bg-brand-50 transition-colors">
+                      <svg className="w-5 h-5 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                      </svg>
+                      <span className="text-xs text-gray-400 mt-1">Add more</span>
+                      <input type="file" accept="image/*" multiple className="sr-only"
+                        disabled={uploadingPhotos} onChange={handlePhotoUpload} />
+                    </label>
+                  )}
+                </div>
+              )}
             </div>
 
           </div>
