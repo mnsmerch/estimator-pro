@@ -192,6 +192,59 @@ const DEFAULT_PAINTS: PaintSelections = {
   other:   'int-sw-super-paint-flat',
 }
 
+const DEFAULT_SCOPE_OF_WORK = `Project scope:
+-Paint walls and ceiling for the entire house.
+-Prep & paint all doors, jambs & trim
+-Prep and paint all window trim
+-Prep & paint all baseboards
+-Paint fireplace hearth
+Painting process and preparation work:
+ For walls and ceiling:
+• Mask Floors
+• Cover Furniture
+• Caulk All Cracks
+• Refill All Nail Holes
+• Patch repairs & texture large fix's
+• Remove Electrical Plates
+• Remove Window Treatments
+ For trim:
+• Wipe clean any dirt & grime
+• Light sand.
+• Prime with shellac to ensure proper paint adhesion
+• Fill any nail holes
+• Light sand.
+• Remove dust & debris
+Caulk any separating joints
+• Apply fine finish Emerald Urethane Enamel
+ For doors:
+• Remove Door Hinges
+• Remove Door Handles
+• Create an "Air-Bubble" Spray Booth
+• Sand Doors To Allow For Proper Adhesion
+• Spray shellac based primer
+• Fill any holes & deep scrapes
+• Sand doors
+• Remove dust & debris for a smooth finis
+• Spray 2 coats of Emerald urethane enamel using a Fine-Finish Paint Sprayer
+• Allow Dry Time
+• Re-Install Doors
+• Re-Install Hinges
+• Re-Install Handles
+• Quality Control Door(s) Open & Close Properly
+ Final touches
+• Take off all of the masking.
+• Re-Install Electrical Plates
+• Re-Install Window Treatments.
+• Clean up all work areas
+• Final walk through with home owner
+• Balance due upon completion
+    Paint product to be used:
+ Walls and ceiling: Sherwin Williams ''SuperPaint'' interior acrylic latex paint.
+Trim and doors: Sherwin Williams "Emerald Urethane Enamel" Acrylic enamel paint.
+Number of colors: 1
+Number of coats: 2
+The price includes the paint, labor and materials`
+
 const OVERVIEW_ROWS: { key: keyof OptionOverview; label: string }[] = [
   { key: 'wallLength',         label: 'Wall Length'        },
   { key: 'wallSurfaceArea',    label: 'Wall Surface Area'  },
@@ -244,7 +297,13 @@ function newOption(name = ''): RoomOption {
 }
 
 function recordToDraft(r: InteriorEstimateRecord): InteriorEstimateDraft {
-  return { clientName: r.clientName, address: r.address, options: r.options, photoUrls: r.photoUrls ?? [] }
+  return {
+    clientName:  r.clientName,
+    address:     r.address,
+    options:     r.options,
+    photoUrls:   r.photoUrls ?? [],
+    scopeOfWork: r.scopeOfWork ?? DEFAULT_SCOPE_OF_WORK,
+  }
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
@@ -262,7 +321,7 @@ export default function InteriorEstimateForm({
   const firstOpt = initialRecord ? initialRecord.options[0] : newOption('Room 1')
 
   const [draft, setDraft]       = useState<InteriorEstimateDraft>(() =>
-    initialRecord ? recordToDraft(initialRecord) : { clientName: '', address: '', options: [firstOpt], photoUrls: [] }
+    initialRecord ? recordToDraft(initialRecord) : { clientName: '', address: '', options: [firstOpt], photoUrls: [], scopeOfWork: DEFAULT_SCOPE_OF_WORK }
   )
   const [activeId, setActiveId] = useState<string>(firstOpt?.id ?? '')
   const [products, setProducts] = useState<InteriorPaintProduct[]>(DEFAULT_INTERIOR_PAINT_PRODUCTS)
@@ -906,6 +965,17 @@ export default function InteriorEstimateForm({
                   )}
                 </div>
               )}
+            </div>
+
+            {/* ── Scope of Work ─────────────────────────────────────────────── */}
+            <SectionHeader label="Scope of Work" />
+            <div className="bg-white rounded-xl border border-gray-200 p-5">
+              <textarea
+                rows={30}
+                value={draft.scopeOfWork}
+                onChange={e => setDraft(prev => ({ ...prev, scopeOfWork: e.target.value }))}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm font-mono leading-relaxed focus:outline-none focus:ring-2 focus:ring-brand-500 resize-y"
+              />
             </div>
 
           </div>

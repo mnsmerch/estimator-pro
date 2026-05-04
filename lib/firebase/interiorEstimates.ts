@@ -44,11 +44,12 @@ export async function getInteriorEstimate(id: string): Promise<InteriorEstimateR
     userId:     d.userId     ?? '',
     clientName: d.clientName ?? '',
     address:    d.address    ?? '',
-    options:    d.options    ?? [],
-    photoUrls:  d.photoUrls  ?? [],
-    status:     d.status     ?? 'draft',
-    createdAt:  ts(d.createdAt),
-    updatedAt:  ts(d.updatedAt),
+    options:      d.options      ?? [],
+    photoUrls:    d.photoUrls    ?? [],
+    scopeOfWork:  d.scopeOfWork  ?? '',
+    status:       d.status       ?? 'draft',
+    createdAt:    ts(d.createdAt),
+    updatedAt:    ts(d.updatedAt),
   }
 }
 
@@ -61,15 +62,16 @@ export async function listInteriorEstimates(userId: string): Promise<InteriorEst
     const ts = (field: unknown) =>
       field instanceof Timestamp ? field.toDate().toISOString() : ''
     return {
-      id:         d.id,
-      userId:     data.userId     ?? '',
-      clientName: data.clientName ?? '',
-      address:    data.address    ?? '',
-      options:    data.options    ?? [],
-      photoUrls:  data.photoUrls  ?? [],
-      status:     data.status     ?? 'draft',
-      createdAt:  ts(data.createdAt),
-      updatedAt:  ts(data.updatedAt),
+      id:          d.id,
+      userId:      data.userId     ?? '',
+      clientName:  data.clientName ?? '',
+      address:     data.address    ?? '',
+      options:     data.options    ?? [],
+      photoUrls:   data.photoUrls  ?? [],
+      scopeOfWork: data.scopeOfWork ?? '',
+      status:      data.status     ?? 'draft',
+      createdAt:   ts(data.createdAt),
+      updatedAt:   ts(data.updatedAt),
     }
   })
 }

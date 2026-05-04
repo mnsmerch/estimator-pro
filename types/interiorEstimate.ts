@@ -106,10 +106,11 @@ export interface RoomOption {
 }
 
 export interface InteriorEstimateDraft {
-  clientName: string
-  address:    string
-  options:    RoomOption[]
-  photoUrls:  string[]
+  clientName:   string
+  address:      string
+  options:      RoomOption[]
+  photoUrls:    string[]
+  scopeOfWork:  string
 }
 
 export interface OptionOverview {
