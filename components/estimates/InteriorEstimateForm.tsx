@@ -8,7 +8,7 @@ import { DEFAULT_INTERIOR_PAINT_PRODUCTS } from '@/lib/defaultSettings'
 import { createInteriorEstimate, updateInteriorEstimate } from '@/lib/firebase/interiorEstimates'
 import { uploadPhoto, deletePhoto } from '@/lib/firebase/storage'
 import { calculateWallCalc } from '@/lib/interiorCalculations'
-import { DEFAULT_INTERIOR_RATES } from '@/lib/defaultSettings'
+import { DEFAULT_INTERIOR_RATES, DEFAULT_INTERIOR_RULES } from '@/lib/defaultSettings'
 import type { InteriorEstimateRecord } from '@/lib/firebase/interiorEstimates'
 import { computeOverview } from '@/types/interiorEstimate'
 import type {
@@ -276,6 +276,7 @@ export default function InteriorEstimateForm({
   )
   const [activeId, setActiveId] = useState<string>(firstOpt?.id ?? '')
   const [products, setProducts] = useState<InteriorPaintProduct[]>(DEFAULT_INTERIOR_PAINT_PRODUCTS)
+  const [rules, setRules]       = useState(DEFAULT_INTERIOR_RULES)
   const [saving, setSaving]         = useState(false)
   const [saved, setSaved]           = useState(false)
   const [uploadingPhotos, setUploadingPhotos] = useState(false)
@@ -284,6 +285,9 @@ export default function InteriorEstimateForm({
   useEffect(() => {
     getSettingsDoc<{ items: InteriorPaintProduct[] }>('interiorPaintProducts', { items: DEFAULT_INTERIOR_PAINT_PRODUCTS })
       .then(d => setProducts(d.items))
+      .catch(() => {})
+    getSettingsDoc('interiorBusinessRules', DEFAULT_INTERIOR_RULES)
+      .then(d => setRules(d))
       .catch(() => {})
   }, [])
 
@@ -512,7 +516,7 @@ export default function InteriorEstimateForm({
   }
 
   const overview  = computeOverview(activeOption)
-  const wallCalc  = calculateWallCalc(activeOption, DEFAULT_INTERIOR_RATES, products)
+  const wallCalc  = calculateWallCalc(activeOption, DEFAULT_INTERIOR_RATES, products, rules)
   const isEditing = !!estimateId
 
   // ── Render ───────────────────────────────────────────────────────────────────
@@ -1015,6 +1019,12 @@ export default function InteriorEstimateForm({
                     <span className="text-xs text-gray-500">Gallons</span>
                     <span className={`text-sm font-semibold tabular-nums ${wallCalc.gallons > 0 ? 'text-brand-700' : 'text-gray-400'}`}>
                       {wallCalc.gallons > 0 ? wallCalc.gallons : '—'}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between mt-1">
+                    <span className="text-xs text-gray-500">Labor</span>
+                    <span className={`text-sm font-semibold tabular-nums ${wallCalc.laborCost > 0 ? 'text-brand-700' : 'text-gray-400'}`}>
+                      {wallCalc.laborCost > 0 ? `$${wallCalc.laborCost.toFixed(2)}` : '—'}
                     </span>
                   </div>
                 </div>

@@ -4,7 +4,7 @@
 // All functions are pure — no side effects, no Firestore.
 
 import type { RoomOption } from '@/types/interiorEstimate'
-import type { InteriorProductionRates, InteriorPaintProduct } from '@/types/interiorSettings'
+import type { InteriorProductionRates, InteriorPaintProduct, InteriorBusinessRules } from '@/types/interiorSettings'
 
 // Wall types that count as "same color" (1 coat for gallons)
 const SAME_COLOR_WALL_KEYS = new Set([
@@ -13,8 +13,9 @@ const SAME_COLOR_WALL_KEYS = new Set([
 ])
 
 export interface WallCalc {
-  hours:   number   // total labor hours (2 dp)
-  gallons: number   // gallons needed, rounded up to whole number
+  hours:      number   // total labor hours (2 dp)
+  gallons:    number   // gallons needed, rounded up to whole number
+  laborCost:  number   // hours × wage × payrollBurden (2 dp)
 }
 
 /**
@@ -24,11 +25,15 @@ export interface WallCalc {
  * Wall gallons formula:
  *   ceil( sum( (sqft / coverage) × (2 − sameColorMultiplier) ) )
  *   sameColorMultiplier = 1 if wall type is a "same color" type, else 0
+ *
+ * Wall labor formula:
+ *   hours × wage × payrollBurden
  */
 export function calculateWallCalc(
-  option:       RoomOption,
-  rates:        InteriorProductionRates,
+  option:        RoomOption,
+  rates:         InteriorProductionRates,
   paintProducts: InteriorPaintProduct[],
+  rules:         InteriorBusinessRules,
 ): WallCalc {
   const tapingRate = rates.prepWork.tapeLineCaulking ?? 30
 
@@ -65,8 +70,12 @@ export function calculateWallCalc(
     totalRawGallons += (sectionSqft / coverage) * coatMultiplier
   }
 
+  const hours     = Math.round(totalHours * 100) / 100
+  const laborCost = Math.round(hours * rules.wage * rules.payrollBurden * 100) / 100
+
   return {
-    hours:   Math.round(totalHours * 100) / 100,
-    gallons: Math.ceil(totalRawGallons),
+    hours,
+    gallons:   Math.ceil(totalRawGallons),
+    laborCost,
   }
 }
