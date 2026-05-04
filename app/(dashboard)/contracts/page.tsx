@@ -2,48 +2,36 @@
 
 import { useState, useEffect } from 'react'
 import { useAuth } from '@/context/AuthContext'
+import { listSignedContracts } from '@/lib/firebase/signedContracts'
+import type { SignedContract } from '@/lib/firebase/signedContracts'
 
-interface Contract {
-  name: string
-  url: string
-  size: number
-  createdAt: string | null
-}
-
-function fmtSize(bytes: number) {
-  if (bytes < 1024) return `${bytes} B`
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
-}
-
-function fmtDate(iso: string | null) {
-  if (!iso) return '—'
-  return new Date(iso).toLocaleDateString('en-US', {
+function fmtDate(d: Date | undefined) {
+  if (!d) return '—'
+  return d.toLocaleDateString('en-US', {
     month: 'short', day: 'numeric', year: 'numeric',
-    hour: 'numeric', minute: '2-digit',
   })
+}
+
+function fmtMoney(n: number) {
+  return n.toLocaleString('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0, maximumFractionDigits: 0 })
 }
 
 export default function ContractsPage() {
   useAuth() // ensures auth guard from layout
-  const [contracts, setContracts] = useState<Contract[]>([])
+  const [contracts, setContracts] = useState<SignedContract[]>([])
   const [loading, setLoading]     = useState(true)
   const [error, setError]         = useState<string | null>(null)
   const [search, setSearch]       = useState('')
 
   useEffect(() => {
-    fetch('/api/contracts')
-      .then(r => r.json())
-      .then((data: { contracts?: Contract[]; error?: string }) => {
-        if (data.error) setError(data.error)
-        else setContracts(data.contracts ?? [])
-      })
-      .catch(err => setError(String(err)))
+    listSignedContracts()
+      .then(data => setContracts(data))
+      .catch(err => setError(err instanceof Error ? err.message : String(err)))
       .finally(() => setLoading(false))
   }, [])
 
   const filtered = contracts.filter(c =>
-    c.name.toLowerCase().includes(search.toLowerCase())
+    c.displayName.toLowerCase().includes(search.toLowerCase())
   )
 
   return (
@@ -69,7 +57,7 @@ export default function ContractsPage() {
         <div className="flex items-center justify-between mb-6">
           <div>
             <h1 className="text-2xl font-bold text-gray-900">Signed Contracts</h1>
-            <p className="text-sm text-gray-400 mt-1">All signed PDFs saved to cloud storage</p>
+            <p className="text-sm text-gray-400 mt-1">All signed estimates</p>
           </div>
           <span className="text-sm text-gray-400 font-medium">{contracts.length} contract{contracts.length !== 1 ? 's' : ''}</span>
         </div>
@@ -110,37 +98,53 @@ export default function ContractsPage() {
             <table className="w-full text-sm">
               <thead className="bg-gray-50 border-b border-gray-200">
                 <tr>
-                  <th className="text-left font-medium text-gray-500 px-5 py-3">File Name</th>
-                  <th className="text-left font-medium text-gray-500 px-4 py-3 w-44">Signed</th>
-                  <th className="text-right font-medium text-gray-500 px-4 py-3 w-24">Size</th>
-                  <th className="w-20 px-4 py-3" />
+                  <th className="text-left font-medium text-gray-500 px-5 py-3">Client</th>
+                  <th className="text-left font-medium text-gray-500 px-4 py-3 w-32">Signed</th>
+                  <th className="text-right font-medium text-gray-500 px-4 py-3 w-28">Total</th>
+                  <th className="text-right font-medium text-gray-500 px-4 py-3 w-28">Deposit</th>
+                  <th className="text-right font-medium text-gray-500 px-4 py-3 w-28">Balance</th>
+                  <th className="w-36 px-4 py-3" />
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {filtered.map(contract => (
-                  <tr key={contract.name} className="hover:bg-gray-50 transition-colors">
+                  <tr key={contract.id} className="hover:bg-gray-50 transition-colors">
                     <td className="px-5 py-3.5">
-                      <div className="flex items-center gap-2.5">
-                        <svg className="w-5 h-5 text-red-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
-                        </svg>
-                        <span className="font-medium text-gray-800 truncate max-w-xs">{contract.name}</span>
-                      </div>
+                      <p className="font-medium text-gray-800">{contract.displayName}</p>
                     </td>
-                    <td className="px-4 py-3.5 text-gray-500 whitespace-nowrap">{fmtDate(contract.createdAt)}</td>
-                    <td className="px-4 py-3.5 text-right text-gray-400 tabular-nums">{fmtSize(contract.size)}</td>
-                    <td className="px-4 py-3.5 text-right">
-                      <a
-                        href={contract.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-brand-600 bg-brand-50 hover:bg-brand-100 rounded-lg transition-colors"
-                      >
-                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" />
-                        </svg>
-                        Download
-                      </a>
+                    <td className="px-4 py-3.5 text-gray-500 whitespace-nowrap">{fmtDate(contract.signedAt)}</td>
+                    <td className="px-4 py-3.5 text-right text-gray-700 font-medium tabular-nums">{fmtMoney(contract.grandTotal)}</td>
+                    <td className="px-4 py-3.5 text-right text-gray-500 tabular-nums">{fmtMoney(contract.depositAmount)}</td>
+                    <td className="px-4 py-3.5 text-right text-gray-500 tabular-nums">{fmtMoney(contract.balanceDue)}</td>
+                    <td className="px-4 py-3.5">
+                      <div className="flex items-center justify-end gap-2">
+                        {contract.pdfUrl && (
+                          <a
+                            href={contract.pdfUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+                          >
+                            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
+                            </svg>
+                            PDF
+                          </a>
+                        )}
+                        {contract.depositInvoiceUrl && (
+                          <a
+                            href={contract.depositInvoiceUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-green-700 bg-green-50 hover:bg-green-100 rounded-lg transition-colors"
+                          >
+                            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 18.75a60.07 60.07 0 0 1 15.797 2.101c.727.198 1.453-.342 1.453-1.096V18.75M3.75 4.5v.75A.75.75 0 0 1 3 6h-.75m0 0v-.375c0-.621.504-1.125 1.125-1.125H20.25M2.25 6v9m18-10.5v.75c0 .414.336.75.75.75h.75m-1.5-1.5h.375c.621 0 1.125.504 1.125 1.125v9.75c0 .621-.504 1.125-1.125 1.125h-.375m1.5-1.5H21a.75.75 0 0 0-.75.75v.75m0 0H3.75m0 0h-.375a1.125 1.125 0 0 1-1.125-1.125V15m1.5 1.5v-.75A.75.75 0 0 0 3 15h-.75M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Zm3 0h.008v.008H18V10.5Zm-12 0h.008v.008H6V10.5Z" />
+                            </svg>
+                            Invoice
+                          </a>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))}

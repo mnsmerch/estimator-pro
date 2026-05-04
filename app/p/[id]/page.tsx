@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo, use, useRef, useCallback } from 'react'
 import { getEstimate, acceptEstimate } from '@/lib/firebase/estimates'
+import { saveSignedContract } from '@/lib/firebase/signedContracts'
 import { getSettingsDoc } from '@/lib/firebase/settings'
 import { buildApplicationList } from '@/lib/applicationList'
 import { calcEstimate, calcMarkup } from '@/lib/estimateEngine'
@@ -172,6 +173,8 @@ export default function ProposalPage({ params }: { params: Promise<{ id: string 
   async function handleSign() {
     if (!sigName.trim() || !agreed || !sigDataUrl || !estimate) return
     setSigning(true)
+    let capturedPdfUrl: string | null = null
+    let capturedDepositInvoiceUrl: string | null = null
     try {
       const now = new Date()
       const signatureDate = now.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
@@ -264,11 +267,13 @@ export default function ProposalPage({ params }: { params: Promise<{ id: string 
               setPdfStatus('done')
               setPdfLink(json.driveLink)
               setSavedToDrive(true)
+              capturedPdfUrl = json.driveLink
             } else if (json.storageUrl) {
               // Drive failed but Firebase Storage backup succeeded — treat as success
               setPdfStatus('done')
               setPdfLink(json.storageUrl)
               setSavedToDrive(false)
+              capturedPdfUrl = json.storageUrl
             } else {
               setPdfStatus('error')
               setPdfError(json.driveError ?? 'Upload failed.')
@@ -318,12 +323,31 @@ export default function ProposalPage({ params }: { params: Promise<{ id: string 
             setInvoiceError(json.error)
           } else {
             setInvoiceStatus('done')
-            if (json.depositInvoiceUrl) setDepositInvoiceUrl(json.depositInvoiceUrl)
+            if (json.depositInvoiceUrl) {
+              setDepositInvoiceUrl(json.depositInvoiceUrl)
+              capturedDepositInvoiceUrl = json.depositInvoiceUrl
+            }
           }
         } catch (err) {
           setInvoiceStatus('error')
           setInvoiceError(err instanceof Error ? err.message : String(err))
         }
+      }
+
+      // 4. Save to signed_contracts Firestore collection
+      try {
+        await saveSignedContract({
+          clientName:        estimate.clientName,
+          estimateId:        id,
+          grandTotal,
+          depositAmount,
+          balanceDue,
+          pdfUrl:            capturedPdfUrl,
+          depositInvoiceUrl: capturedDepositInvoiceUrl,
+        })
+      } catch (err) {
+        console.error('[handleSign] saveSignedContract failed:', err)
+        // Non-critical — don't block the user
       }
     } catch (err) {
       console.error('Failed to accept estimate:', err)
