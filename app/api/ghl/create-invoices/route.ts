@@ -85,6 +85,7 @@ async function createGhlInvoice(
   contact:     ContactDetails,
   company:     CompanyDetails,
   issueDate:   string,
+  dueDate?:    string,
 ): Promise<{ id: string; invoiceNumber: string; invoiceUrl: string }> {
   const item = {
     name:        itemName,
@@ -104,6 +105,7 @@ async function createGhlInvoice(
     currency: 'USD',
     liveMode: true,
     issueDate,
+    ...(dueDate ? { dueDate } : {}),
 
     businessDetails: {
       logoUrl: 'https://assets.cdn.filesafe.space/KmTuAFWyGn4ijrs1sIzJ/media/682e521b6595bee932068728.png',
@@ -159,6 +161,48 @@ async function createGhlInvoice(
   const invoiceUrl = (inv.invoiceUrl ?? inv.url ?? `https://link.fastpaydirect.com/invoice/${id}`) as string
 
   return { id, invoiceNumber: (inv.invoiceNumber ?? '') as string, invoiceUrl }
+}
+
+// Fetch invoice and enable the pre-configured CC processing fee charge
+async function enableProcessingFee(token: string, invoiceId: string): Promise<void> {
+  // GET the invoice to see the miscellaneousCharges structure GHL set up
+  const getRes = await fetch(
+    `https://services.leadconnectorhq.com/invoices/${invoiceId}?altId=${LOCATION_ID}&altType=location`,
+    { headers: { Authorization: `Bearer ${token}`, Version: '2023-02-21' } }
+  )
+  if (!getRes.ok) return // silently skip if fetch fails
+  const getJson = await getRes.json() as Record<string, unknown>
+  const inv = (getJson.invoice ?? getJson) as Record<string, unknown>
+  const charges = (inv.miscellaneousCharges as Record<string, unknown>)?.charges as Record<string, unknown>[] | undefined
+
+  if (!charges?.length) {
+    console.log('[ghl/create-invoices] No pre-configured charges found on invoice')
+    return
+  }
+
+  console.log('[ghl/create-invoices] Found charges:', JSON.stringify(charges))
+
+  // Enable all charges (the 2% CC fee)
+  const enabledCharges = charges.map(c => ({ ...c, enabled: true }))
+
+  // PATCH the invoice to enable the charges
+  const patchRes = await fetch(`https://services.leadconnectorhq.com/invoices/${invoiceId}`, {
+    method:  'PUT',
+    headers: {
+      Authorization:  `Bearer ${token}`,
+      Version:        '2023-02-21',
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      altId:   LOCATION_ID,
+      altType: 'location',
+      miscellaneousCharges: { charges: enabledCharges },
+    }),
+  })
+  if (!patchRes.ok) {
+    const txt = await patchRes.text()
+    console.error('[ghl/create-invoices] Failed to enable processing fee:', txt)
+  }
 }
 
 // Send an already-created invoice so it emails the contact and becomes payable
@@ -243,7 +287,7 @@ export async function POST(req: NextRequest) {
     const preTaxDeposit = Math.round((depositAmount / divisor) * 100) / 100
     const preTaxBalance = Math.round((balanceDue   / divisor) * 100) / 100
 
-    // Create deposit invoice then immediately send it so it's ready to pay
+    // Create deposit invoice (due today) then enable CC fee and send
     const depositInvoice = await createGhlInvoice(
       token,
       `Deposit (${depositPct}%) — ${contactName}`,
@@ -254,7 +298,9 @@ export async function POST(req: NextRequest) {
       contact,
       company,
       issueDate,
+      issueDate, // dueDate = same day
     )
+    await enableProcessingFee(token, depositInvoice.id)
     await sendGhlInvoice(token, depositInvoice.id, company)
 
     // Balance invoice stays as draft
