@@ -16,6 +16,7 @@ export interface WallCalc {
   hours:      number   // total labor hours (2 dp)
   gallons:    number   // gallons needed, rounded up to whole number
   laborCost:  number   // hours × wage × payrollBurden (2 dp)
+  price:      number   // (labor + materials) / markup (2 dp)
 }
 
 /**
@@ -28,6 +29,10 @@ export interface WallCalc {
  *
  * Wall labor formula:
  *   hours × wage × payrollBurden
+ *
+ * Wall price formula:
+ *   (laborCost + gallons × pricePerGallon) / markup
+ *   markup = 1 − (netProfitMargin + overheadMargin + marketingMargin + salesMargin + productionMgmtMargin)
  */
 export function calculateWallCalc(
   option:        RoomOption,
@@ -71,11 +76,24 @@ export function calculateWallCalc(
   }
 
   const hours     = Math.round(totalHours * 100) / 100
+  const gallons   = Math.ceil(totalRawGallons)
   const laborCost = Math.round(hours * rules.wage * rules.payrollBurden * 100) / 100
+
+  const markup    = 1 - (
+    rules.netProfitMargin +
+    rules.overheadMargin +
+    rules.marketingMargin +
+    rules.salesMargin +
+    rules.productionMgmtMargin
+  )
+  const pricePerGallon = paintProducts.find(p => p.id === option.paints.wall)?.pricePerGallon ?? 0
+  const materials = gallons * pricePerGallon
+  const price     = markup > 0 ? Math.round((laborCost + materials) / markup * 100) / 100 : 0
 
   return {
     hours,
-    gallons:   Math.ceil(totalRawGallons),
+    gallons,
     laborCost,
+    price,
   }
 }

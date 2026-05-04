@@ -1027,6 +1027,12 @@ export default function InteriorEstimateForm({
                       {wallCalc.laborCost > 0 ? `$${wallCalc.laborCost.toFixed(2)}` : '—'}
                     </span>
                   </div>
+                  <div className="flex items-center justify-between mt-1">
+                    <span className="text-xs text-gray-500">Price</span>
+                    <span className={`text-sm font-semibold tabular-nums ${wallCalc.price > 0 ? 'text-green-700' : 'text-gray-400'}`}>
+                      {wallCalc.price > 0 ? `$${wallCalc.price.toFixed(2)}` : '—'}
+                    </span>
+                  </div>
                 </div>
               </div>
             </div>
