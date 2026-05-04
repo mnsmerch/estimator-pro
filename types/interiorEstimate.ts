@@ -60,6 +60,24 @@ export interface OtherEntry {
   gallons:     number | ''
 }
 
+export interface MiscLinearFeetEntry {
+  id:           string
+  miscTrimType: string
+  linearFeet:   number | ''
+}
+
+export interface MiscSquareFeetEntry {
+  id:           string
+  miscSqftType: string
+  squareFeet:   number | ''
+}
+
+export interface MiscHourlyEntry {
+  id:             string
+  miscHourlyType: string
+  units:          number | ''
+}
+
 export interface PaintSelections {
   wall:    string   // InteriorPaintProduct id
   ceiling: string
@@ -78,12 +96,12 @@ export interface RoomOption {
   baseboards: BaseboardSection[]
   doors:      DoorEntry[]       // max 5
   doorFrames: DoorFrameEntry[]  // max 5
-  windows:         WindowEntry[]     // max 2
-  ceilingPerimeter: number | ''
-  miscLinearFeet:   number | ''
-  miscSquareFeet:   number | ''
-  miscHourlyUnits:  number | ''
-  otherEntries:     OtherEntry[]
+  windows:               WindowEntry[]     // max 2
+  ceilingPerimeter:      number | ''
+  miscLinearFeetEntries: MiscLinearFeetEntry[]
+  miscSquareFeetEntries: MiscSquareFeetEntry[]
+  miscHourlyEntries:     MiscHourlyEntry[]
+  otherEntries:          OtherEntry[]
   // more measurement sections added incrementally
 }
 
@@ -148,9 +166,9 @@ export function computeOverview(option: RoomOption): OptionOverview {
     numberOfDoors,
     numberOfDoorFrames,
     numberOfWindows,
-    miscLinearFeet: option.miscLinearFeet === '' ? 0 : option.miscLinearFeet,
-    miscSquareFeet: option.miscSquareFeet  === '' ? 0 : option.miscSquareFeet,
-    miscHourly:     option.miscHourlyUnits === '' ? 0 : option.miscHourlyUnits,
+    miscLinearFeet: option.miscLinearFeetEntries.reduce((s, e) => s + (e.linearFeet === '' ? 0 : e.linearFeet), 0),
+    miscSquareFeet: option.miscSquareFeetEntries.reduce((s, e) => s + (e.squareFeet === '' ? 0 : e.squareFeet), 0),
+    miscHourly:     option.miscHourlyEntries.reduce((s, e) => s + (e.units === '' ? 0 : e.units), 0),
     other: option.otherEntries.reduce((sum, e) => sum + (e.hours === '' ? 0 : e.hours), 0),
   }
 }

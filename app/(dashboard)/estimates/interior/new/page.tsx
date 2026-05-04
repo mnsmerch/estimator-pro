@@ -11,6 +11,7 @@ import type {
   CeilingSection, CeilingMeasurement,
   BaseboardSection, BaseboardMeasurement,
   DoorEntry, DoorFrameEntry, WindowEntry, OtherEntry,
+  MiscLinearFeetEntry, MiscSquareFeetEntry, MiscHourlyEntry,
   PaintSelections, InteriorEstimateDraft, OptionOverview,
 } from '@/types/interiorEstimate'
 import type { InteriorPaintProduct } from '@/types/interiorSettings'
@@ -145,6 +146,46 @@ const WINDOW_TYPE_OPTIONS = [
 
 const MAX_WINDOW_TYPES = 2
 
+const MISC_LINEAR_FEET_OPTIONS = [
+  // Trim
+  { key: 'otherTrimSameColor',            label: 'Other Trim — Same Color'                                       },
+  { key: 'otherTrimChangeColor',          label: 'Other Trim — Change Color'                                     },
+  { key: 'otherTrimStainToPaint',         label: 'Other Trim — Stain to Paint (full sand)'                       },
+  { key: 'otherTrimPrime2Coats',          label: 'Prime & 2 Coats — Other Trim'                                  },
+  // Accent
+  { key: 'accentWallLineCutting',         label: 'Accent Walls — Line Cutting'                                   },
+  // Railings
+  { key: 'railingsPainted',               label: 'Painted Railings'                                              },
+  { key: 'railings2Colors',               label: 'Railings — 2 Different Colors'                                 },
+  { key: 'railingsHandRailFooterPost',    label: 'Railings — Hand Rail + Footer + Post Only'                     },
+  { key: 'railingsPrime2CoatsHandRail',   label: 'Prime & 2 Coats — Railings Hand Rail + Footer + Post Only'     },
+  { key: 'railingsPrime2Coats',           label: 'Prime & 2 Coats — Railings'                                    },
+  { key: 'railingsPrime2Coats2Colors',    label: 'Prime & 2 Coats — Railings 2 Different Colors'                 },
+  { key: 'railingsStainToPaint',          label: 'Stain to Paint (full sand) — Railings'                         },
+  { key: 'railingsStainToPaint2Colors',   label: 'Stain to Paint (full sand) — Railings 2 Different Colors'      },
+  // Stair Stringers
+  { key: 'stairStringerSameColor',        label: 'Stair Stringer — Same Color'                                   },
+  { key: 'stairStringerChangeColor',      label: 'Stair Stringer — Change Color'                                 },
+  { key: 'stairStringerStainToPaint',     label: 'Stain to Paint (full sand) — Stair Stringers'                  },
+  { key: 'stairStringerNew',              label: 'New Stair Stringers (never been painted)'                       },
+  { key: 'stairStringerPrime2Coats',      label: 'Prime & 2 Coats — Stair Stringer'                              },
+  // Replacement
+  { key: 'replaceBaseboards',             label: 'Replace Baseboards (price per linear foot)'                    },
+]
+
+const MISC_SQFT_OPTIONS = [
+  { key: 'shelves',          label: 'Shelves'                   },
+  { key: 'sameColorShelves', label: 'Same Color Shelves'        },
+  { key: 'fixPatchHole',     label: 'Fix/Patch Hole in Drywall' },
+]
+
+const MISC_HOURLY_OPTIONS = [
+  { key: 'moveFurniture',           label: 'Move Furniture'                                    },
+  { key: 'stairRisers',             label: 'Stair Risers (count each stair riser)'             },
+  { key: 'stainTopaintStairRisers', label: 'Stain to Paint Stair Risers (count each stair riser)' },
+  { key: 'railingsSpindlesOnly',    label: 'Railings Paint Spindles Only (count each spindle)' },
+]
+
 const PAINT_TYPES: { key: keyof PaintSelections; label: string }[] = [
   { key: 'wall',    label: 'Wall Paint'    },
   { key: 'ceiling', label: 'Ceiling Paint' },
@@ -209,6 +250,18 @@ function newOtherEntry(): OtherEntry {
   return { id: uid(), description: '', hours: '', gallons: '' }
 }
 
+function newMiscLinearFeetEntry(): MiscLinearFeetEntry {
+  return { id: uid(), miscTrimType: '', linearFeet: '' }
+}
+
+function newMiscSquareFeetEntry(): MiscSquareFeetEntry {
+  return { id: uid(), miscSqftType: '', squareFeet: '' }
+}
+
+function newMiscHourlyEntry(): MiscHourlyEntry {
+  return { id: uid(), miscHourlyType: '', units: '' }
+}
+
 function newOption(name = ''): RoomOption {
   return {
     id:         uid(),
@@ -220,12 +273,12 @@ function newOption(name = ''): RoomOption {
     baseboards: [newBaseboardSection()],
     doors:          [newDoorEntry()],
     doorFrames:     [newDoorFrameEntry()],
-    windows:          [newWindowEntry()],
-    ceilingPerimeter: '',
-    miscLinearFeet:   '',
-    miscSquareFeet:   '',
-    miscHourlyUnits:  '',
-    otherEntries:     [newOtherEntry()],
+    windows:               [newWindowEntry()],
+    ceilingPerimeter:      '',
+    miscLinearFeetEntries: [newMiscLinearFeetEntry()],
+    miscSquareFeetEntries: [newMiscSquareFeetEntry()],
+    miscHourlyEntries:     [newMiscHourlyEntry()],
+    otherEntries:          [newOtherEntry()],
   }
 }
 
@@ -663,6 +716,111 @@ export default function NewInteriorEstimatePage() {
     }))
   }
 
+  // ── Misc linear feet updaters ────────────────────────────────────────────────
+
+  function addMiscLinearFeetEntry(optId: string) {
+    setDraft(prev => ({
+      ...prev,
+      options: prev.options.map(o =>
+        o.id !== optId ? o : { ...o, miscLinearFeetEntries: [...o.miscLinearFeetEntries, newMiscLinearFeetEntry()] }
+      ),
+    }))
+  }
+
+  function removeMiscLinearFeetEntry(optId: string, eid: string) {
+    setDraft(prev => ({
+      ...prev,
+      options: prev.options.map(o =>
+        o.id !== optId ? o : {
+          ...o, miscLinearFeetEntries: o.miscLinearFeetEntries.length > 1
+            ? o.miscLinearFeetEntries.filter(e => e.id !== eid)
+            : o.miscLinearFeetEntries,
+        }
+      ),
+    }))
+  }
+
+  function patchMiscLinearFeetEntry(optId: string, eid: string, patch: Partial<MiscLinearFeetEntry>) {
+    setDraft(prev => ({
+      ...prev,
+      options: prev.options.map(o =>
+        o.id !== optId ? o : {
+          ...o, miscLinearFeetEntries: o.miscLinearFeetEntries.map(e => e.id !== eid ? e : { ...e, ...patch }),
+        }
+      ),
+    }))
+  }
+
+  // ── Misc square feet updaters ─────────────────────────────────────────────────
+
+  function addMiscSquareFeetEntry(optId: string) {
+    setDraft(prev => ({
+      ...prev,
+      options: prev.options.map(o =>
+        o.id !== optId ? o : { ...o, miscSquareFeetEntries: [...o.miscSquareFeetEntries, newMiscSquareFeetEntry()] }
+      ),
+    }))
+  }
+
+  function removeMiscSquareFeetEntry(optId: string, eid: string) {
+    setDraft(prev => ({
+      ...prev,
+      options: prev.options.map(o =>
+        o.id !== optId ? o : {
+          ...o, miscSquareFeetEntries: o.miscSquareFeetEntries.length > 1
+            ? o.miscSquareFeetEntries.filter(e => e.id !== eid)
+            : o.miscSquareFeetEntries,
+        }
+      ),
+    }))
+  }
+
+  function patchMiscSquareFeetEntry(optId: string, eid: string, patch: Partial<MiscSquareFeetEntry>) {
+    setDraft(prev => ({
+      ...prev,
+      options: prev.options.map(o =>
+        o.id !== optId ? o : {
+          ...o, miscSquareFeetEntries: o.miscSquareFeetEntries.map(e => e.id !== eid ? e : { ...e, ...patch }),
+        }
+      ),
+    }))
+  }
+
+  // ── Misc hourly updaters ──────────────────────────────────────────────────────
+
+  function addMiscHourlyEntry(optId: string) {
+    setDraft(prev => ({
+      ...prev,
+      options: prev.options.map(o =>
+        o.id !== optId ? o : { ...o, miscHourlyEntries: [...o.miscHourlyEntries, newMiscHourlyEntry()] }
+      ),
+    }))
+  }
+
+  function removeMiscHourlyEntry(optId: string, eid: string) {
+    setDraft(prev => ({
+      ...prev,
+      options: prev.options.map(o =>
+        o.id !== optId ? o : {
+          ...o, miscHourlyEntries: o.miscHourlyEntries.length > 1
+            ? o.miscHourlyEntries.filter(e => e.id !== eid)
+            : o.miscHourlyEntries,
+        }
+      ),
+    }))
+  }
+
+  function patchMiscHourlyEntry(optId: string, eid: string, patch: Partial<MiscHourlyEntry>) {
+    setDraft(prev => ({
+      ...prev,
+      options: prev.options.map(o =>
+        o.id !== optId ? o : {
+          ...o, miscHourlyEntries: o.miscHourlyEntries.map(e => e.id !== eid ? e : { ...e, ...patch }),
+        }
+      ),
+    }))
+  }
+
   // ── Other entry updaters ─────────────────────────────────────────────────────
 
   function addOtherEntry(optId: string) {
@@ -995,54 +1153,162 @@ export default function NewInteriorEstimatePage() {
             {/* ── Misc Linear Feet ─────────────────────────────────────────── */}
             <SectionHeader label="Misc Linear Feet" />
 
-            <div className="bg-white rounded-xl border border-gray-200 px-5 py-4">
-              <div className="w-48">
-                <label className="block text-sm font-medium text-gray-700 mb-1">Linear Feet</label>
-                <input
-                  type="number" step="0.1" min="0" placeholder="0"
-                  value={activeOption.miscLinearFeet}
-                  onChange={e => {
-                    const raw = e.target.value
-                    patchOption(activeOption.id, { miscLinearFeet: raw === '' ? '' : parseFloat(raw) || 0 })
-                  }}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
-                />
+            <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+              <div className="px-5 py-3 space-y-3">
+                <div className="grid grid-cols-[1fr_140px_auto] gap-3 text-xs font-medium text-gray-400 px-1">
+                  <span>Type</span>
+                  <span className="text-center">Linear Feet</span>
+                  <span className="w-6" />
+                </div>
+                {activeOption.miscLinearFeetEntries.map(entry => (
+                  <div key={entry.id} className="grid grid-cols-[1fr_140px_auto] gap-3 items-center">
+                    <select
+                      value={entry.miscTrimType}
+                      onChange={e => patchMiscLinearFeetEntry(activeOption.id, entry.id, { miscTrimType: e.target.value })}
+                      className="px-2 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 bg-white"
+                    >
+                      <option value="">Select type…</option>
+                      {MISC_LINEAR_FEET_OPTIONS.map(o => (
+                        <option key={o.key} value={o.key}>{o.label}</option>
+                      ))}
+                    </select>
+                    <input
+                      type="number" step="0.1" min="0" placeholder="0"
+                      value={entry.linearFeet}
+                      onChange={e => {
+                        const raw = e.target.value
+                        patchMiscLinearFeetEntry(activeOption.id, entry.id, { linearFeet: raw === '' ? '' : parseFloat(raw) || 0 })
+                      }}
+                      className="px-3 py-2 border border-gray-300 rounded-lg text-sm text-center focus:outline-none focus:ring-2 focus:ring-brand-500"
+                    />
+                    <button
+                      onClick={() => removeMiscLinearFeetEntry(activeOption.id, entry.id)}
+                      disabled={activeOption.miscLinearFeetEntries.length === 1}
+                      className="w-6 h-6 flex items-center justify-center text-gray-300 hover:text-red-400 disabled:opacity-0 transition-colors"
+                    >
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  </div>
+                ))}
+                <button
+                  onClick={() => addMiscLinearFeetEntry(activeOption.id)}
+                  className="flex items-center gap-1.5 text-xs text-brand-600 hover:text-brand-700 font-medium mt-1 transition-colors"
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                  </svg>
+                  Add Row
+                </button>
               </div>
             </div>
 
             {/* ── Misc Square Feet ─────────────────────────────────────────── */}
             <SectionHeader label="Misc Square Feet" />
 
-            <div className="bg-white rounded-xl border border-gray-200 px-5 py-4">
-              <div className="w-48">
-                <label className="block text-sm font-medium text-gray-700 mb-1">Square Feet</label>
-                <input
-                  type="number" step="0.1" min="0" placeholder="0"
-                  value={activeOption.miscSquareFeet}
-                  onChange={e => {
-                    const raw = e.target.value
-                    patchOption(activeOption.id, { miscSquareFeet: raw === '' ? '' : parseFloat(raw) || 0 })
-                  }}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
-                />
+            <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+              <div className="px-5 py-3 space-y-3">
+                <div className="grid grid-cols-[1fr_140px_auto] gap-3 text-xs font-medium text-gray-400 px-1">
+                  <span>Type</span>
+                  <span className="text-center">Square Feet</span>
+                  <span className="w-6" />
+                </div>
+                {activeOption.miscSquareFeetEntries.map(entry => (
+                  <div key={entry.id} className="grid grid-cols-[1fr_140px_auto] gap-3 items-center">
+                    <select
+                      value={entry.miscSqftType}
+                      onChange={e => patchMiscSquareFeetEntry(activeOption.id, entry.id, { miscSqftType: e.target.value })}
+                      className="px-2 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 bg-white"
+                    >
+                      <option value="">Select type…</option>
+                      {MISC_SQFT_OPTIONS.map(o => (
+                        <option key={o.key} value={o.key}>{o.label}</option>
+                      ))}
+                    </select>
+                    <input
+                      type="number" step="0.1" min="0" placeholder="0"
+                      value={entry.squareFeet}
+                      onChange={e => {
+                        const raw = e.target.value
+                        patchMiscSquareFeetEntry(activeOption.id, entry.id, { squareFeet: raw === '' ? '' : parseFloat(raw) || 0 })
+                      }}
+                      className="px-3 py-2 border border-gray-300 rounded-lg text-sm text-center focus:outline-none focus:ring-2 focus:ring-brand-500"
+                    />
+                    <button
+                      onClick={() => removeMiscSquareFeetEntry(activeOption.id, entry.id)}
+                      disabled={activeOption.miscSquareFeetEntries.length === 1}
+                      className="w-6 h-6 flex items-center justify-center text-gray-300 hover:text-red-400 disabled:opacity-0 transition-colors"
+                    >
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  </div>
+                ))}
+                <button
+                  onClick={() => addMiscSquareFeetEntry(activeOption.id)}
+                  className="flex items-center gap-1.5 text-xs text-brand-600 hover:text-brand-700 font-medium mt-1 transition-colors"
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                  </svg>
+                  Add Row
+                </button>
               </div>
             </div>
 
             {/* ── Misc Hourly ──────────────────────────────────────────────── */}
             <SectionHeader label="Misc Hourly" />
 
-            <div className="bg-white rounded-xl border border-gray-200 px-5 py-4">
-              <div className="w-48">
-                <label className="block text-sm font-medium text-gray-700 mb-1"># of Units</label>
-                <input
-                  type="number" step="1" min="0" placeholder="0"
-                  value={activeOption.miscHourlyUnits}
-                  onChange={e => {
-                    const raw = e.target.value
-                    patchOption(activeOption.id, { miscHourlyUnits: raw === '' ? '' : parseFloat(raw) || 0 })
-                  }}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
-                />
+            <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+              <div className="px-5 py-3 space-y-3">
+                <div className="grid grid-cols-[1fr_140px_auto] gap-3 text-xs font-medium text-gray-400 px-1">
+                  <span>Type</span>
+                  <span className="text-center"># of Units</span>
+                  <span className="w-6" />
+                </div>
+                {activeOption.miscHourlyEntries.map(entry => (
+                  <div key={entry.id} className="grid grid-cols-[1fr_140px_auto] gap-3 items-center">
+                    <select
+                      value={entry.miscHourlyType}
+                      onChange={e => patchMiscHourlyEntry(activeOption.id, entry.id, { miscHourlyType: e.target.value })}
+                      className="px-2 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 bg-white"
+                    >
+                      <option value="">Select type…</option>
+                      {MISC_HOURLY_OPTIONS.map(o => (
+                        <option key={o.key} value={o.key}>{o.label}</option>
+                      ))}
+                    </select>
+                    <input
+                      type="number" step="1" min="0" placeholder="0"
+                      value={entry.units}
+                      onChange={e => {
+                        const raw = e.target.value
+                        patchMiscHourlyEntry(activeOption.id, entry.id, { units: raw === '' ? '' : parseFloat(raw) || 0 })
+                      }}
+                      className="px-3 py-2 border border-gray-300 rounded-lg text-sm text-center focus:outline-none focus:ring-2 focus:ring-brand-500"
+                    />
+                    <button
+                      onClick={() => removeMiscHourlyEntry(activeOption.id, entry.id)}
+                      disabled={activeOption.miscHourlyEntries.length === 1}
+                      className="w-6 h-6 flex items-center justify-center text-gray-300 hover:text-red-400 disabled:opacity-0 transition-colors"
+                    >
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  </div>
+                ))}
+                <button
+                  onClick={() => addMiscHourlyEntry(activeOption.id)}
+                  className="flex items-center gap-1.5 text-xs text-brand-600 hover:text-brand-700 font-medium mt-1 transition-colors"
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                  </svg>
+                  Add Row
+                </button>
               </div>
             </div>
 
