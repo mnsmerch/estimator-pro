@@ -77,6 +77,8 @@ export default function ProposalPage({ params }: { params: Promise<{ id: string 
   const [pdfLink,     setPdfLink]     = useState<string | null>(null)
   const [pdfError,    setPdfError]    = useState<string | null>(null)
   const [savedToDrive, setSavedToDrive] = useState(false)
+  const [invoiceStatus, setInvoiceStatus] = useState<'idle' | 'creating' | 'done' | 'error'>('idle')
+  const [invoiceError,  setInvoiceError]  = useState<string | null>(null)
 
   useEffect(() => {
     async function load() {
@@ -275,6 +277,44 @@ export default function ProposalPage({ params }: { params: Promise<{ id: string 
         } catch (err) {
           setPdfStatus('error')
           setPdfError(err instanceof Error ? err.message : String(err))
+        }
+      }
+
+      // 3. Create GHL invoices (deposit + balance) if contact ID is present
+      if (estimate.clientContactId) {
+        setInvoiceStatus('creating')
+        try {
+          const res = await fetch('/api/ghl/create-invoices', {
+            method:  'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body:    JSON.stringify({
+              contactId:      estimate.clientContactId,
+              contactName:    estimate.clientName,
+              contactEmail:   estimate.clientEmail,
+              contactPhone:   estimate.clientPhone,
+              depositAmount,
+              balanceDue,
+              depositPercent,
+              company: {
+                name:          company.name,
+                phone:         company.phone,
+                email:         company.email,
+                website:       company.website,
+                streetAddress: company.streetAddress,
+                cityStateZip:  company.cityStateZip,
+              },
+            }),
+          })
+          const json = await res.json() as { success?: boolean; error?: string }
+          if (json.error) {
+            setInvoiceStatus('error')
+            setInvoiceError(json.error)
+          } else {
+            setInvoiceStatus('done')
+          }
+        } catch (err) {
+          setInvoiceStatus('error')
+          setInvoiceError(err instanceof Error ? err.message : String(err))
         }
       }
     } catch (err) {
@@ -671,6 +711,23 @@ export default function ProposalPage({ params }: { params: Promise<{ id: string 
                       </a>
                     )}
                     {pdfError && <p className="text-xs text-yellow-500 mt-2 font-mono break-all">{pdfError}</p>}
+                  </div>
+                )}
+
+                {/* Invoice status */}
+                {invoiceStatus === 'creating' && (
+                  <div className="flex items-center justify-center gap-2 text-sm text-gray-400">
+                    <div className="w-4 h-4 border-2 border-gray-300 border-t-brand-600 rounded-full animate-spin" />
+                    Creating invoices in GHL…
+                  </div>
+                )}
+                {invoiceStatus === 'done' && (
+                  <p className="text-sm text-green-600 font-medium">✓ Deposit &amp; balance invoices created in GHL</p>
+                )}
+                {invoiceStatus === 'error' && (
+                  <div className="bg-yellow-50 border border-yellow-200 rounded-xl px-4 py-3 text-left">
+                    <p className="text-sm font-semibold text-yellow-800">GHL invoice creation failed</p>
+                    {invoiceError && <p className="text-xs text-yellow-500 mt-1 font-mono break-all">{invoiceError}</p>}
                   </div>
                 )}
               </div>
