@@ -7,8 +7,8 @@ import { getSettingsDoc } from '@/lib/firebase/settings'
 import { DEFAULT_INTERIOR_PAINT_PRODUCTS } from '@/lib/defaultSettings'
 import { createInteriorEstimate, updateInteriorEstimate } from '@/lib/firebase/interiorEstimates'
 import { uploadPhoto, deletePhoto } from '@/lib/firebase/storage'
-import { calculateWallCalc } from '@/lib/interiorCalculations'
-import { DEFAULT_INTERIOR_RATES, DEFAULT_INTERIOR_RULES } from '@/lib/defaultSettings'
+import { calculateWallCalc, calculatePainterOverview } from '@/lib/interiorCalculations'
+import { DEFAULT_INTERIOR_RATES, DEFAULT_INTERIOR_RULES, DEFAULT_INTERIOR_CONSTANTS } from '@/lib/defaultSettings'
 import type { InteriorEstimateRecord } from '@/lib/firebase/interiorEstimates'
 import { computeOverview } from '@/types/interiorEstimate'
 import type {
@@ -515,9 +515,10 @@ export default function InteriorEstimateForm({
     }
   }
 
-  const overview  = computeOverview(activeOption)
-  const wallCalc  = calculateWallCalc(activeOption, DEFAULT_INTERIOR_RATES, products, rules)
-  const isEditing = !!estimateId
+  const overview       = computeOverview(activeOption)
+  const wallCalc       = calculateWallCalc(activeOption, DEFAULT_INTERIOR_RATES, products, rules)
+  const painterOverview = calculatePainterOverview(activeOption, DEFAULT_INTERIOR_RATES, DEFAULT_INTERIOR_CONSTANTS)
+  const isEditing      = !!estimateId
 
   // ── Render ───────────────────────────────────────────────────────────────────
 
@@ -1034,6 +1035,70 @@ export default function InteriorEstimateForm({
                     </span>
                   </div>
                 </div>
+              </div>
+            </div>
+
+            {/* Painter Overview */}
+            <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+              <div className="px-4 py-3 bg-gray-50 border-b border-gray-200">
+                <h3 className="text-sm font-semibold text-gray-700">Painter Overview</h3>
+              </div>
+
+              {/* Task breakdown */}
+              <div className="px-4 pt-2 pb-1">
+                <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-1">Hours Breakdown</p>
+              </div>
+              <div className="divide-y divide-gray-50 text-xs">
+                {([
+                  ['Paint Walls',                   painterOverview.paintWalls],
+                  ['Tape Caulk → Baseboards',       painterOverview.tapeCaulkWallsToBaseboards],
+                  ['Hand Cut → Ceilings',           painterOverview.handCutLineWallsToCeilings],
+                  ['Paint Ceilings',                painterOverview.paintCeilings],
+                  ['Mask Floor / Move Furniture',   painterOverview.maskFloorMoveFurniture],
+                  ['Paint Baseboards',              painterOverview.paintBaseboards],
+                  ['Tape Floors from Baseboards',   painterOverview.tapeFloorsFromBaseboards],
+                  ['Doors',                         painterOverview.doors],
+                  ['Door Frames',                   painterOverview.doorFrames],
+                  ['Windows',                       painterOverview.windows],
+                  ['Miscellaneous',                 painterOverview.miscellaneous],
+                  ['Other',                         painterOverview.other],
+                  ['Tape Caulk Line → Ceilings',   painterOverview.tapeCaulkLineWallsToCeilings],
+                  ['Set up & Clean Up',             painterOverview.setupAndCleanUp],
+                ] as [string, number][]).map(([label, val]) => (
+                  <div key={label} className="flex items-center justify-between px-4 py-1.5">
+                    <span className="text-gray-500 leading-tight">{label}</span>
+                    <span className={`font-semibold tabular-nums ml-2 shrink-0 ${val > 0 ? 'text-brand-700' : 'text-gray-300'}`}>
+                      {val > 0 ? val.toFixed(2) : '—'}
+                    </span>
+                  </div>
+                ))}
+                <div className="flex items-center justify-between px-4 py-2 bg-gray-50">
+                  <span className="font-semibold text-gray-700">Total Hours</span>
+                  <span className={`font-bold tabular-nums ${painterOverview.totalHoursByRoom > 0 ? 'text-brand-900' : 'text-gray-400'}`}>
+                    {painterOverview.totalHoursByRoom > 0 ? painterOverview.totalHoursByRoom.toFixed(2) : '—'}
+                  </span>
+                </div>
+              </div>
+
+              {/* Summary rows */}
+              <div className="px-4 pt-3 pb-1 border-t border-gray-100">
+                <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-1">Summary</p>
+              </div>
+              <div className="divide-y divide-gray-50 text-xs pb-2">
+                {([
+                  ['Walls',            painterOverview.wallsTotal],
+                  ['Ceilings',         painterOverview.ceilingsTotal],
+                  ['Baseboards',       painterOverview.baseboardsTotal],
+                  ['Painting all Trim',painterOverview.paintingAllTrim],
+                  ['All Prep',         painterOverview.allPrep],
+                ] as [string, number][]).map(([label, val]) => (
+                  <div key={label} className="flex items-center justify-between px-4 py-1.5">
+                    <span className="text-gray-500">{label}</span>
+                    <span className={`font-semibold tabular-nums ${val > 0 ? 'text-brand-700' : 'text-gray-300'}`}>
+                      {val > 0 ? val.toFixed(2) : '—'}
+                    </span>
+                  </div>
+                ))}
               </div>
             </div>
 
