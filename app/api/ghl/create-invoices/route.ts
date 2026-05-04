@@ -108,15 +108,18 @@ async function createGhlInvoice(
     body: JSON.stringify(body),
   })
 
-  const json = await res.json() as { invoice?: { _id?: string; invoiceNumber?: string }; message?: string }
+  const json = await res.json() as Record<string, unknown>
+  console.log('[ghl/create-invoices] GHL response:', JSON.stringify(json))
 
   if (!res.ok) {
     throw new Error(`GHL invoice error ${res.status}: ${JSON.stringify(json)}`)
   }
 
+  // GHL may return the invoice at the top level or nested under 'invoice'
+  const inv = (json.invoice ?? json) as Record<string, unknown>
   return {
-    id:            json.invoice?._id ?? '',
-    invoiceNumber: json.invoice?.invoiceNumber ?? '',
+    id:            (inv._id ?? inv.id ?? '') as string,
+    invoiceNumber: (inv.invoiceNumber ?? '') as string,
   }
 }
 
