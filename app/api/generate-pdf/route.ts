@@ -4,7 +4,7 @@ import { createElement } from 'react'
 import { ProposalPdf, type ProposalPdfData } from '@/lib/pdf/proposalPdf'
 import { initializeApp, cert, getApps } from 'firebase-admin/app'
 import { getStorage } from 'firebase-admin/storage'
-import { getFirestore } from 'firebase-admin/firestore'
+import { getFirestore, FieldValue } from 'firebase-admin/firestore'
 import { google } from 'googleapis'
 import { Readable } from 'stream'
 
@@ -21,6 +21,45 @@ function getAdminStorage() {
   }
   // Explicitly pass bucket name so it works regardless of default app config
   return getStorage().bucket(bucketName)
+}
+
+function getAdminDb() {
+  const raw = process.env.GOOGLE_SERVICE_ACCOUNT_JSON
+  if (!raw) throw new Error('GOOGLE_SERVICE_ACCOUNT_JSON env var not set')
+  const credentials = JSON.parse(raw)
+  const bucketName = process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET ?? ''
+  if (!getApps().find(a => a.name === '[DEFAULT]')) {
+    initializeApp({ credential: cert(credentials), storageBucket: bucketName })
+  }
+  return getFirestore()
+}
+
+async function saveSignedContract(params: {
+  clientName:    string
+  estimateId:    string
+  grandTotal:    number
+  depositAmount: number
+  balanceDue:    number
+  pdfUrl:        string | null
+}): Promise<void> {
+  const db = getAdminDb()
+  const { clientName } = params
+
+  // Build a unique display name: "John Smith — May 3, 2026"
+  // If another record was already saved today for the same name, append a counter
+  const dateLabel = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+  const baseName  = `${clientName} — ${dateLabel}`
+  const snap      = await db.collection('signed_contracts').where('clientName', '==', clientName).get()
+  const count     = snap.size
+  const displayName = count === 0 ? baseName : `${baseName} (${count})`
+
+  await db.collection('signed_contracts').add({
+    ...params,
+    displayName,
+    depositInvoiceUrl: null,
+    signedAt: FieldValue.serverTimestamp(),
+  })
+  console.log('[generate-pdf] Signed contract saved:', displayName)
 }
 
 // ── Firebase Admin — access-vlad (GHL tokens) ────────────────────────────────
@@ -88,9 +127,10 @@ export async function POST(req: NextRequest) {
       folderId?: string
       fileName: string
       contactId?: string
+      estimateId?: string
     }
 
-    const { data, folderId, fileName, contactId } = body
+    const { data, folderId, fileName, contactId, estimateId } = body
 
     // ── 1. Generate PDF ────────────────────────────────────────────────────────
 
@@ -175,6 +215,25 @@ export async function POST(req: NextRequest) {
       } catch (err: unknown) {
         ghlError = err instanceof Error ? err.message : String(err)
         console.error('[generate-pdf] GHL upload failed:', ghlError)
+      }
+    }
+
+    // ── 5. Save signed contract record ───────────────────────────────────────
+
+    if (estimateId && data.clientName) {
+      try {
+        const pdfUrl = driveLink ?? storageUrl ?? null
+        await saveSignedContract({
+          clientName:    data.clientName,
+          estimateId,
+          grandTotal:    data.grandTotal,
+          depositAmount: data.depositAmount,
+          balanceDue:    data.balanceDue,
+          pdfUrl,
+        })
+      } catch (err: unknown) {
+        console.error('[generate-pdf] saveSignedContract failed:', err instanceof Error ? err.message : String(err))
+        // Non-critical — don't fail the whole request
       }
     }
 

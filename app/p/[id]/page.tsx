@@ -173,7 +173,6 @@ export default function ProposalPage({ params }: { params: Promise<{ id: string 
     if (!sigName.trim() || !agreed || !sigDataUrl || !estimate) return
     setSigning(true)
     let capturedPdfUrl: string | null = null
-    let capturedDepositInvoiceUrl: string | null = null
     try {
       const now = new Date()
       const signatureDate = now.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
@@ -235,7 +234,7 @@ export default function ProposalPage({ params }: { params: Promise<{ id: string 
           const res = await fetch('/api/generate-pdf', {
             method:  'POST',
             headers: { 'Content-Type': 'application/json' },
-            body:    JSON.stringify({ data: pdfData, folderId: estimate.clientFolderId, fileName, contactId: estimate.clientContactId || undefined }),
+            body:    JSON.stringify({ data: pdfData, folderId: estimate.clientFolderId, fileName, contactId: estimate.clientContactId || undefined, estimateId: id }),
           })
           const json = await res.json() as {
             pdfBase64?: string; fileName?: string
@@ -324,7 +323,6 @@ export default function ProposalPage({ params }: { params: Promise<{ id: string 
             setInvoiceStatus('done')
             if (json.depositInvoiceUrl) {
               setDepositInvoiceUrl(json.depositInvoiceUrl)
-              capturedDepositInvoiceUrl = json.depositInvoiceUrl
             }
           }
         } catch (err) {
@@ -333,25 +331,6 @@ export default function ProposalPage({ params }: { params: Promise<{ id: string 
         }
       }
 
-      // 4. Save to signed_contracts via API (Admin SDK bypasses auth rules)
-      try {
-        await fetch('/api/save-signed-contract', {
-          method:  'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body:    JSON.stringify({
-            clientName:        estimate.clientName,
-            estimateId:        id,
-            grandTotal,
-            depositAmount,
-            balanceDue,
-            pdfUrl:            capturedPdfUrl,
-            depositInvoiceUrl: capturedDepositInvoiceUrl,
-          }),
-        })
-      } catch (err) {
-        console.error('[handleSign] save-signed-contract failed:', err)
-        // Non-critical — don't block the user
-      }
     } catch (err) {
       console.error('Failed to accept estimate:', err)
     } finally {
