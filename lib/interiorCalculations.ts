@@ -197,7 +197,11 @@ export function calculatePainterOverview(
   const ceilingsTotal   = paintCeilings
   const baseboardsTotal = paintBaseboards + tapeFloorsFromBaseboards
   const paintingAllTrim = doors + doorFrames + windows + miscellaneous
-  const allPrep         = maskFloorMoveFurniture + tapeCaulkLineWallsToCeilings + setupAndCleanUp
+  // All Prep = K4+K7+K9+K15+K16 = tapeCaulk + maskFloor + tapeFloors + tapeCaulkLine + setupCleanUp
+  // Uses ROUNDUP to 2 dp (matches Google Sheet ROUNDUP formula)
+  const allPrepRaw      = tapeCaulkWallsToBaseboards + maskFloorMoveFurniture +
+                          tapeFloorsFromBaseboards + tapeCaulkLineWallsToCeilings + setupAndCleanUp
+  const allPrep         = Math.ceil(allPrepRaw * 100) / 100
 
   const r2 = (n: number) => Math.round(n * 100) / 100
 
