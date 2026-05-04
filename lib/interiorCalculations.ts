@@ -136,10 +136,11 @@ export interface PainterOverview {
   laborTotal:      number   // totalHours × wage
 
   // ── Raw (unrounded) values for downstream cost calculations ───────────────
-  setupAndCleanUpRaw: number  // unrounded K16
-  rawRecycleFee:      number  // unrounded D25
-  rawSundries:        number  // unrounded D26
-  rawPaintCost:       number  // unrounded paint gallons × price
+  setupAndCleanUpRaw:       number  // unrounded K16
+  rawProductiveLaborCost:   number  // productiveHours × wage × burden (excludes setup/cleanup)
+  rawRecycleFee:            number  // unrounded D25
+  rawSundries:              number  // unrounded D26
+  rawPaintCost:             number  // unrounded paint gallons × price
 }
 
 /**
@@ -283,10 +284,11 @@ export function calculatePainterOverview(
     sundries,
     materialsTotal,
     laborTotal,
-    setupAndCleanUpRaw: setupAndCleanUp,
+    setupAndCleanUpRaw:     setupAndCleanUp,
+    rawProductiveLaborCost: productiveHours * rules.wage * rules.payrollBurden,
     rawRecycleFee,
     rawSundries,
-    rawPaintCost:       paintCost,
+    rawPaintCost:           paintCost,
   }
 }
 
@@ -330,11 +332,9 @@ export function calculateCostBreakdown(
     return { grandTotal: 0, setupAndCleanUp: 0, combiningSavings: 0, sundriesAndFees: 0, subtotal: 0, totalPrice: 0 }
   }
 
-  // Grand Total = (totalHours × wage × burden + paintCost) / markup
-  // totalHours is stored rounded in po but laborTotal = totalHours × wage (already computed)
-  // We use laborTotal (which used unrounded hours) as the labor component
-  const laborComponent = po.laborTotal  // already = totalHoursByRoom × wage (rounded to 2dp)
-  const grandTotal = Math.round((laborComponent * rules.payrollBurden + po.rawPaintCost) / markup * 100) / 100
+  // Grand Total = (productiveHours × wage × burden + paintCost) / markup
+  // Uses productive hours only — setup/cleanup is its own line item below
+  const grandTotal = Math.round((po.rawProductiveLaborCost + po.rawPaintCost) / markup * 100) / 100
 
   // Setup & Clean Up cost = (setupHours × wage × burden) / markup
   const setupCost = Math.round(
@@ -351,12 +351,15 @@ export function calculateCostBreakdown(
     (po.rawSundries + po.rawRecycleFee + tax) / markup * 100
   ) / 100
 
-  // Subtotal = grand total + setup/cleanup + sundries − combining savings
-  const rawSum = grandTotal + setupCost + sundriesAndFees - combiningSavings
+  // Subtotal = (grand total + setup/cleanup + sundries − combining savings) / (1 − salesDiscount)
+  // Use raw (pre-round) values so precision matches the sheet
+  const rawGrandTotal      = (po.rawProductiveLaborCost + po.rawPaintCost) / markup
+  const rawSetupCost       = (po.setupAndCleanUpRaw * rules.wage * rules.payrollBurden) / markup
+  const rawSundriesAndFees = (po.rawSundries + po.rawRecycleFee) / markup
+  const rawSubtotalSum     = rawGrandTotal + rawSetupCost + rawSundriesAndFees - combiningSavings
 
-  // When materialTaxRate = 0: round to whole dollar; otherwise no rounding
   const salesDiscount = rules.salesDiscount ?? 0.10
-  const subtotal = Math.round(rawSum / (1 - salesDiscount))
+  const subtotal = Math.round(rawSubtotalSum / (1 - salesDiscount) * 100) / 100
 
   const totalPrice = subtotal
 
