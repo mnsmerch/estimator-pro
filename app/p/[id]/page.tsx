@@ -295,6 +295,8 @@ export default function ProposalPage({ params }: { params: Promise<{ id: string 
               depositAmount,
               balanceDue,
               depositPercent,
+              taxRate:        taxRate ?? null,
+              taxCity:        parseCityFromAddress(estimate.clientAddress),
               company: {
                 name:          company.name,
                 phone:         company.phone,
