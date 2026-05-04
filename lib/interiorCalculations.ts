@@ -15,6 +15,16 @@ const SAME_COLOR_WALL_KEYS = new Set([
   'smoothSameColor',
 ])
 
+// Ceiling types that count as "same color" (1 coat for gallons)
+const SAME_COLOR_CEILING_KEYS = new Set([
+  'texturedSameColor',
+  'texturedVaultedSameColor',
+  'smoothSameColor',
+  'smoothVaultedSameColor',
+  'popcornSameColor',
+  'popcornVaultedSameColor',
+])
+
 export interface WallCalc {
   hours:      number   // total labor hours (2 dp)
   gallons:    number   // gallons needed, rounded up to whole number
@@ -101,6 +111,89 @@ export function calculateWallCalc(
   }
 }
 
+// ── Ceiling Calculations ──────────────────────────────────────────────────────
+
+export interface CeilingCalc {
+  hours:     number   // total labor hours (2 dp)
+  gallons:   number   // gallons needed, rounded up to whole number
+  laborCost: number   // hours × wage × payrollBurden (2 dp)
+  price:     number   // (labor + materials) / markup (2 dp)
+}
+
+/**
+ * Ceiling hours formula:
+ *   (sqft / sqftPerHr) per section
+ *   + (totalWallLength / tapeLine) — tape/caulk at wall-ceiling junction
+ *
+ * Ceiling gallons:
+ *   ceil( sum( (sqft / coverage) × (2 − sameColorMultiplier) ) )
+ *
+ * Price uses raw (unrounded) labor to match sheet precision.
+ */
+export function calculateCeilingCalc(
+  option:        RoomOption,
+  rates:         InteriorProductionRates,
+  paintProducts: InteriorPaintProduct[],
+  rules:         InteriorBusinessRules,
+): CeilingCalc {
+  const tapeLineRate = rates.prepWork.tapeLine ?? 40
+
+  const product  = paintProducts.find(p => p.id === option.paints.ceiling)
+  const coverage = product?.coverage ?? 400
+
+  let paintCeilingsHours = 0
+  let totalRawGallons    = 0
+
+  for (const section of option.ceilings) {
+    const sqftPerHr = rates.ceilingTypes[section.ceilingType]
+    if (!sqftPerHr) continue
+
+    let sectionSqft = 0
+    for (const m of section.measurements) {
+      const l = m.length === '' ? 0 : m.length
+      const w = m.width  === '' ? 0 : m.width
+      sectionSqft += l * w
+    }
+    if (sectionSqft === 0) continue
+
+    paintCeilingsHours += sectionSqft / sqftPerHr
+
+    const coatMult = 2 - (SAME_COLOR_CEILING_KEYS.has(section.ceilingType) ? 1 : 0)
+    totalRawGallons += (sectionSqft / coverage) * coatMult
+  }
+
+  if (paintCeilingsHours === 0) {
+    return { hours: 0, gallons: 0, laborCost: 0, price: 0 }
+  }
+
+  // Tape/caulk at wall-ceiling junction uses total wall length
+  let totalWallLength = 0
+  for (const section of option.walls) {
+    for (const m of section.measurements) {
+      totalWallLength += m.length === '' ? 0 : m.length
+    }
+  }
+  const tapeCaulkLineHours = totalWallLength / tapeLineRate
+
+  const totalHours = paintCeilingsHours + tapeCaulkLineHours
+  const hours      = Math.round(totalHours * 100) / 100
+  const gallons    = Math.ceil(totalRawGallons)
+
+  // Use raw (unrounded) labor for price to match sheet precision
+  const rawLaborCost = totalHours * rules.wage * rules.payrollBurden
+  const laborCost    = Math.round(rawLaborCost * 100) / 100
+
+  const markup = 1 - (
+    rules.netProfitMargin + rules.overheadMargin + rules.marketingMargin +
+    rules.salesMargin + rules.productionMgmtMargin
+  )
+  const pricePerGallon = product?.pricePerGallon ?? 0
+  const materials = gallons * pricePerGallon
+  const price = markup > 0 ? Math.round((rawLaborCost + materials) / markup * 100) / 100 : 0
+
+  return { hours, gallons, laborCost, price }
+}
+
 // ── Painter Hourly Overview ────────────────────────────────────────────────────
 
 export interface PainterOverview {
@@ -108,7 +201,7 @@ export interface PainterOverview {
   paintWalls:                   number
   tapeCaulkWallsToBaseboards:   number
   handCutLineWallsToCeilings:   number
-  paintCeilings:                number   // TODO: formula needed
+  paintCeilings:                number
   maskFloorMoveFurniture:       number   // TODO: formula needed
   paintBaseboards:              number   // TODO: formula needed
   tapeFloorsFromBaseboards:     number   // TODO: formula needed
@@ -117,7 +210,7 @@ export interface PainterOverview {
   windows:                      number   // TODO: formula needed
   miscellaneous:                number   // TODO: formula needed
   other:                        number
-  tapeCaulkLineWallsToCeilings: number   // TODO: formula needed
+  tapeCaulkLineWallsToCeilings: number
   setupAndCleanUp:              number
   totalHoursByRoom:             number
 
@@ -130,6 +223,7 @@ export interface PainterOverview {
 
   // ── Materials & Labor ─────────────────────────────────────────────────────
   wallGallons:     number
+  ceilingGallons:  number
   recycleFee:      number   // totalGallons × avgRecycleFee (rounded for display)
   sundries:        number   // allPrepRaw × sundriesPerHour (rounded for display)
   materialsTotal:  number   // paint costs + recycleFee + sundries
@@ -179,16 +273,41 @@ export function calculatePainterOverview(
     handCutLineWallsToCeilings += sectionLength / wallRate.handCut
   }
 
+  // ── Total wall length (for tapeCaulkLineWallsToCeilings) ─────────────────
+  let totalWallLength = 0
+  for (const section of option.walls) {
+    for (const m of section.measurements) {
+      totalWallLength += m.length === '' ? 0 : m.length
+    }
+  }
+
+  // ── Paint Ceilings ───────────────────────────────────────────────────────
+  let paintCeilings = 0
+  for (const section of option.ceilings) {
+    const sqftPerHr = rates.ceilingTypes[section.ceilingType]
+    if (!sqftPerHr) continue
+    let sectionSqft = 0
+    for (const m of section.measurements) {
+      const l = m.length === '' ? 0 : m.length
+      const w = m.width  === '' ? 0 : m.width
+      sectionSqft += l * w
+    }
+    paintCeilings += sectionSqft / sqftPerHr
+  }
+
+  // tapeCaulkLineWallsToCeilings: tape/caulk at wall-ceiling junction = wall length / tapeLine rate
+  // Only applies when there are ceilings being painted
+  const tapeLineRate                 = rates.prepWork.tapeLine ?? 40
+  const tapeCaulkLineWallsToCeilings = paintCeilings > 0 ? totalWallLength / tapeLineRate : 0
+
   // ── TODO sections (0 until formulas are added) ─────────────────────────
-  const paintCeilings                = 0  // TODO
-  const maskFloorMoveFurniture       = 0  // TODO
-  const paintBaseboards              = 0  // TODO
-  const tapeFloorsFromBaseboards     = 0  // TODO
-  const doors                        = 0  // TODO
-  const doorFrames                   = 0  // TODO
-  const windows                      = 0  // TODO
-  const miscellaneous                = 0  // TODO
-  const tapeCaulkLineWallsToCeilings = 0  // TODO
+  const maskFloorMoveFurniture   = 0  // TODO
+  const paintBaseboards          = 0  // TODO
+  const tapeFloorsFromBaseboards = 0  // TODO
+  const doors                    = 0  // TODO
+  const doorFrames               = 0  // TODO
+  const windows                  = 0  // TODO
+  const miscellaneous            = 0  // TODO
 
   // ── Other ────────────────────────────────────────────────────────────────
   const other = option.otherEntries.reduce(
@@ -225,9 +344,25 @@ export function calculatePainterOverview(
   }
   const wallGallons = Math.ceil(wallRawGallons)
 
+  // ── Ceiling gallons ───────────────────────────────────────────────────────
+  const ceilingProduct  = paintProducts.find(p => p.id === option.paints.ceiling)
+  const ceilingCoverage = ceilingProduct?.coverage       ?? 400
+  const ceilingPrice_   = ceilingProduct?.pricePerGallon ?? 0
+  let ceilingRawGallons = 0
+  for (const section of option.ceilings) {
+    let sectionSqft = 0
+    for (const m of section.measurements) {
+      const l = m.length === '' ? 0 : m.length
+      const w = m.width  === '' ? 0 : m.width
+      sectionSqft += l * w
+    }
+    const coatMult = 2 - (SAME_COLOR_CEILING_KEYS.has(section.ceilingType) ? 1 : 0)
+    ceilingRawGallons += (sectionSqft / ceilingCoverage) * coatMult
+  }
+  const ceilingGallons = Math.ceil(ceilingRawGallons)
+
   // ── Materials & Labor ────────────────────────────────────────────────────
-  // totalGallons = sum of all paint type gallons (walls only for now, rest TODO)
-  const totalGallons = wallGallons  // + ceilingGallons + trimGallons + ... (TODO)
+  const totalGallons = wallGallons + ceilingGallons  // + trimGallons + ... (TODO)
 
   // avgRecycleFee = average of 1-gal and 5-gal recycle fees (Inputs!B32)
   const avgRecycleFee  = (rules.recycleFeeGallon + rules.recycleFeeFiveGal) / 2
@@ -242,7 +377,7 @@ export function calculatePainterOverview(
 
   // materialsTotal = paint costs + recycle fee + sundries (SUM D19:D27)
   // Uses raw (unrounded) component values so precision matches the sheet's SUM formula
-  const paintCost      = wallGallons * wallPrice  // + ceiling + trim + ... (TODO)
+  const paintCost      = wallGallons * wallPrice + ceilingGallons * ceilingPrice_  // + trim + ... (TODO)
   const materialsTotal = Math.round((paintCost + rawRecycleFee + rawSundries) * 100) / 100
 
   // laborTotal = totalHours × wage (B29 × Inputs!B10)
@@ -250,7 +385,7 @@ export function calculatePainterOverview(
 
   // ── Summary rows ─────────────────────────────────────────────────────────
   const wallsTotal      = paintWalls + tapeCaulkWallsToBaseboards + handCutLineWallsToCeilings
-  const ceilingsTotal   = paintCeilings
+  const ceilingsTotal   = paintCeilings + tapeCaulkLineWallsToCeilings
   const baseboardsTotal = paintBaseboards + tapeFloorsFromBaseboards
   const paintingAllTrim = doors + doorFrames + windows + miscellaneous
   // All Prep = ROUNDUP(K4+K7+K9+K15+K16, 2)
@@ -280,6 +415,7 @@ export function calculatePainterOverview(
     paintingAllTrim:              r2(paintingAllTrim),
     allPrep,
     wallGallons,
+    ceilingGallons,
     recycleFee,
     sundries,
     materialsTotal,
