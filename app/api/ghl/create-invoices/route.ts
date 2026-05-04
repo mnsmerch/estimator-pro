@@ -173,7 +173,7 @@ async function sendGhlInvoice(token: string, invoiceId: string): Promise<void> {
     body: JSON.stringify({
       altId:    LOCATION_ID,
       altType:  'location',
-      action:   'send',
+      action:   'email',
       liveMode: true,
     }),
   })
