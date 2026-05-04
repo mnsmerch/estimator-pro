@@ -284,6 +284,8 @@ export default function ProposalPage({ params }: { params: Promise<{ id: string 
       if (estimate.clientContactId) {
         setInvoiceStatus('creating')
         try {
+          const brandPresetForInvoice = PAINT_BRANDS.find(b => b.key === selectedBrand) ?? PAINT_BRANDS[0]
+          const itemLabel = `${applyDiscount ? '10% off ' : ''}Exterior Painting — ${brandPresetForInvoice.label}`
           const res = await fetch('/api/ghl/create-invoices', {
             method:  'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -295,6 +297,8 @@ export default function ProposalPage({ params }: { params: Promise<{ id: string 
               depositAmount,
               balanceDue,
               depositPercent,
+              grandTotal,
+              itemLabel,
               taxRate:        taxRate ?? null,
               taxCity:        parseCityFromAddress(estimate.clientAddress),
               company: {

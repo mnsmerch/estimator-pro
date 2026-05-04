@@ -172,6 +172,8 @@ export async function POST(req: NextRequest) {
       depositAmount,
       balanceDue,
       depositPercent,
+      grandTotal,
+      itemLabel,
       taxRate,
       taxCity,
       company,
@@ -183,6 +185,8 @@ export async function POST(req: NextRequest) {
       depositAmount:  number
       balanceDue:     number
       depositPercent: number
+      grandTotal:     number
+      itemLabel:      string
       taxRate?:       number | null
       taxCity?:       string
       company:        CompanyDetails
@@ -198,41 +202,38 @@ export async function POST(req: NextRequest) {
 
     const contact: ContactDetails = {
       id:      contactId,
-      name:    contactName             || '',
-      phoneNo: toE164(contactPhone     || ''),
-      email:   contactEmail            || '',
+      name:    contactName         || '',
+      phoneNo: toE164(contactPhone || ''),
+      email:   contactEmail        || '',
     }
 
-    // If there's a tax rate, the amounts we received are post-tax.
-    // Back out to pre-tax so GHL can add the tax on top and show the breakdown.
     const tax: TaxInfo | null = (taxRate != null && taxRate > 0)
       ? { rate: taxRate, city: taxCity ?? '' }
       : null
 
-    const divisor         = tax ? (1 + tax.rate) : 1
-    const preTaxDeposit   = Math.round((depositAmount / divisor) * 100) / 100
-    const preTaxBalance   = Math.round((balanceDue   / divisor) * 100) / 100
+    // Format grand total for descriptions
+    const totalStr = grandTotal.toLocaleString('en-US', { style: 'currency', currency: 'USD' })
 
-    // Create deposit invoice
+    // Deposit: use depositAmount directly — GHL will add tax on top
     const depositInvoice = await createGhlInvoice(
       token,
       `Deposit (${depositPct}%) — ${contactName}`,
-      `Project Deposit (${depositPct}%)`,
-      `${depositPct}% deposit required to secure your project start date`,
-      preTaxDeposit,
+      itemLabel,
+      `Deposit for project totaling ${totalStr}`,
+      Math.round(depositAmount * 100) / 100,
       tax,
       contact,
       company,
       issueDate,
     )
 
-    // Create balance invoice
+    // Balance: use balanceDue directly — GHL will add tax on top
     const balanceInvoice = await createGhlInvoice(
       token,
       `Balance Due — ${contactName}`,
-      'Remaining Balance',
-      'Balance due upon completion of the project',
-      preTaxBalance,
+      itemLabel,
+      `Balance due on completion for project totaling ${totalStr}`,
+      Math.round(balanceDue * 100) / 100,
       tax,
       contact,
       company,
