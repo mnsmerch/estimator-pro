@@ -64,13 +64,14 @@ interface CompanyDetails {
 
 function buildTaxEntry(tax: TaxInfo) {
   const ratePct = parseFloat((tax.rate * 100).toFixed(4))
+  const label   = tax.city ? `Sales Tax - ${tax.city} ${ratePct}%` : `Sales Tax ${ratePct}%`
   return {
     _id:         newObjectId(),
     taxId:       newObjectId(),
-    name:        `Sales Tax${tax.city ? ` — ${tax.city}` : ''}`,
+    name:        label,
     rate:        ratePct,
     calculation: 'exclusive',
-    description: `${ratePct}% local sales tax`,
+    description: label,
   }
 }
 
