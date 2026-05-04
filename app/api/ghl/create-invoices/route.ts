@@ -170,7 +170,12 @@ async function sendGhlInvoice(token: string, invoiceId: string): Promise<void> {
       Version:        '2023-02-21',
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({ altId: LOCATION_ID, altType: 'location' }),
+    body: JSON.stringify({
+      altId:    LOCATION_ID,
+      altType:  'location',
+      action:   'send',
+      liveMode: true,
+    }),
   })
   if (!res.ok) {
     const txt = await res.text()
