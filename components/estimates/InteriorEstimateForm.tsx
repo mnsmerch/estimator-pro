@@ -7,7 +7,7 @@ import { getSettingsDoc } from '@/lib/firebase/settings'
 import { DEFAULT_INTERIOR_PAINT_PRODUCTS } from '@/lib/defaultSettings'
 import { createInteriorEstimate, updateInteriorEstimate } from '@/lib/firebase/interiorEstimates'
 import { uploadPhoto, deletePhoto } from '@/lib/firebase/storage'
-import { calculateWallCalc, calculatePainterOverview } from '@/lib/interiorCalculations'
+import { calculateWallCalc, calculatePainterOverview, calculateCostBreakdown } from '@/lib/interiorCalculations'
 import { DEFAULT_INTERIOR_RATES, DEFAULT_INTERIOR_RULES, DEFAULT_INTERIOR_CONSTANTS } from '@/lib/defaultSettings'
 import type { InteriorEstimateRecord } from '@/lib/firebase/interiorEstimates'
 import { computeOverview } from '@/types/interiorEstimate'
@@ -518,6 +518,7 @@ export default function InteriorEstimateForm({
   const overview       = computeOverview(activeOption)
   const wallCalc       = calculateWallCalc(activeOption, DEFAULT_INTERIOR_RATES, products, rules)
   const painterOverview = calculatePainterOverview(activeOption, DEFAULT_INTERIOR_RATES, DEFAULT_INTERIOR_CONSTANTS, products, rules)
+  const costBreakdown   = calculateCostBreakdown(painterOverview, rules)
   const isEditing      = !!estimateId
 
   // ── Render ───────────────────────────────────────────────────────────────────
@@ -1120,6 +1121,35 @@ export default function InteriorEstimateForm({
                     </span>
                   </div>
                 ))}
+              </div>
+            </div>
+
+            {/* Cost and Price Breakdown */}
+            <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+              <div className="px-4 py-3 border-b border-gray-100">
+                <h3 className="text-sm font-semibold text-gray-700">Cost and Price Breakdown</h3>
+              </div>
+              <div className="py-2">
+                {([
+                  ['Grand Total of Paint and Labor', costBreakdown.grandTotal,       true],
+                  ['Set up and Clean Up',             costBreakdown.setupAndCleanUp,  true],
+                  ['Combining Rooms & Items Savings', costBreakdown.combiningSavings, true],
+                  ['Sundries & Paint Store Fees',     costBreakdown.sundriesAndFees,  true],
+                  ['Subtotal',                        costBreakdown.subtotal,         true],
+                ] as [string, number, boolean][]).map(([label, val, isMoney]) => (
+                  <div key={label} className="flex items-center justify-between px-4 py-1.5">
+                    <span className="text-gray-500">{label}</span>
+                    <span className={`font-semibold tabular-nums ${val > 0 ? 'text-brand-700' : 'text-gray-300'}`}>
+                      {val > 0 ? (isMoney ? `$${val.toFixed(2)}` : val.toString()) : '—'}
+                    </span>
+                  </div>
+                ))}
+                <div className="mx-4 mt-2 pt-2 border-t border-gray-100 flex items-center justify-between">
+                  <span className="text-sm font-bold text-gray-800">Total Price</span>
+                  <span className={`text-sm font-bold tabular-nums ${costBreakdown.totalPrice > 0 ? 'text-brand-700' : 'text-gray-300'}`}>
+                    {costBreakdown.totalPrice > 0 ? `$${costBreakdown.totalPrice.toLocaleString()}` : '—'}
+                  </span>
+                </div>
               </div>
             </div>
 

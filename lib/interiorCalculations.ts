@@ -130,10 +130,16 @@ export interface PainterOverview {
 
   // ── Materials & Labor ─────────────────────────────────────────────────────
   wallGallons:     number
-  recycleFee:      number   // totalGallons × avgRecycleFee
-  sundries:        number   // allPrepRaw × sundriesPerHour
+  recycleFee:      number   // totalGallons × avgRecycleFee (rounded for display)
+  sundries:        number   // allPrepRaw × sundriesPerHour (rounded for display)
   materialsTotal:  number   // paint costs + recycleFee + sundries
   laborTotal:      number   // totalHours × wage
+
+  // ── Raw (unrounded) values for downstream cost calculations ───────────────
+  setupAndCleanUpRaw: number  // unrounded K16
+  rawRecycleFee:      number  // unrounded D25
+  rawSundries:        number  // unrounded D26
+  rawPaintCost:       number  // unrounded paint gallons × price
 }
 
 /**
@@ -277,5 +283,89 @@ export function calculatePainterOverview(
     sundries,
     materialsTotal,
     laborTotal,
+    setupAndCleanUpRaw: setupAndCleanUp,
+    rawRecycleFee,
+    rawSundries,
+    rawPaintCost:       paintCost,
+  }
+}
+
+// ── Cost and Price Breakdown ──────────────────────────────────────────────────
+
+export interface CostBreakdown {
+  grandTotal:       number   // (labor + paint) before overhead
+  setupAndCleanUp:  number   // (setupHours × wage × burden) / markup
+  combiningSavings: number   // 0 for now
+  sundriesAndFees:  number   // (sundries + recycleFee + tax) / markup
+  subtotal:         number   // round(sum / (1 − salesDiscount)) — whole dollars when tax=0
+  totalPrice:       number   // same as subtotal until further formula is provided
+}
+
+/**
+ * Cost and Price Breakdown formulas (mirrors Google Sheet):
+ *
+ * Grand Total   = (totalHours × wage × payrollBurden + paintCost) / markup
+ * Setup/Cleanup = (setupHours × wage × payrollBurden) / markup
+ * Sundries&Fees = (rawSundries + rawRecycleFee + tax) / markup
+ *                 where tax = sum(D19:D26) × materialTaxRate  (currently 0%)
+ * Subtotal      = if(materialTaxRate=0, round(sum / (1−salesDiscount), 0),
+ *                                        sum / (1−salesDiscount))
+ *                 salesDiscount = 0.10
+ * Combining Savings = 0 (not yet implemented)
+ * Total Price   = subtotal
+ */
+export function calculateCostBreakdown(
+  po:    PainterOverview,
+  rules: InteriorBusinessRules,
+): CostBreakdown {
+  const markup = 1 - (
+    rules.netProfitMargin +
+    rules.overheadMargin +
+    rules.marketingMargin +
+    rules.salesMargin +
+    rules.productionMgmtMargin
+  )
+
+  if (markup <= 0) {
+    return { grandTotal: 0, setupAndCleanUp: 0, combiningSavings: 0, sundriesAndFees: 0, subtotal: 0, totalPrice: 0 }
+  }
+
+  // Grand Total = (totalHours × wage × burden + paintCost) / markup
+  // totalHours is stored rounded in po but laborTotal = totalHours × wage (already computed)
+  // We use laborTotal (which used unrounded hours) as the labor component
+  const laborComponent = po.laborTotal  // already = totalHoursByRoom × wage (rounded to 2dp)
+  const grandTotal = Math.round((laborComponent * rules.payrollBurden + po.rawPaintCost) / markup * 100) / 100
+
+  // Setup & Clean Up cost = (setupHours × wage × burden) / markup
+  const setupCost = Math.round(
+    (po.setupAndCleanUpRaw * rules.wage * rules.payrollBurden) / markup * 100
+  ) / 100
+
+  // Combining savings — not yet implemented
+  const combiningSavings = 0
+
+  // Sundries & Fees = (rawSundries + rawRecycleFee + tax) / markup
+  // materialTaxRate = 0 so tax = 0
+  const tax = 0
+  const sundriesAndFees = Math.round(
+    (po.rawSundries + po.rawRecycleFee + tax) / markup * 100
+  ) / 100
+
+  // Subtotal = grand total + setup/cleanup + sundries − combining savings
+  const rawSum = grandTotal + setupCost + sundriesAndFees - combiningSavings
+
+  // When materialTaxRate = 0: round to whole dollar; otherwise no rounding
+  const salesDiscount = rules.salesDiscount ?? 0.10
+  const subtotal = Math.round(rawSum / (1 - salesDiscount))
+
+  const totalPrice = subtotal
+
+  return {
+    grandTotal,
+    setupAndCleanUp:  setupCost,
+    combiningSavings,
+    sundriesAndFees,
+    subtotal,
+    totalPrice,
   }
 }
