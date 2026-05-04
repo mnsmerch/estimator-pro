@@ -105,12 +105,34 @@ export interface RoomOption {
   // more measurement sections added incrementally
 }
 
+export interface InteriorScopeFields {
+  projectDescription: string
+  prepWork:           string
+  finalTouches:       string
+  paintProducts:      string
+  totalColors:        string
+  totalCoats:         string
+}
+
+export const INTERIOR_SCOPE_DEFAULTS: InteriorScopeFields = {
+  projectDescription:
+    '- Paint walls and ceiling for the entire house.\n- Prep & paint all doors, jambs & trim\n- Prep and paint all window trim\n- Prep & paint all baseboards\n- Paint fireplace hearth',
+  prepWork:
+    'For walls and ceiling:\n• Mask Floors\n• Cover Furniture\n• Caulk All Cracks\n• Refill All Nail Holes\n• Patch repairs & texture large fix\'s\n• Remove Electrical Plates\n• Remove Window Treatments\n\nFor trim:\n• Wipe clean any dirt & grime\n• Light sand.\n• Prime with shellac to ensure proper paint adhesion\n• Fill any nail holes\n• Light sand.\n• Remove dust & debris\n• Caulk any separating joints\n• Apply fine finish Emerald Urethane Enamel\n\nFor doors:\n• Remove Door Hinges\n• Remove Door Handles\n• Create an "Air-Bubble" Spray Booth\n• Sand Doors To Allow For Proper Adhesion\n• Spray shellac based primer\n• Fill any holes & deep scrapes\n• Sand doors\n• Remove dust & debris for a smooth finish\n• Spray 2 coats of Emerald urethane enamel using a Fine-Finish Paint Sprayer\n• Allow Dry Time\n• Re-Install Doors\n• Re-Install Hinges\n• Re-Install Handles\n• Quality Control Door(s) Open & Close Properly',
+  finalTouches:
+    '• Take off all of the masking.\n• Re-Install Electrical Plates\n• Re-Install Window Treatments.\n• Clean up all work areas\n• Final walk through with home owner\n• Balance due upon completion',
+  paintProducts:
+    'Walls and ceiling: Sherwin Williams \'\'SuperPaint\'\' interior acrylic latex paint.\nTrim and doors: Sherwin Williams "Emerald Urethane Enamel" Acrylic enamel paint.\nThe price includes the paint, labor and materials',
+  totalColors: '',
+  totalCoats:  '',
+}
+
 export interface InteriorEstimateDraft {
-  clientName:   string
-  address:      string
-  options:      RoomOption[]
-  photoUrls:    string[]
-  scopeOfWork:  string
+  clientName:  string
+  address:     string
+  options:     RoomOption[]
+  photoUrls:   string[]
+  scope:       InteriorScopeFields
 }
 
 export interface OptionOverview {
