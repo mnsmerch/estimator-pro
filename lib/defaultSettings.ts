@@ -5,7 +5,7 @@ import type {
   PaintProduct,
   ProductionRates,
 } from '@/types/settings'
-import type { InteriorBusinessRules, InteriorProductionConstants, InteriorPaintProduct } from '@/types/interiorSettings'
+import type { InteriorBusinessRules, InteriorProductionConstants, InteriorPaintProduct, InteriorProductionRates } from '@/types/interiorSettings'
 
 export const DEFAULT_COMPANY: CompanySettings = {
   name: 'Vanhousing Painters LLC',
@@ -155,6 +155,20 @@ export const DEFAULT_INTERIOR_PAINT_PRODUCTS: InteriorPaintProduct[] = [
   { id: 'int-drywall-repair-kit',                   name: 'Drywall Repair Kit',                                                      pricePerGallon: 33.00, coverage: 400 },
   { id: 'int-no-paint',                             name: 'No Paint or Paint Provided',                                              pricePerGallon:  0.00, coverage: 400 },
 ]
+
+export const DEFAULT_INTERIOR_RATES: InteriorProductionRates = {
+  prepWork: {
+    maskingFlooring:              250,
+    tapeLineCaulking:              30,
+    tapeLine:                      40,
+    prepNewBaseboards:             50,
+    smoothWallsPrimeNewDrywall:   150,
+    texturedPrimeNewDrywall:      100,
+    handCutSameColor:              60,
+    handCutChangeColor:            40,
+    caulkingBaseboards:            75,
+  },
+}
 
 export const DEFAULT_INTERIOR_CONSTANTS: InteriorProductionConstants = {
   cleanupHoursRatio: 16,

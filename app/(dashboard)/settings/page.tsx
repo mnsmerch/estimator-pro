@@ -8,6 +8,7 @@ import RatesAccordion from '@/components/settings/RatesAccordion'
 import TermsForm from '@/components/settings/TermsForm'
 import InteriorRulesForm from '@/components/settings/InteriorRulesForm'
 import InteriorPaintProductsTable from '@/components/settings/InteriorPaintProductsTable'
+import InteriorRatesAccordion from '@/components/settings/InteriorRatesAccordion'
 
 const TABS = [
   { key: 'company',          label: 'Company'            },
@@ -16,6 +17,7 @@ const TABS = [
   { key: 'rates',            label: 'Exterior Rates'     },
   { key: 'interior',         label: 'Interior Rules'     },
   { key: 'interior-paints',  label: 'Interior Paints'    },
+  { key: 'interior-rates',   label: 'Interior Rates'     },
   { key: 'terms',            label: 'Terms & Conditions' },
 ]
 
@@ -73,6 +75,7 @@ export default function SettingsPage() {
           {activeTab === 'rates'     && <RatesAccordion />}
           {activeTab === 'interior'        && <InteriorRulesForm />}
           {activeTab === 'interior-paints' && <InteriorPaintProductsTable />}
+          {activeTab === 'interior-rates'  && <InteriorRatesAccordion />}
           {activeTab === 'terms'           && <TermsForm />}
         </div>
       </div>

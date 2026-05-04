@@ -31,6 +31,11 @@ export interface InteriorPaintProduct {
   coverage:       number   // sq ft per gallon
 }
 
+export interface InteriorProductionRates {
+  prepWork: Record<string, number>
+  // more categories added as they come in
+}
+
 export interface InteriorProductionConstants {
   cleanupHoursRatio: number   // work hours per 1 cleanup hour (e.g. 16 → 1 hr cleanup per 16 hrs work)
   sundriesPerHour:   number   // $ per hour of prep
