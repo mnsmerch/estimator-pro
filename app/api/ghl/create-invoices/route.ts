@@ -30,11 +30,23 @@ function getGhlDb() {
   return getFirestore(app)
 }
 
-async function getGhlLocationToken(): Promise<string> {
+async function getGhlTokenDoc(): Promise<Record<string, unknown>> {
   const db = getGhlDb()
   const snap = await db.collection('ghl_location_tokens').doc('KmTuAFWyGn4ijrs1sIzJ').get()
   if (!snap.exists) throw new Error('GHL location token doc not found')
-  return (snap.data()!.access_token) as string
+  return snap.data() as Record<string, unknown>
+}
+
+async function getGhlLocationToken(): Promise<string> {
+  const doc = await getGhlTokenDoc()
+  return doc.access_token as string
+}
+
+async function getGhlUserId(): Promise<string> {
+  const doc = await getGhlTokenDoc()
+  console.log('[ghl/create-invoices] token doc keys:', Object.keys(doc).join(', '))
+  // Token doc may store userId, user_id, or installedByUserId
+  return (doc.userId ?? doc.user_id ?? doc.installedByUserId ?? '') as string
 }
 
 // ── GHL helpers ───────────────────────────────────────────────────────────────
@@ -162,18 +174,6 @@ async function createGhlInvoice(
 }
 
 // Send an already-created invoice so it emails the contact and becomes payable
-async function getGhlLocationUserId(token: string): Promise<string> {
-  const res = await fetch(
-    `https://services.leadconnectorhq.com/users/search?locationId=${LOCATION_ID}&limit=1`,
-    { headers: { Authorization: `Bearer ${token}`, Version: '2023-02-21' } }
-  )
-  if (!res.ok) throw new Error(`GHL users search failed: ${res.status}`)
-  const json = await res.json() as { users?: { id: string }[] }
-  const userId = json.users?.[0]?.id
-  if (!userId) throw new Error('No GHL users found for location')
-  return userId
-}
-
 async function sendGhlInvoice(token: string, invoiceId: string, userId: string): Promise<void> {
   const res = await fetch(`https://services.leadconnectorhq.com/invoices/${invoiceId}/send`, {
     method:  'POST',
@@ -252,8 +252,8 @@ export async function POST(req: NextRequest) {
     const preTaxDeposit = Math.round((depositAmount / divisor) * 100) / 100
     const preTaxBalance = Math.round((balanceDue   / divisor) * 100) / 100
 
-    // Fetch location userId (required by the send endpoint)
-    const userId = await getGhlLocationUserId(token)
+    // Get userId from token doc (required by the send endpoint)
+    const userId = await getGhlUserId()
 
     // Create deposit invoice then immediately send it so it's ready to pay
     const depositInvoice = await createGhlInvoice(
