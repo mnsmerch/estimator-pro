@@ -77,8 +77,9 @@ export default function ProposalPage({ params }: { params: Promise<{ id: string 
   const [pdfLink,     setPdfLink]     = useState<string | null>(null)
   const [pdfError,    setPdfError]    = useState<string | null>(null)
   const [savedToDrive, setSavedToDrive] = useState(false)
-  const [invoiceStatus, setInvoiceStatus] = useState<'idle' | 'creating' | 'done' | 'error'>('idle')
-  const [invoiceError,  setInvoiceError]  = useState<string | null>(null)
+  const [invoiceStatus, setInvoiceStatus]   = useState<'idle' | 'creating' | 'done' | 'error'>('idle')
+  const [invoiceError,  setInvoiceError]    = useState<string | null>(null)
+  const [depositInvoiceUrl, setDepositInvoiceUrl] = useState<string | null>(null)
 
   useEffect(() => {
     async function load() {
@@ -311,12 +312,13 @@ export default function ProposalPage({ params }: { params: Promise<{ id: string 
               },
             }),
           })
-          const json = await res.json() as { success?: boolean; error?: string }
+          const json = await res.json() as { success?: boolean; error?: string; depositInvoiceUrl?: string }
           if (json.error) {
             setInvoiceStatus('error')
             setInvoiceError(json.error)
           } else {
             setInvoiceStatus('done')
+            if (json.depositInvoiceUrl) setDepositInvoiceUrl(json.depositInvoiceUrl)
           }
         } catch (err) {
           setInvoiceStatus('error')
@@ -724,15 +726,30 @@ export default function ProposalPage({ params }: { params: Promise<{ id: string 
                 {invoiceStatus === 'creating' && (
                   <div className="flex items-center justify-center gap-2 text-sm text-gray-400">
                     <div className="w-4 h-4 border-2 border-gray-300 border-t-brand-600 rounded-full animate-spin" />
-                    Creating invoices in GHL…
+                    Creating invoices…
                   </div>
                 )}
                 {invoiceStatus === 'done' && (
-                  <p className="text-sm text-green-600 font-medium">✓ Deposit &amp; balance invoices created in GHL</p>
+                  <div className="flex flex-col items-center gap-3">
+                    <p className="text-sm text-green-600 font-medium">✓ Deposit &amp; balance invoices created</p>
+                    {depositInvoiceUrl && (
+                      <a
+                        href={depositInvoiceUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-2 px-6 py-3 bg-green-600 hover:bg-green-700 text-white font-semibold text-sm rounded-xl transition-colors shadow-sm"
+                      >
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 8.25h19.5M2.25 9h19.5m-16.5 5.25h6m-6 2.25h3m-3.75 3h15a2.25 2.25 0 0 0 2.25-2.25V6.75A2.25 2.25 0 0 0 19.5 4.5h-15a2.25 2.25 0 0 0-2.25 2.25v10.5A2.25 2.25 0 0 0 4.5 19.5Z" />
+                        </svg>
+                        Pay Deposit Now
+                      </a>
+                    )}
+                  </div>
                 )}
                 {invoiceStatus === 'error' && (
                   <div className="bg-yellow-50 border border-yellow-200 rounded-xl px-4 py-3 text-left">
-                    <p className="text-sm font-semibold text-yellow-800">GHL invoice creation failed</p>
+                    <p className="text-sm font-semibold text-yellow-800">Invoice creation failed</p>
                     {invoiceError && <p className="text-xs text-yellow-500 mt-1 font-mono break-all">{invoiceError}</p>}
                   </div>
                 )}

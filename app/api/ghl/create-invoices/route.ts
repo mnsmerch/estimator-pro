@@ -16,7 +16,7 @@ function toE164(raw: string): string {
   if (!digits) return ''
   if (digits.length === 10) return `+1${digits}`
   if (digits.length === 11 && digits.startsWith('1')) return `+${digits}`
-  if (digits.length > 7) return `+${digits}` // international — trust the digits
+  if (digits.length > 7) return `+${digits}`
   return ''
 }
 
@@ -37,13 +37,13 @@ async function getGhlLocationToken(): Promise<string> {
   return (snap.data()!.access_token) as string
 }
 
-// ── GHL Invoice helper ────────────────────────────────────────────────────────
+// ── GHL helpers ───────────────────────────────────────────────────────────────
 
 const LOCATION_ID = 'KmTuAFWyGn4ijrs1sIzJ'
 
 interface TaxInfo {
-  rate: number    // decimal e.g. 0.101 for 10.1%
-  city: string    // e.g. "Kirkland"
+  rate: number
+  city: string
 }
 
 interface ContactDetails {
@@ -80,12 +80,12 @@ async function createGhlInvoice(
   invoiceName: string,
   itemName:    string,
   itemDesc:    string,
-  amount:      number,   // pre-tax amount
+  amount:      number,
   tax:         TaxInfo | null,
   contact:     ContactDetails,
   company:     CompanyDetails,
   issueDate:   string,
-): Promise<{ id: string; invoiceNumber: string }> {
+): Promise<{ id: string; invoiceNumber: string; invoiceUrl: string }> {
   const item = {
     name:        itemName,
     description: itemDesc,
@@ -149,16 +149,32 @@ async function createGhlInvoice(
   })
 
   const text = await res.text()
-
-  if (!res.ok) {
-    throw new Error(`GHL invoice error ${res.status}: ${text}`)
-  }
+  if (!res.ok) throw new Error(`GHL invoice error ${res.status}: ${text}`)
 
   const json = JSON.parse(text) as Record<string, unknown>
   const inv  = (json.invoice ?? json) as Record<string, unknown>
-  return {
-    id:            (inv._id ?? inv.id ?? '') as string,
-    invoiceNumber: (inv.invoiceNumber ?? '') as string,
+  const id   = (inv._id ?? inv.id ?? '') as string
+
+  // GHL invoice public URL
+  const invoiceUrl = (inv.invoiceUrl ?? inv.url ?? `https://invoice.gohighlevel.com/v2/preview/${id}`) as string
+
+  return { id, invoiceNumber: (inv.invoiceNumber ?? '') as string, invoiceUrl }
+}
+
+// Send an already-created invoice so it emails the contact and becomes payable
+async function sendGhlInvoice(token: string, invoiceId: string): Promise<void> {
+  const res = await fetch(`https://services.leadconnectorhq.com/invoices/${invoiceId}/send`, {
+    method:  'POST',
+    headers: {
+      Authorization:  `Bearer ${token}`,
+      Version:        '2023-02-21',
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ altId: LOCATION_ID, altType: 'location' }),
+  })
+  if (!res.ok) {
+    const txt = await res.text()
+    throw new Error(`GHL send invoice error ${res.status}: ${txt}`)
   }
 }
 
@@ -213,15 +229,12 @@ export async function POST(req: NextRequest) {
       ? { rate: taxRate, city: taxCity ?? '' }
       : null
 
-    // Format grand total for descriptions
-    const totalStr = grandTotal.toLocaleString('en-US', { style: 'currency', currency: 'USD' })
-
-    // Back-calculate pre-tax amounts so GHL adds tax on top and the invoice
-    // total matches the estimate exactly (depositAmount already includes tax)
+    const totalStr      = grandTotal.toLocaleString('en-US', { style: 'currency', currency: 'USD' })
     const divisor       = tax ? (1 + tax.rate) : 1
     const preTaxDeposit = Math.round((depositAmount / divisor) * 100) / 100
     const preTaxBalance = Math.round((balanceDue   / divisor) * 100) / 100
 
+    // Create deposit invoice then immediately send it so it's ready to pay
     const depositInvoice = await createGhlInvoice(
       token,
       `Deposit (${depositPct}%) — ${contactName}`,
@@ -233,7 +246,9 @@ export async function POST(req: NextRequest) {
       company,
       issueDate,
     )
+    await sendGhlInvoice(token, depositInvoice.id)
 
+    // Balance invoice stays as draft
     const balanceInvoice = await createGhlInvoice(
       token,
       `Balance Due — ${contactName}`,
@@ -246,12 +261,13 @@ export async function POST(req: NextRequest) {
       issueDate,
     )
 
-    console.log('[ghl/create-invoices] Created:', depositInvoice.id, balanceInvoice.id)
+    console.log('[ghl/create-invoices] Created & sent deposit:', depositInvoice.id, '| draft balance:', balanceInvoice.id)
 
     return NextResponse.json({
-      success: true,
-      depositInvoice,
-      balanceInvoice,
+      success:          true,
+      depositInvoice:   { ...depositInvoice },
+      balanceInvoice:   { ...balanceInvoice },
+      depositInvoiceUrl: depositInvoice.invoiceUrl,
     })
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err)
