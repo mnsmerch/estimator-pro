@@ -142,8 +142,8 @@ async function createGhlInvoice(
           charges: [{
             _id:     newObjectId(),
             name:    '2% Processing Fee',
-            charge:  feeAmount,
-            amount:  feeAmount,
+            charge:  2,         // percentage rate (2%)
+            amount:  feeAmount, // dollar amount for display
             enabled: true,
           }],
           collectedMiscellaneousCharges: feeAmount,
