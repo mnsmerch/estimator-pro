@@ -517,7 +517,7 @@ export default function InteriorEstimateForm({
 
   const overview       = computeOverview(activeOption)
   const wallCalc       = calculateWallCalc(activeOption, DEFAULT_INTERIOR_RATES, products, rules)
-  const painterOverview = calculatePainterOverview(activeOption, DEFAULT_INTERIOR_RATES, DEFAULT_INTERIOR_CONSTANTS)
+  const painterOverview = calculatePainterOverview(activeOption, DEFAULT_INTERIOR_RATES, DEFAULT_INTERIOR_CONSTANTS, products, rules)
   const isEditing      = !!estimateId
 
   // ── Render ───────────────────────────────────────────────────────────────────
@@ -1096,6 +1096,27 @@ export default function InteriorEstimateForm({
                     <span className="text-gray-500">{label}</span>
                     <span className={`font-semibold tabular-nums ${val > 0 ? 'text-brand-700' : 'text-gray-300'}`}>
                       {val > 0 ? val.toFixed(2) : '—'}
+                    </span>
+                  </div>
+                ))}
+              </div>
+
+              {/* Materials & Labor totals */}
+              <div className="px-4 pt-3 pb-1 border-t border-gray-100">
+                <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-1">Materials & Labor</p>
+              </div>
+              <div className="divide-y divide-gray-50 text-xs pb-2">
+                {([
+                  ['Wall Gallons',      painterOverview.wallGallons,    false],
+                  ['Recycle Fee',       painterOverview.recycleFee,     true],
+                  ['Sundries',          painterOverview.sundries,       true],
+                  ['Materials Total',   painterOverview.materialsTotal, true],
+                  ['Labor Total',       painterOverview.laborTotal,     true],
+                ] as [string, number, boolean][]).map(([label, val, isMoney]) => (
+                  <div key={label} className="flex items-center justify-between px-4 py-1.5">
+                    <span className="text-gray-500">{label}</span>
+                    <span className={`font-semibold tabular-nums ${val > 0 ? 'text-brand-700' : 'text-gray-300'}`}>
+                      {val > 0 ? (isMoney ? `$${val.toFixed(2)}` : val.toString()) : '—'}
                     </span>
                   </div>
                 ))}

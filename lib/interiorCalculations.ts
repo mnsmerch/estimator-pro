@@ -126,7 +126,14 @@ export interface PainterOverview {
   ceilingsTotal:    number   // paintCeilings
   baseboardsTotal:  number   // paintBaseboards + tapeFloors
   paintingAllTrim:  number   // doors + doorFrames + windows + miscellaneous
-  allPrep:          number   // maskFloor + tapeCaulkLine + setupAndCleanUp
+  allPrep:          number   // ROUNDUP(tapeCaulk+maskFloor+tapeFloors+tapeCaulkLine+setup, 2)
+
+  // ── Materials & Labor ─────────────────────────────────────────────────────
+  wallGallons:     number
+  recycleFee:      number   // totalGallons × avgRecycleFee
+  sundries:        number   // allPrepRaw × sundriesPerHour
+  materialsTotal:  number   // paint costs + recycleFee + sundries
+  laborTotal:      number   // totalHours × wage
 }
 
 /**
@@ -134,9 +141,11 @@ export interface PainterOverview {
  * spreadsheet. Rows marked TODO use 0 until their formulas are added.
  */
 export function calculatePainterOverview(
-  option:    RoomOption,
-  rates:     InteriorProductionRates,
-  constants: InteriorProductionConstants,
+  option:        RoomOption,
+  rates:         InteriorProductionRates,
+  constants:     InteriorProductionConstants,
+  paintProducts: InteriorPaintProduct[],
+  rules:         InteriorBusinessRules,
 ): PainterOverview {
   const tapingRate = rates.prepWork.tapeLineCaulking ?? 30
 
@@ -192,15 +201,52 @@ export function calculatePainterOverview(
 
   const totalHoursByRoom = productiveHours + setupAndCleanUp
 
+  // ── Wall gallons ─────────────────────────────────────────────────────────
+  const wallProduct  = paintProducts.find(p => p.id === option.paints.wall)
+  const wallCoverage = wallProduct?.coverage        ?? 400
+  const wallPrice    = wallProduct?.pricePerGallon  ?? 0
+  let wallRawGallons = 0
+  for (const section of option.walls) {
+    let sectionSqft = 0
+    for (const m of section.measurements) {
+      const l = m.length === '' ? 0 : m.length
+      const h = m.height === '' ? 0 : m.height
+      sectionSqft += l * h
+    }
+    const coatMult = 2 - (SAME_COLOR_WALL_KEYS.has(section.wallType) ? 1 : 0)
+    wallRawGallons += (sectionSqft / wallCoverage) * coatMult
+  }
+  const wallGallons = Math.ceil(wallRawGallons)
+
+  // ── Materials & Labor ────────────────────────────────────────────────────
+  // totalGallons = sum of all paint type gallons (walls only for now, rest TODO)
+  const totalGallons = wallGallons  // + ceilingGallons + trimGallons + ... (TODO)
+
+  // avgRecycleFee = average of 1-gal and 5-gal recycle fees (Inputs!B32)
+  const avgRecycleFee  = (rules.recycleFeeGallon + rules.recycleFeeFiveGal) / 2
+  const rawRecycleFee  = totalGallons > 0 ? totalGallons * avgRecycleFee : 0
+  const recycleFee     = Math.round(rawRecycleFee * 100) / 100   // rounded for display
+
+  // sundries = allPrepRaw × sundriesPerHour (uses unrounded prep hours, Inputs!B35)
+  const allPrepRaw   = tapeCaulkWallsToBaseboards + maskFloorMoveFurniture +
+                       tapeFloorsFromBaseboards + tapeCaulkLineWallsToCeilings + setupAndCleanUp
+  const rawSundries  = allPrepRaw > 0 ? allPrepRaw * constants.sundriesPerHour : 0
+  const sundries     = Math.round(rawSundries * 100) / 100        // rounded for display
+
+  // materialsTotal = paint costs + recycle fee + sundries (SUM D19:D27)
+  // Uses raw (unrounded) component values so precision matches the sheet's SUM formula
+  const paintCost      = wallGallons * wallPrice  // + ceiling + trim + ... (TODO)
+  const materialsTotal = Math.round((paintCost + rawRecycleFee + rawSundries) * 100) / 100
+
+  // laborTotal = totalHours × wage (B29 × Inputs!B10)
+  const laborTotal = Math.round(totalHoursByRoom * rules.wage * 100) / 100
+
   // ── Summary rows ─────────────────────────────────────────────────────────
   const wallsTotal      = paintWalls + tapeCaulkWallsToBaseboards + handCutLineWallsToCeilings
   const ceilingsTotal   = paintCeilings
   const baseboardsTotal = paintBaseboards + tapeFloorsFromBaseboards
   const paintingAllTrim = doors + doorFrames + windows + miscellaneous
-  // All Prep = K4+K7+K9+K15+K16 = tapeCaulk + maskFloor + tapeFloors + tapeCaulkLine + setupCleanUp
-  // Uses ROUNDUP to 2 dp (matches Google Sheet ROUNDUP formula)
-  const allPrepRaw      = tapeCaulkWallsToBaseboards + maskFloorMoveFurniture +
-                          tapeFloorsFromBaseboards + tapeCaulkLineWallsToCeilings + setupAndCleanUp
+  // All Prep = ROUNDUP(K4+K7+K9+K15+K16, 2)
   const allPrep         = Math.ceil(allPrepRaw * 100) / 100
 
   const r2 = (n: number) => Math.round(n * 100) / 100
@@ -225,6 +271,11 @@ export function calculatePainterOverview(
     ceilingsTotal:                r2(ceilingsTotal),
     baseboardsTotal:              r2(baseboardsTotal),
     paintingAllTrim:              r2(paintingAllTrim),
-    allPrep:                      r2(allPrep),
+    allPrep,
+    wallGallons,
+    recycleFee,
+    sundries,
+    materialsTotal,
+    laborTotal,
   }
 }
