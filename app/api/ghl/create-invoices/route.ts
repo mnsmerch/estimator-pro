@@ -1,6 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { initializeApp, cert, getApps, getApp } from 'firebase-admin/app'
+import { initializeApp, cert, getApps } from 'firebase-admin/app'
 import { getFirestore } from 'firebase-admin/firestore'
+
+// Generate a valid MongoDB ObjectID-format string
+function newObjectId(): string {
+  const timestamp = Math.floor(Date.now() / 1000).toString(16).padStart(8, '0')
+  const random    = Array.from({ length: 10 }, () => Math.floor(Math.random() * 16).toString(16)).join('')
+  const counter   = Math.floor(Math.random() * 16777216).toString(16).padStart(6, '0')
+  return timestamp + random + counter
+}
 
 // ── Firebase Admin (access-vlad project for GHL tokens) ──────────────────────
 
@@ -93,15 +101,21 @@ async function createGhlInvoice(
     miscellaneousCharges: {
       charges: [
         {
-          name:   'Credit Card Processing Fee',
-          charge: 2,
+          _id:     newObjectId(),
+          name:    'Credit Card Processing Fee',
+          charge:  2,
+          enabled: true,
         },
       ],
     },
 
     termsNotes: '<p>A 2% credit card processing fee applies when paying by credit card.</p>',
 
-    sentTo: {},
+    // Empty arrays = draft (not sent to anyone yet)
+    sentTo: {
+      email:   [],
+      phoneNo: [],
+    },
   }
 
   const res = await fetch('https://services.leadconnectorhq.com/invoices/', {
