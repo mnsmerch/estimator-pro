@@ -55,7 +55,7 @@ async function createGhlInvoice(
   contact: ContactDetails,
   company: CompanyDetails,
   issueDate: string,
-): Promise<{ id: string; invoiceNumber: string }> {
+): Promise<{ id: string; invoiceNumber: string; _raw?: Record<string, unknown> }> {
   const body = {
     altId:   LOCATION_ID,
     altType: 'location',
@@ -108,18 +108,20 @@ async function createGhlInvoice(
     body: JSON.stringify(body),
   })
 
-  const json = await res.json() as Record<string, unknown>
-  console.log('[ghl/create-invoices] GHL response:', JSON.stringify(json))
+  const text = await res.text()
+  console.log('[ghl/create-invoices] GHL raw response:', text)
 
   if (!res.ok) {
-    throw new Error(`GHL invoice error ${res.status}: ${JSON.stringify(json)}`)
+    throw new Error(`GHL invoice error ${res.status}: ${text}`)
   }
 
+  const json = JSON.parse(text) as Record<string, unknown>
   // GHL may return the invoice at the top level or nested under 'invoice'
   const inv = (json.invoice ?? json) as Record<string, unknown>
   return {
     id:            (inv._id ?? inv.id ?? '') as string,
     invoiceNumber: (inv.invoiceNumber ?? '') as string,
+    _raw:          json,
   }
 }
 
