@@ -162,7 +162,19 @@ async function createGhlInvoice(
 }
 
 // Send an already-created invoice so it emails the contact and becomes payable
-async function sendGhlInvoice(token: string, invoiceId: string): Promise<void> {
+async function getGhlLocationUserId(token: string): Promise<string> {
+  const res = await fetch(
+    `https://services.leadconnectorhq.com/users/search?locationId=${LOCATION_ID}&limit=1`,
+    { headers: { Authorization: `Bearer ${token}`, Version: '2023-02-21' } }
+  )
+  if (!res.ok) throw new Error(`GHL users search failed: ${res.status}`)
+  const json = await res.json() as { users?: { id: string }[] }
+  const userId = json.users?.[0]?.id
+  if (!userId) throw new Error('No GHL users found for location')
+  return userId
+}
+
+async function sendGhlInvoice(token: string, invoiceId: string, userId: string): Promise<void> {
   const res = await fetch(`https://services.leadconnectorhq.com/invoices/${invoiceId}/send`, {
     method:  'POST',
     headers: {
@@ -173,7 +185,8 @@ async function sendGhlInvoice(token: string, invoiceId: string): Promise<void> {
     body: JSON.stringify({
       altId:    LOCATION_ID,
       altType:  'location',
-      action:   'email',
+      userId,
+      action:   'sms_and_email',
       liveMode: true,
     }),
   })
@@ -239,6 +252,9 @@ export async function POST(req: NextRequest) {
     const preTaxDeposit = Math.round((depositAmount / divisor) * 100) / 100
     const preTaxBalance = Math.round((balanceDue   / divisor) * 100) / 100
 
+    // Fetch location userId (required by the send endpoint)
+    const userId = await getGhlLocationUserId(token)
+
     // Create deposit invoice then immediately send it so it's ready to pay
     const depositInvoice = await createGhlInvoice(
       token,
@@ -251,7 +267,7 @@ export async function POST(req: NextRequest) {
       company,
       issueDate,
     )
-    await sendGhlInvoice(token, depositInvoice.id)
+    await sendGhlInvoice(token, depositInvoice.id, userId)
 
     // Balance invoice stays as draft
     const balanceInvoice = await createGhlInvoice(
