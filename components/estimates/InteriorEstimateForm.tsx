@@ -7,6 +7,8 @@ import { getSettingsDoc } from '@/lib/firebase/settings'
 import { DEFAULT_INTERIOR_PAINT_PRODUCTS } from '@/lib/defaultSettings'
 import { createInteriorEstimate, updateInteriorEstimate } from '@/lib/firebase/interiorEstimates'
 import { uploadPhoto, deletePhoto } from '@/lib/firebase/storage'
+import { calculateWallCalc } from '@/lib/interiorCalculations'
+import { DEFAULT_INTERIOR_RATES } from '@/lib/defaultSettings'
 import type { InteriorEstimateRecord } from '@/lib/firebase/interiorEstimates'
 import { computeOverview } from '@/types/interiorEstimate'
 import type {
@@ -509,7 +511,8 @@ export default function InteriorEstimateForm({
     }
   }
 
-  const overview = computeOverview(activeOption)
+  const overview  = computeOverview(activeOption)
+  const wallCalc  = calculateWallCalc(activeOption, DEFAULT_INTERIOR_RATES, products)
   const isEditing = !!estimateId
 
   // ── Render ───────────────────────────────────────────────────────────────────
@@ -967,8 +970,10 @@ export default function InteriorEstimateForm({
 
           </div>
 
-          {/* ── Right: overview ──────────────────────────────────────────────── */}
-          <div className="w-64 shrink-0 sticky top-24">
+          {/* ── Right: overview + calculations ───────────────────────────────── */}
+          <div className="w-64 shrink-0 sticky top-24 space-y-4">
+
+            {/* Overview */}
             <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
               <div className="px-4 py-3 bg-gray-50 border-b border-gray-200">
                 <h3 className="text-sm font-semibold text-gray-700">Overview</h3>
@@ -990,6 +995,32 @@ export default function InteriorEstimateForm({
                 })}
               </div>
             </div>
+
+            {/* Calculations */}
+            <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+              <div className="px-4 py-3 bg-gray-50 border-b border-gray-200">
+                <h3 className="text-sm font-semibold text-gray-700">Calculations</h3>
+              </div>
+              <div className="divide-y divide-gray-50">
+                {/* Walls */}
+                <div className="px-4 py-2">
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-1.5">Walls</p>
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-gray-500">Hours</span>
+                    <span className={`text-sm font-semibold tabular-nums ${wallCalc.hours > 0 ? 'text-brand-700' : 'text-gray-400'}`}>
+                      {wallCalc.hours > 0 ? wallCalc.hours.toFixed(2) : '—'}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between mt-1">
+                    <span className="text-xs text-gray-500">Gallons</span>
+                    <span className={`text-sm font-semibold tabular-nums ${wallCalc.gallons > 0 ? 'text-brand-700' : 'text-gray-400'}`}>
+                      {wallCalc.gallons > 0 ? wallCalc.gallons : '—'}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
           </div>
 
         </div>
