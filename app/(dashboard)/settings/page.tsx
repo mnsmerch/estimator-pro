@@ -7,14 +7,16 @@ import PaintProductsTable from '@/components/settings/PaintProductsTable'
 import RatesAccordion from '@/components/settings/RatesAccordion'
 import TermsForm from '@/components/settings/TermsForm'
 import InteriorRulesForm from '@/components/settings/InteriorRulesForm'
+import InteriorPaintProductsTable from '@/components/settings/InteriorPaintProductsTable'
 
 const TABS = [
-  { key: 'company',      label: 'Company'            },
-  { key: 'business',     label: 'Exterior Rules'     },
-  { key: 'paints',       label: 'Paint Products'     },
-  { key: 'rates',        label: 'Exterior Rates'     },
-  { key: 'interior',     label: 'Interior Rules'     },
-  { key: 'terms',        label: 'Terms & Conditions' },
+  { key: 'company',          label: 'Company'            },
+  { key: 'business',         label: 'Exterior Rules'     },
+  { key: 'paints',           label: 'Exterior Paints'    },
+  { key: 'rates',            label: 'Exterior Rates'     },
+  { key: 'interior',         label: 'Interior Rules'     },
+  { key: 'interior-paints',  label: 'Interior Paints'    },
+  { key: 'terms',            label: 'Terms & Conditions' },
 ]
 
 export default function SettingsPage() {
@@ -69,8 +71,9 @@ export default function SettingsPage() {
           {activeTab === 'business'  && <BusinessRulesForm />}
           {activeTab === 'paints'    && <PaintProductsTable />}
           {activeTab === 'rates'     && <RatesAccordion />}
-          {activeTab === 'interior'  && <InteriorRulesForm />}
-          {activeTab === 'terms'     && <TermsForm />}
+          {activeTab === 'interior'        && <InteriorRulesForm />}
+          {activeTab === 'interior-paints' && <InteriorPaintProductsTable />}
+          {activeTab === 'terms'           && <TermsForm />}
         </div>
       </div>
     </div>

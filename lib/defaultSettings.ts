@@ -5,7 +5,7 @@ import type {
   PaintProduct,
   ProductionRates,
 } from '@/types/settings'
-import type { InteriorBusinessRules, InteriorProductionConstants } from '@/types/interiorSettings'
+import type { InteriorBusinessRules, InteriorProductionConstants, InteriorPaintProduct } from '@/types/interiorSettings'
 
 export const DEFAULT_COMPANY: CompanySettings = {
   name: 'Vanhousing Painters LLC',
@@ -98,6 +98,63 @@ export const DEFAULT_INTERIOR_RULES: InteriorBusinessRules = {
   recycleFeeGallon:     0.75,
   recycleFeeFiveGal:    0.32,
 }
+
+export const DEFAULT_INTERIOR_PAINT_PRODUCTS: InteriorPaintProduct[] = [
+  // Sherwin-Williams
+  { id: 'int-sw-super-paint-flat',                  name: '(SW) Super Paint Flat',                                                    pricePerGallon: 39.00, coverage: 400 },
+  { id: 'int-sw-promar200-eggshell',                name: '(SW) Pro Mar 200 Eggshell',                                                pricePerGallon: 33.00, coverage: 400 },
+  { id: 'int-sw-promar200-semi-gloss',              name: '(SW) Pro Mar 200 Semi-Gloss',                                              pricePerGallon: 37.00, coverage: 400 },
+  { id: 'int-sw-super-paint-semi-gloss',            name: '(SW) Super Paint Semi-Gloss',                                              pricePerGallon: 45.00, coverage: 400 },
+  { id: 'int-sw-super-paint-satin',                 name: '(SW) Super Paint Satin and/or Velvet',                                     pricePerGallon: 42.00, coverage: 400 },
+  { id: 'int-sw-emerald-flat-matte',                name: '(SW) Emerald Flat & Matte',                                                pricePerGallon: 47.00, coverage: 400 },
+  { id: 'int-sw-proclassic-satin',                  name: '(SW) Pro Classic Satin',                                                   pricePerGallon: 50.00, coverage: 400 },
+  { id: 'int-sw-proclassic-semi-gloss',             name: '(SW) Pro Classic Semi-Gloss',                                              pricePerGallon: 52.00, coverage: 400 },
+  { id: 'int-na-38',                                name: 'n/a',                                                                      pricePerGallon: 38.00, coverage: 400 },
+  { id: 'int-na-41',                                name: 'n/a',                                                                      pricePerGallon: 41.00, coverage: 400 },
+  { id: 'int-na-36',                                name: 'n/a',                                                                      pricePerGallon: 36.00, coverage: 400 },
+  { id: 'int-na-1884',                              name: 'n/a',                                                                      pricePerGallon: 18.84, coverage: 400 },
+  { id: 'int-sw-pro-industrial-dtm',                name: '(SW) Pro Industrial DTM (Eggshell, Semi-Gloss & Gloss)',                   pricePerGallon: 53.00, coverage: 400 },
+  { id: 'int-sw-duration-satin',                    name: '(SW) Duration Satin (closest to eggshell)',                                pricePerGallon: 51.00, coverage: 400 },
+  { id: 'int-sw-duration-semi-gloss',               name: '(SW) Duration Semi-Gloss',                                                 pricePerGallon: 54.00, coverage: 400 },
+  { id: 'int-sw-duration-flat',                     name: '(SW) Duration Flat',                                                       pricePerGallon: 48.00, coverage: 400 },
+  { id: 'int-sw-duration-matte',                    name: '(SW) Duration Matte',                                                      pricePerGallon: 48.00, coverage: 400 },
+  { id: 'int-sw-emerald-flat-matte-2',              name: '(SW) Emerald Flat & Matte',                                                pricePerGallon: 47.00, coverage: 400 },
+  { id: 'int-sw-emerald-satin',                     name: '(SW) Emerald Satin (closest to eggshell)',                                 pricePerGallon: 48.00, coverage: 400 },
+  { id: 'int-sw-emerald-semi-gloss',                name: '(SW) Emerald Semi-Gloss',                                                  pricePerGallon: 49.00, coverage: 400 },
+  { id: 'int-sw-emerald-de-flat',                   name: '(SW) Emerald Designer Edition Flat',                                       pricePerGallon: 66.00, coverage: 400 },
+  { id: 'int-sw-emerald-de-satin',                  name: '(SW) Emerald Designer Edition Satin & Eggshell',                           pricePerGallon: 67.00, coverage: 400 },
+  { id: 'int-sw-emerald-de-gloss',                  name: '(SW) Emerald Designer Edition Gloss',                                      pricePerGallon: 70.00, coverage: 400 },
+  { id: 'int-sw-emerald-ute-satin',                 name: '(SW) Emerald Urethane Trim Enamel Satin',                                  pricePerGallon: 62.00, coverage: 400 },
+  { id: 'int-sw-emerald-ute-semi-gloss',            name: '(SW) Emerald Urethane Trim Enamel Semi-Gloss',                             pricePerGallon: 64.00, coverage: 400 },
+  { id: 'int-sw-emerald-ute-gloss',                 name: '(SW) Emerald Urethane Trim Enamel Gloss',                                  pricePerGallon: 65.00, coverage: 400 },
+  { id: 'int-sw-pro-ind-precatalyzed-eggshell',     name: '(SW) Pro Industrial Pre-Catalyzed WB Epoxy Eggshell',                     pricePerGallon: 50.00, coverage: 400 },
+  { id: 'int-sw-pro-ind-precatalyzed-semi-gloss',   name: '(SW) Pro Industrial Pre-Catalyzed WB Epoxy Semi-Gloss',                   pricePerGallon: 51.00, coverage: 400 },
+  { id: 'int-sw-pro-ind-hp-epoxy-gloss',            name: '(SW) Pro Industrial High Performance Epoxy Gloss',                        pricePerGallon: 177.00, coverage: 320 },
+  { id: 'int-sw-pro-ind-dtm-acrylic',               name: '(SW) Pro Industrial DTM Acrylic Eggshell & Semi-Gloss & Gloss',           pricePerGallon: 53.00, coverage: 400 },
+  // Benjamin Moore
+  { id: 'int-bm-ultra-spec-flat',                   name: '(BM) Ultra Spec 500 T535 Interior Flat',                                  pricePerGallon: 34.00, coverage: 400 },
+  { id: 'int-bm-ultra-spec-low-sheen',              name: '(BM) Ultra Spec 500 537 Interior Low Sheen',                              pricePerGallon: 36.00, coverage: 400 },
+  { id: 'int-bm-ultra-spec-eggshell',               name: '(BM) Ultra Spec 500 538 Interior Eggshell',                               pricePerGallon: 36.00, coverage: 400 },
+  { id: 'int-bm-ultra-spec-satin',                  name: '(BM) Ultra Spec 500 T545 Interior Satin Pearl',                           pricePerGallon: 43.00, coverage: 400 },
+  { id: 'int-bm-ultra-spec-semi-gloss',             name: '(BM) Ultra Spec 500 T546 Interior Semi-Gloss',                            pricePerGallon: 43.00, coverage: 400 },
+  { id: 'int-bm-ben-flat',                          name: '(BM) Ben WB Interior Flat',                                               pricePerGallon: 43.00, coverage: 400 },
+  { id: 'int-bm-ben-eggshell',                      name: '(BM) Ben WB Interior Eggshell',                                           pricePerGallon: 43.00, coverage: 400 },
+  { id: 'int-bm-ben-semi-gloss',                    name: '(BM) Ben WB Interior Semi-Gloss',                                         pricePerGallon: 43.00, coverage: 400 },
+  { id: 'int-bm-regal-flat',                        name: '(BM) Regal Select 547 Waterborne Interior Flat',                          pricePerGallon: 65.00, coverage: 400 },
+  { id: 'int-bm-regal-multi',                       name: '(BM) Regal Select 548 Waterborne Interior Matte/Eggshell/Pearl/Semi-Gloss', pricePerGallon: 65.00, coverage: 400 },
+  { id: 'int-bm-aura',                              name: '(BM) Aura 522 Waterborne Interior Matte/Eggshell/Semi-Gloss',             pricePerGallon: 83.00, coverage: 300 },
+  { id: 'int-bm-scuffx-eggshell',                   name: '(BM) Scuff-X Interior Eggshell',                                          pricePerGallon: 63.00, coverage: 400 },
+  { id: 'int-bm-scuffx-satin',                      name: '(BM) Scuff-X Interior Satin',                                             pricePerGallon: 63.00, coverage: 400 },
+  { id: 'int-bm-scuffx-semi-gloss',                 name: '(BM) Scuff-X Interior Semi-Gloss',                                        pricePerGallon: 63.00, coverage: 400 },
+  // Primers & Misc
+  { id: 'int-sw-ext-oil-primer',                    name: '(SW) Exterior Oil Based Wood Primer',                                     pricePerGallon: 34.45, coverage: 400 },
+  { id: 'int-sw-extreme-bond-primer',               name: '(SW) Extreme Bond Primer',                                                pricePerGallon: 62.00, coverage: 200 },
+  { id: 'int-sw-pva-drywall-primer',                name: '(SW) PVA Drywall Primer',                                                 pricePerGallon: 15.00, coverage: 400 },
+  { id: 'int-sw-multipurpose-primer',               name: '(SW) Multi-Purpose Primer',                                               pricePerGallon: 38.45, coverage: 400 },
+  { id: 'int-sw-peel-bonding-primer',               name: '(SW) Peel Bonding Primer',                                                pricePerGallon: 46.45, coverage: 250 },
+  { id: 'int-drywall-repair-kit',                   name: 'Drywall Repair Kit',                                                      pricePerGallon: 33.00, coverage: 400 },
+  { id: 'int-no-paint',                             name: 'No Paint or Paint Provided',                                              pricePerGallon:  0.00, coverage: 400 },
+]
 
 export const DEFAULT_INTERIOR_CONSTANTS: InteriorProductionConstants = {
   cleanupHoursRatio: 16,

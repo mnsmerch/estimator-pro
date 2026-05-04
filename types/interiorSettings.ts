@@ -24,6 +24,13 @@ export interface InteriorBusinessRules {
   // avgRecycleFee = average(recycleFeeGallon, recycleFeeFiveGal) — auto-calculated
 }
 
+export interface InteriorPaintProduct {
+  id:             string
+  name:           string
+  pricePerGallon: number
+  coverage:       number   // sq ft per gallon
+}
+
 export interface InteriorProductionConstants {
   cleanupHoursRatio: number   // work hours per 1 cleanup hour (e.g. 16 → 1 hr cleanup per 16 hrs work)
   sundriesPerHour:   number   // $ per hour of prep
