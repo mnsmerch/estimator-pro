@@ -156,7 +156,7 @@ async function createGhlInvoice(
   const id   = (inv._id ?? inv.id ?? '') as string
 
   // GHL invoice public URL
-  const invoiceUrl = (inv.invoiceUrl ?? inv.url ?? `https://invoice.gohighlevel.com/v2/preview/${id}`) as string
+  const invoiceUrl = (inv.invoiceUrl ?? inv.url ?? `https://link.fastpaydirect.com/invoice/${id}`) as string
 
   return { id, invoiceNumber: (inv.invoiceNumber ?? '') as string, invoiceUrl }
 }
