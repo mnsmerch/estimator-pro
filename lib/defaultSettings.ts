@@ -5,6 +5,7 @@ import type {
   PaintProduct,
   ProductionRates,
 } from '@/types/settings'
+import type { InteriorBusinessRules, InteriorProductionConstants } from '@/types/interiorSettings'
 
 export const DEFAULT_COMPANY: CompanySettings = {
   name: 'Vanhousing Painters LLC',
@@ -82,6 +83,30 @@ export const DEFAULT_PAINT_PRODUCTS: PaintProduct[] = [
   { id: 'masonry-bm-regal-select',     name: 'Masonry - (BM) Regal Select',                 singleGallon: 70.00, fiveGallon: 70.00, coverage: 350 },
   { id: 'masonry-bm-aura',             name: 'Masonry - (BM) Aura',                         singleGallon: 80.00, fiveGallon: 80.00, coverage: 250 },
 ]
+
+export const DEFAULT_INTERIOR_RULES: InteriorBusinessRules = {
+  wage:                 30,
+  payrollBurden:        1,
+  netProfitMargin:      0.21,
+  overheadMargin:       0.10,
+  marketingMargin:      0.10,
+  salesMargin:          0.08,
+  productionMgmtMargin: 0.08,
+  depositPercent:       0.20,
+  salesDiscount:        0.10,
+  materialTaxRate:      0,
+  recycleFeeGallon:     0.75,
+  recycleFeeFiveGal:    0.32,
+}
+
+export const DEFAULT_INTERIOR_CONSTANTS: InteriorProductionConstants = {
+  cleanupHoursRatio: 16,
+  sundriesPerHour:   3.30,
+  baseboardWidthIn:  4,
+  doorFrameWidthIn:  4,
+  windowTrimWidthIn: 4,
+  miscTrimWidthIn:   4,
+}
 
 export const DEFAULT_RATES: ProductionRates = {
   prepWork: {
