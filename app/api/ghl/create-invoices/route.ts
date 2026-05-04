@@ -30,23 +30,11 @@ function getGhlDb() {
   return getFirestore(app)
 }
 
-async function getGhlTokenDoc(): Promise<Record<string, unknown>> {
+async function getGhlLocationToken(): Promise<string> {
   const db = getGhlDb()
   const snap = await db.collection('ghl_location_tokens').doc('KmTuAFWyGn4ijrs1sIzJ').get()
   if (!snap.exists) throw new Error('GHL location token doc not found')
-  return snap.data() as Record<string, unknown>
-}
-
-async function getGhlLocationToken(): Promise<string> {
-  const doc = await getGhlTokenDoc()
-  return doc.access_token as string
-}
-
-async function getGhlUserId(): Promise<string> {
-  const doc = await getGhlTokenDoc()
-  console.log('[ghl/create-invoices] token doc keys:', Object.keys(doc).join(', '))
-  // Token doc may store userId, user_id, or installedByUserId
-  return (doc.userId ?? doc.user_id ?? doc.installedByUserId ?? '') as string
+  return (snap.data()!.access_token) as string
 }
 
 // ── GHL helpers ───────────────────────────────────────────────────────────────
@@ -174,7 +162,7 @@ async function createGhlInvoice(
 }
 
 // Send an already-created invoice so it emails the contact and becomes payable
-async function sendGhlInvoice(token: string, invoiceId: string, userId: string): Promise<void> {
+async function sendGhlInvoice(token: string, invoiceId: string, company: CompanyDetails): Promise<void> {
   const res = await fetch(`https://services.leadconnectorhq.com/invoices/${invoiceId}/send`, {
     method:  'POST',
     headers: {
@@ -185,9 +173,12 @@ async function sendGhlInvoice(token: string, invoiceId: string, userId: string):
     body: JSON.stringify({
       altId:    LOCATION_ID,
       altType:  'location',
-      userId,
       action:   'sms_and_email',
       liveMode: true,
+      sentFrom: {
+        fromName:  company.name,
+        fromEmail: company.email,
+      },
     }),
   })
   if (!res.ok) {
@@ -252,9 +243,6 @@ export async function POST(req: NextRequest) {
     const preTaxDeposit = Math.round((depositAmount / divisor) * 100) / 100
     const preTaxBalance = Math.round((balanceDue   / divisor) * 100) / 100
 
-    // Get userId from token doc (required by the send endpoint)
-    const userId = await getGhlUserId()
-
     // Create deposit invoice then immediately send it so it's ready to pay
     const depositInvoice = await createGhlInvoice(
       token,
@@ -267,7 +255,7 @@ export async function POST(req: NextRequest) {
       company,
       issueDate,
     )
-    await sendGhlInvoice(token, depositInvoice.id, userId)
+    await sendGhlInvoice(token, depositInvoice.id, company)
 
     // Balance invoice stays as draft
     const balanceInvoice = await createGhlInvoice(
