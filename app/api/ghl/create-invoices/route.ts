@@ -10,6 +10,16 @@ function newObjectId(): string {
   return ts + random + counter
 }
 
+// Normalize any phone string to E.164 (+12065551234). Returns '' if invalid.
+function toE164(raw: string): string {
+  const digits = raw.replace(/\D/g, '')
+  if (!digits) return ''
+  if (digits.length === 10) return `+1${digits}`
+  if (digits.length === 11 && digits.startsWith('1')) return `+${digits}`
+  if (digits.length > 7) return `+${digits}` // international — trust the digits
+  return ''
+}
+
 // ── Firebase Admin (access-vlad project for GHL tokens) ──────────────────────
 
 function getGhlDb() {
@@ -188,9 +198,9 @@ export async function POST(req: NextRequest) {
 
     const contact: ContactDetails = {
       id:      contactId,
-      name:    contactName  || '',
-      phoneNo: contactPhone || '',
-      email:   contactEmail || '',
+      name:    contactName             || '',
+      phoneNo: toE164(contactPhone     || ''),
+      email:   contactEmail            || '',
     }
 
     // If there's a tax rate, the amounts we received are post-tax.
