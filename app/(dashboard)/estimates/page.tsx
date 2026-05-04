@@ -103,12 +103,14 @@ export default function EstimatesPage() {
             <h1 className="text-2xl font-bold text-gray-900">Estimates</h1>
             <p className="text-sm text-gray-500 mt-1">Create and manage all your estimates</p>
           </div>
-          <button
-            onClick={() => setModalOpen(true)}
-            className="px-4 py-2 bg-brand-600 text-white text-sm font-medium rounded-lg hover:bg-brand-700 active:bg-brand-800 transition-colors shrink-0"
-          >
-            + New Estimate
-          </button>
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              onClick={() => setModalOpen(true)}
+              className="px-4 py-2 bg-brand-600 text-white text-sm font-medium rounded-lg hover:bg-brand-700 active:bg-brand-800 transition-colors"
+            >
+              + New Estimate
+            </button>
+          </div>
         </div>
 
         {/* Filter pill row */}
@@ -239,16 +241,18 @@ export default function EstimatesPage() {
                 </p>
               </button>
 
-              {/* Interior — coming soon */}
-              <div className="w-full text-left px-4 py-3.5 rounded-xl border border-gray-100 bg-gray-50 cursor-not-allowed opacity-60">
-                <div className="flex items-center justify-between">
-                  <p className="font-semibold text-gray-500">Interior Estimate</p>
-                  <span className="text-[10px] font-semibold uppercase tracking-wide bg-gray-200 text-gray-500 px-2 py-0.5 rounded-full">
-                    Coming soon
-                  </span>
-                </div>
-                <p className="text-sm text-gray-400 mt-0.5">Interior rooms, ceilings, trim</p>
-              </div>
+              {/* Interior — active */}
+              <button
+                onClick={() => { setModalOpen(false); router.push('/estimates/interior/new') }}
+                className="w-full text-left px-4 py-3.5 rounded-xl border border-gray-200 hover:border-brand-400 hover:bg-brand-50 transition-colors group"
+              >
+                <p className="font-semibold text-gray-900 group-hover:text-brand-700 transition-colors">
+                  Interior Estimate
+                </p>
+                <p className="text-sm text-gray-500 mt-0.5">
+                  Interior rooms, ceilings, trim
+                </p>
+              </button>
 
               {/* Cabinet — coming soon */}
               <div className="w-full text-left px-4 py-3.5 rounded-xl border border-gray-100 bg-gray-50 cursor-not-allowed opacity-60">

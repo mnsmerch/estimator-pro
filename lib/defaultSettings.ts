@@ -5,7 +5,7 @@ import type {
   PaintProduct,
   ProductionRates,
 } from '@/types/settings'
-import type { InteriorBusinessRules, InteriorProductionConstants, InteriorPaintProduct, InteriorProductionRates, WallTypeRate } from '@/types/interiorSettings'
+import type { InteriorBusinessRules, InteriorProductionConstants, InteriorPaintProduct, InteriorProductionRates, WallTypeRate, DoorBaseRate } from '@/types/interiorSettings'
 
 export const DEFAULT_COMPANY: CompanySettings = {
   name: 'Vanhousing Painters LLC',
@@ -194,6 +194,74 @@ export const DEFAULT_INTERIOR_RATES: InteriorProductionRates = {
     popcornVaultedSameColor:      75,
     popcornVaultedChangeColor:    40,
     // 4 auto-calculated prime+paint rates are derived — not stored
+  },
+  doorTypes: {
+    // 7 base rows — all other rows are auto-calculated from these
+    doors1Side:                  { hours: 1,    lnft: 55  },
+    doorsBothSides:              { hours: 1.2,  lnft: 110 },
+    closet1Side:                 { hours: 1.2,  lnft: 110 },
+    closetBothSides:             { hours: 2,    lnft: 220 },
+    commercialSteelBothSides:    { hours: 2.75, lnft: 110 },
+    stainNewDoorsBothSides:      { hours: 6,    lnft: 110 },
+    stainOldDoorsBothSides:      { hours: 10,   lnft: 110 },
+  },
+  doorFrameTypes: {
+    // 4 base rows — all other rows are auto-calculated from these
+    dfDoor1Side:                 { hours: 0.5,  lnft: 17  },
+    dfDoorBothSides:             { hours: 1,    lnft: 34  },
+    dfCommercialSteel1Side:      { hours: 1,    lnft: 55  },
+    dfCommercialSteelBothSides:  { hours: 2,    lnft: 110 },
+  },
+  windowTypes: {
+    // 8 base rows — all other rows are auto-calculated from these
+    vinylNoTrim:          { hours: 0.125, lnft: 0  },
+    vinylSillTrim:        { hours: 0.17,  lnft: 4  },
+    vinylTrim4Sides:      { hours: 1,     lnft: 16 },
+    woodNoTrim:           { hours: 0.25,  lnft: 0  },
+    woodDontOpen:         { hours: 1.25,  lnft: 16 },
+    woodOpens:            { hours: 1.75,  lnft: 20 },
+    twoToneWoodDontOpen:  { hours: 1.75,  lnft: 32 },
+    twoToneWoodOpens:     { hours: 2.25,  lnft: 36 },
+  },
+  miscTrimTypes: {
+    // Trim
+    otherTrimSameColor:              { lnftPerHr: 20,      paint: 1 },
+    otherTrimChangeColor:            { lnftPerHr: 15,      paint: 1 },
+    otherTrimStainToPaint:           { lnftPerHr: 5,       paint: 1 },
+    otherTrimPrime2Coats:            { lnftPerHr: 12,      paint: 1 },
+    // Accent
+    accentWallLineCutting:           { lnftPerHr: 12.5,    paint: 1 },
+    // Railings
+    railingsPainted:                 { lnftPerHr: 3,       paint: 25 },
+    railings2Colors:                 { lnftPerHr: 1.7,     paint: 25 },
+    railingsHandRailFooterPost:      { lnftPerHr: 3.625,   paint: 25 },
+    railingsPrime2CoatsHandRail:     { lnftPerHr: 2.9,     paint: 25 },
+    railingsPrime2Coats:             { lnftPerHr: 2.4,     paint: 25 },
+    railingsPrime2Coats2Colors:      { lnftPerHr: 1.36,    paint: 25 },
+    railingsStainToPaint:            { lnftPerHr: 0.98,    paint: 25 },
+    railingsStainToPaint2Colors:     { lnftPerHr: 0.77,    paint: 25 },
+    // Stair Stringers
+    stairStringerSameColor:          { lnftPerHr: 20,      paint: 1 },
+    stairStringerChangeColor:        { lnftPerHr: 17.14286,paint: 1 },
+    stairStringerStainToPaint:       { lnftPerHr: 9.2308,  paint: 1 },
+    stairStringerNew:                { lnftPerHr: 12.766,  paint: 1 },
+    stairStringerPrime2Coats:        { lnftPerHr: 13.714,  paint: 1 },
+    // Replacement
+    replaceBaseboards:               { lnftPerHr: 10,      paint: 0 },
+  },
+  sameColorOptions: {
+    wallsCeilingsWithPrep:    80,
+    wallsCeilingsSprayedPrep: 75,
+  },
+  miscSqftTypes: {
+    shelves:      75,
+    fixPatchHole:  1,
+  },
+  miscHourlyTypes: {
+    moveFurniture:            1,            // Units/Hr = 1/1 = 1
+    stairRisers:              0.5,          // Units/Hr = 1/0.5 = 2
+    stainTopaintStairRisers:  1.176470588,  // Units/Hr = 1/1.176... = 0.85 (primary is units/hr)
+    railingsSpindlesOnly:     0.2222222222, // Units/Hr = 1/0.222... = 4.5
   },
 }
 

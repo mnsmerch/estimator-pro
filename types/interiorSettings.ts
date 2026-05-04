@@ -36,10 +36,27 @@ export interface WallTypeRate {
   handCut:   number
 }
 
+export interface DoorBaseRate {
+  hours: number
+  lnft:  number
+}
+
+export interface MiscTrimRate {
+  lnftPerHr: number
+  paint:     number
+}
+
 export interface InteriorProductionRates {
-  prepWork:     Record<string, number>
-  wallTypes:    Record<string, WallTypeRate>
-  ceilingTypes: Record<string, number>
+  prepWork:       Record<string, number>
+  wallTypes:      Record<string, WallTypeRate>
+  ceilingTypes:   Record<string, number>
+  doorTypes:      Record<string, DoorBaseRate>
+  doorFrameTypes: Record<string, DoorBaseRate>
+  windowTypes:    Record<string, DoorBaseRate>
+  miscTrimTypes:    Record<string, MiscTrimRate>
+  sameColorOptions: Record<string, number>
+  miscSqftTypes:    Record<string, number>
+  miscHourlyTypes:  Record<string, number>
   // more categories added as they come in
 }
 
