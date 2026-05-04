@@ -214,26 +214,30 @@ export async function POST(req: NextRequest) {
     // Format grand total for descriptions
     const totalStr = grandTotal.toLocaleString('en-US', { style: 'currency', currency: 'USD' })
 
-    // Deposit: use depositAmount directly — GHL will add tax on top
+    // Back-calculate pre-tax amounts so GHL adds tax on top and the invoice
+    // total matches the estimate exactly (depositAmount already includes tax)
+    const divisor       = tax ? (1 + tax.rate) : 1
+    const preTaxDeposit = Math.round((depositAmount / divisor) * 100) / 100
+    const preTaxBalance = Math.round((balanceDue   / divisor) * 100) / 100
+
     const depositInvoice = await createGhlInvoice(
       token,
       `Deposit (${depositPct}%) — ${contactName}`,
       itemLabel,
       `Deposit for project totaling ${totalStr}`,
-      Math.round(depositAmount * 100) / 100,
+      preTaxDeposit,
       tax,
       contact,
       company,
       issueDate,
     )
 
-    // Balance: use balanceDue directly — GHL will add tax on top
     const balanceInvoice = await createGhlInvoice(
       token,
       `Balance Due — ${contactName}`,
       itemLabel,
       `Balance due on completion for project totaling ${totalStr}`,
-      Math.round(balanceDue * 100) / 100,
+      preTaxBalance,
       tax,
       contact,
       company,
