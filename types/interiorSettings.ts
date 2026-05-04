@@ -37,8 +37,9 @@ export interface WallTypeRate {
 }
 
 export interface InteriorProductionRates {
-  prepWork:  Record<string, number>
-  wallTypes: Record<string, WallTypeRate>
+  prepWork:     Record<string, number>
+  wallTypes:    Record<string, WallTypeRate>
+  ceilingTypes: Record<string, number>
   // more categories added as they come in
 }
 

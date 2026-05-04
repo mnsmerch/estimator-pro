@@ -177,6 +177,24 @@ export const DEFAULT_INTERIOR_RATES: InteriorProductionRates = {
     primeNewSmoothDrywall:   { sqftPerHr: 76.36, handCut: 40 },
     primeAndPaintDarkWalls:  { sqftPerHr: 96.00, handCut: 40 },
   },
+  ceilingTypes: {
+    // Textured
+    texturedSameColor:           175,
+    texturedChangeColor:         100,
+    texturedVaultedSameColor:    100,
+    texturedVaultedChangeColor:   50,
+    // Smooth
+    smoothSameColor:             100,
+    smoothChangeColor:            50,
+    smoothVaultedSameColor:       75,
+    smoothVaultedChangeColor:     50,
+    // Popcorn
+    popcornSameColor:            100,
+    popcornChangeColor:           65,
+    popcornVaultedSameColor:      75,
+    popcornVaultedChangeColor:    40,
+    // 4 auto-calculated prime+paint rates are derived — not stored
+  },
 }
 
 export const DEFAULT_INTERIOR_CONSTANTS: InteriorProductionConstants = {
