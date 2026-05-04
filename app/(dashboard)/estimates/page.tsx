@@ -4,7 +4,17 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/context/AuthContext'
 import { listEstimates, deleteEstimate } from '@/lib/firebase/estimates'
+import { listInteriorEstimates, deleteInteriorEstimate } from '@/lib/firebase/interiorEstimates'
 import type { EstimateData } from '@/types/estimate'
+
+type ListItem = {
+  id:         string
+  clientName: string
+  address:    string
+  status:     string
+  createdAt:  Date | string | undefined
+  kind:       'exterior' | 'interior'
+}
 
 // ─── constants ───────────────────────────────────────────────────────────────
 
@@ -37,7 +47,7 @@ export default function EstimatesPage() {
   const { user } = useAuth()
   const router = useRouter()
 
-  const [estimates, setEstimates]   = useState<EstimateData[]>([])
+  const [estimates, setEstimates]   = useState<ListItem[]>([])
   const [loading, setLoading]       = useState(true)
   const [filter, setFilter]         = useState<FilterKey>('all')
   const [modalOpen, setModalOpen]   = useState(false)
@@ -45,8 +55,24 @@ export default function EstimatesPage() {
 
   useEffect(() => {
     if (!user) return
-    listEstimates(user.uid).then(data => {
-      setEstimates(data)
+    Promise.all([
+      listEstimates(user.uid),
+      listInteriorEstimates(user.uid),
+    ]).then(([exterior, interior]) => {
+      const ext: ListItem[] = exterior.map(e => ({
+        id: e.id!, clientName: e.clientName ?? '', address: e.clientAddress ?? '',
+        status: e.status ?? 'draft', createdAt: e.createdAt, kind: 'exterior',
+      }))
+      const int: ListItem[] = interior.map(e => ({
+        id: e.id, clientName: e.clientName, address: e.address,
+        status: e.status, createdAt: e.createdAt, kind: 'interior',
+      }))
+      const all = [...ext, ...int].sort((a, b) => {
+        const ta = a.createdAt ? new Date(a.createdAt as string).getTime() : 0
+        const tb = b.createdAt ? new Date(b.createdAt as string).getTime() : 0
+        return tb - ta
+      })
+      setEstimates(all)
       setLoading(false)
     })
   }, [user])
@@ -59,13 +85,14 @@ export default function EstimatesPage() {
     return () => window.removeEventListener('keydown', handler)
   }, [modalOpen])
 
-  async function handleDelete(e: React.MouseEvent, id: string, name: string) {
+  async function handleDelete(e: React.MouseEvent, item: ListItem) {
     e.preventDefault()
     e.stopPropagation()
-    if (!confirm(`Delete estimate for "${name}"? This cannot be undone.`)) return
-    setDeletingId(id)
-    await deleteEstimate(id)
-    setEstimates(prev => prev.filter(est => est.id !== id))
+    if (!confirm(`Delete estimate for "${item.clientName || 'Unnamed Client'}"? This cannot be undone.`)) return
+    setDeletingId(item.id)
+    if (item.kind === 'interior') await deleteInteriorEstimate(item.id)
+    else await deleteEstimate(item.id)
+    setEstimates(prev => prev.filter(est => est.id !== item.id))
     setDeletingId(null)
   }
 
@@ -155,43 +182,55 @@ export default function EstimatesPage() {
           </div>
         ) : (
           <div className="bg-white rounded-xl border border-gray-200 divide-y divide-gray-100">
-            {filtered.map(est => (
-              <a
-                key={est.id}
-                href={est.status === 'draft' ? `/estimates/${est.id}/edit` : `/estimates/${est.id}`}
-                className="flex items-center justify-between px-6 py-4 hover:bg-gray-50 transition-colors group"
-              >
-                <div>
-                  <p className="font-semibold text-gray-900">{est.clientName || 'Unnamed Client'}</p>
-                  <p className="text-sm text-gray-500 mt-0.5">{est.clientAddress || '—'}</p>
-                </div>
-                <div className="flex items-center gap-3">
-                  <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${STATUS_COLOR[est.status] ?? STATUS_COLOR.draft}`}>
-                    {STATUS_LABEL[est.status] ?? est.status}
-                  </span>
-                  <span className="text-sm text-gray-400 tabular-nums">
-                    {est.createdAt ? new Date(est.createdAt).toLocaleDateString() : ''}
-                  </span>
-                  <button
-                    onClick={e => handleDelete(e, est.id!, est.clientName || 'Unnamed Client')}
-                    disabled={deletingId === est.id}
-                    className="p-1.5 rounded-md text-gray-300 hover:text-red-500 hover:bg-red-50 opacity-0 group-hover:opacity-100 transition-all disabled:opacity-50"
-                    aria-label="Delete estimate"
-                  >
-                    {deletingId === est.id ? (
-                      <div className="w-4 h-4 border-2 border-red-400 border-t-transparent rounded-full animate-spin" />
-                    ) : (
-                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                      </svg>
-                    )}
-                  </button>
-                  <svg className="w-4 h-4 text-gray-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
-                  </svg>
-                </div>
-              </a>
-            ))}
+            {filtered.map(est => {
+              const href = est.kind === 'interior'
+                ? `/estimates/interior/${est.id}/edit`
+                : est.status === 'draft' ? `/estimates/${est.id}/edit` : `/estimates/${est.id}`
+              return (
+                <a
+                  key={est.id}
+                  href={href}
+                  className="flex items-center justify-between px-6 py-4 hover:bg-gray-50 transition-colors group"
+                >
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <p className="font-semibold text-gray-900">{est.clientName || 'Unnamed Client'}</p>
+                      {est.kind === 'interior' && (
+                        <span className="text-[10px] font-semibold uppercase tracking-wide bg-purple-100 text-purple-600 px-1.5 py-0.5 rounded-full">
+                          Interior
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-sm text-gray-500 mt-0.5">{est.address || '—'}</p>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${STATUS_COLOR[est.status] ?? STATUS_COLOR.draft}`}>
+                      {STATUS_LABEL[est.status] ?? est.status}
+                    </span>
+                    <span className="text-sm text-gray-400 tabular-nums">
+                      {est.createdAt ? new Date(est.createdAt as string).toLocaleDateString() : ''}
+                    </span>
+                    <button
+                      onClick={e => handleDelete(e, est)}
+                      disabled={deletingId === est.id}
+                      className="p-1.5 rounded-md text-gray-300 hover:text-red-500 hover:bg-red-50 opacity-0 group-hover:opacity-100 transition-all disabled:opacity-50"
+                      aria-label="Delete estimate"
+                    >
+                      {deletingId === est.id ? (
+                        <div className="w-4 h-4 border-2 border-red-400 border-t-transparent rounded-full animate-spin" />
+                      ) : (
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
+                      )}
+                    </button>
+                    <svg className="w-4 h-4 text-gray-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
+                    </svg>
+                  </div>
+                </a>
+              )
+            })}
           </div>
         )}
       </main>

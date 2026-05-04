@@ -1,6 +1,6 @@
 import {
-  collection, doc, addDoc, updateDoc, getDoc, getDocs,
-  query, orderBy, serverTimestamp, Timestamp,
+  collection, doc, addDoc, updateDoc, getDoc, getDocs, deleteDoc,
+  query, where, orderBy, serverTimestamp, Timestamp,
 } from 'firebase/firestore'
 import { db } from './firestore'
 import type { InteriorEstimateDraft } from '@/types/interiorEstimate'
@@ -9,14 +9,16 @@ const COLLECTION = 'interiorEstimates'
 
 export interface InteriorEstimateRecord extends InteriorEstimateDraft {
   id:        string
+  userId:    string
   status:    'draft' | 'sent' | 'approved'
   createdAt: string
   updatedAt: string
 }
 
-export async function createInteriorEstimate(data: InteriorEstimateDraft): Promise<string> {
+export async function createInteriorEstimate(data: InteriorEstimateDraft, userId: string): Promise<string> {
   const ref = await addDoc(collection(db, COLLECTION), {
     ...data,
+    userId,
     status:    'draft',
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
@@ -39,6 +41,7 @@ export async function getInteriorEstimate(id: string): Promise<InteriorEstimateR
     field instanceof Timestamp ? field.toDate().toISOString() : ''
   return {
     id:         snap.id,
+    userId:     d.userId     ?? '',
     clientName: d.clientName ?? '',
     address:    d.address    ?? '',
     options:    d.options    ?? [],
@@ -48,14 +51,17 @@ export async function getInteriorEstimate(id: string): Promise<InteriorEstimateR
   }
 }
 
-export async function listInteriorEstimates(): Promise<InteriorEstimateRecord[]> {
-  const snap = await getDocs(query(collection(db, COLLECTION), orderBy('createdAt', 'desc')))
+export async function listInteriorEstimates(userId: string): Promise<InteriorEstimateRecord[]> {
+  const snap = await getDocs(
+    query(collection(db, COLLECTION), where('userId', '==', userId), orderBy('createdAt', 'desc'))
+  )
   return snap.docs.map(d => {
     const data = d.data()
     const ts = (field: unknown) =>
       field instanceof Timestamp ? field.toDate().toISOString() : ''
     return {
       id:         d.id,
+      userId:     data.userId     ?? '',
       clientName: data.clientName ?? '',
       address:    data.address    ?? '',
       options:    data.options    ?? [],
@@ -64,4 +70,8 @@ export async function listInteriorEstimates(): Promise<InteriorEstimateRecord[]>
       updatedAt:  ts(data.updatedAt),
     }
   })
+}
+
+export async function deleteInteriorEstimate(id: string): Promise<void> {
+  await deleteDoc(doc(db, COLLECTION, id))
 }
