@@ -2,12 +2,23 @@
 
 import { useState, useEffect } from 'react'
 import { useAuth } from '@/context/AuthContext'
-import { listSignedContracts } from '@/lib/firebase/signedContracts'
-import type { SignedContract } from '@/lib/firebase/signedContracts'
 
-function fmtDate(d: Date | undefined) {
-  if (!d) return '—'
-  return d.toLocaleDateString('en-US', {
+interface Contract {
+  id:                string
+  displayName:       string
+  clientName:        string
+  estimateId:        string
+  grandTotal:        number
+  depositAmount:     number
+  balanceDue:        number
+  pdfUrl:            string | null
+  depositInvoiceUrl: string | null
+  signedAt:          string | null
+}
+
+function fmtDate(iso: string | null) {
+  if (!iso) return '—'
+  return new Date(iso).toLocaleDateString('en-US', {
     month: 'short', day: 'numeric', year: 'numeric',
   })
 }
@@ -17,15 +28,19 @@ function fmtMoney(n: number) {
 }
 
 export default function ContractsPage() {
-  useAuth() // ensures auth guard from layout
-  const [contracts, setContracts] = useState<SignedContract[]>([])
+  useAuth()
+  const [contracts, setContracts] = useState<Contract[]>([])
   const [loading, setLoading]     = useState(true)
   const [error, setError]         = useState<string | null>(null)
   const [search, setSearch]       = useState('')
 
   useEffect(() => {
-    listSignedContracts()
-      .then(data => setContracts(data))
+    fetch('/api/signed-contracts')
+      .then(r => r.json())
+      .then((data: { contracts?: Contract[]; error?: string }) => {
+        if (data.error) setError(data.error)
+        else setContracts(data.contracts ?? [])
+      })
       .catch(err => setError(err instanceof Error ? err.message : String(err)))
       .finally(() => setLoading(false))
   }, [])
