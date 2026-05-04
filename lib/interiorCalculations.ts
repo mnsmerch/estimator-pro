@@ -121,9 +121,10 @@ export interface CeilingCalc {
 }
 
 /**
- * Ceiling hours formula:
- *   (sqft / sqftPerHr) per section
- *   + (totalWallLength / tapeLine) — tape/caulk at wall-ceiling junction
+ * Ceiling hours formula (mirrors sheet N14):
+ *   (ceilingSqft / sqftPerHr) + (ceilingSqft / maskingFlooringRate)
+ *   Term 1: rolling/spraying the ceiling
+ *   Term 2: masking the floor under the ceiling (maskingFlooring = 250 sqft/hr)
  *
  * Ceiling gallons:
  *   ceil( sum( (sqft / coverage) × (2 − sameColorMultiplier) ) )
@@ -136,12 +137,13 @@ export function calculateCeilingCalc(
   paintProducts: InteriorPaintProduct[],
   rules:         InteriorBusinessRules,
 ): CeilingCalc {
-  const tapeLineRate = rates.prepWork.tapeLine ?? 40
+  const maskingFlooringRate = rates.prepWork.maskingFlooring ?? 250
 
   const product  = paintProducts.find(p => p.id === option.paints.ceiling)
   const coverage = product?.coverage ?? 400
 
   let paintCeilingsHours = 0
+  let totalCeilingSqft   = 0
   let totalRawGallons    = 0
 
   for (const section of option.ceilings) {
@@ -157,6 +159,7 @@ export function calculateCeilingCalc(
     if (sectionSqft === 0) continue
 
     paintCeilingsHours += sectionSqft / sqftPerHr
+    totalCeilingSqft   += sectionSqft
 
     const coatMult = 2 - (SAME_COLOR_CEILING_KEYS.has(section.ceilingType) ? 1 : 0)
     totalRawGallons += (sectionSqft / coverage) * coatMult
@@ -166,16 +169,10 @@ export function calculateCeilingCalc(
     return { hours: 0, gallons: 0, laborCost: 0, price: 0 }
   }
 
-  // Tape/caulk at wall-ceiling junction uses total wall length
-  let totalWallLength = 0
-  for (const section of option.walls) {
-    for (const m of section.measurements) {
-      totalWallLength += m.length === '' ? 0 : m.length
-    }
-  }
-  const tapeCaulkLineHours = totalWallLength / tapeLineRate
+  // Mask floor under ceiling = totalCeilingSqft / maskingFlooringRate
+  const maskFloorHours = totalCeilingSqft / maskingFlooringRate
 
-  const totalHours = paintCeilingsHours + tapeCaulkLineHours
+  const totalHours = paintCeilingsHours + maskFloorHours
   const hours      = Math.round(totalHours * 100) / 100
   const gallons    = Math.ceil(totalRawGallons)
 
@@ -273,16 +270,12 @@ export function calculatePainterOverview(
     handCutLineWallsToCeilings += sectionLength / wallRate.handCut
   }
 
-  // ── Total wall length (for tapeCaulkLineWallsToCeilings) ─────────────────
-  let totalWallLength = 0
-  for (const section of option.walls) {
-    for (const m of section.measurements) {
-      totalWallLength += m.length === '' ? 0 : m.length
-    }
-  }
-
-  // ── Paint Ceilings ───────────────────────────────────────────────────────
-  let paintCeilings = 0
+  // ── Paint Ceilings + Mask Floor ──────────────────────────────────────────
+  // Formula: N14 = (ceilingSqft / sqftPerHr) + (ceilingSqft / maskingFlooringRate)
+  // Term 1 (paintCeilings)     = sqft / sqftPerHr  (per section, supports multiple types)
+  // Term 2 (maskFloorMoveFurniture) = totalCeilingSqft / maskingFlooring (250)
+  let paintCeilings      = 0
+  let totalCeilingSqft   = 0
   for (const section of option.ceilings) {
     const sqftPerHr = rates.ceilingTypes[section.ceilingType]
     if (!sqftPerHr) continue
@@ -292,16 +285,17 @@ export function calculatePainterOverview(
       const w = m.width  === '' ? 0 : m.width
       sectionSqft += l * w
     }
-    paintCeilings += sectionSqft / sqftPerHr
+    paintCeilings    += sectionSqft / sqftPerHr
+    totalCeilingSqft += sectionSqft
   }
 
-  // tapeCaulkLineWallsToCeilings: tape/caulk at wall-ceiling junction = wall length / tapeLine rate
-  // Only applies when there are ceilings being painted
-  const tapeLineRate                 = rates.prepWork.tapeLine ?? 40
-  const tapeCaulkLineWallsToCeilings = paintCeilings > 0 ? totalWallLength / tapeLineRate : 0
+  const maskingFlooringRate  = rates.prepWork.maskingFlooring ?? 250
+  const maskFloorMoveFurniture = totalCeilingSqft > 0 ? totalCeilingSqft / maskingFlooringRate : 0
+
+  // tapeCaulkLineWallsToCeilings: used when painting ceilings WITHOUT walls (needs ceiling perimeter)
+  const tapeCaulkLineWallsToCeilings = 0  // TODO
 
   // ── TODO sections (0 until formulas are added) ─────────────────────────
-  const maskFloorMoveFurniture   = 0  // TODO
   const paintBaseboards          = 0  // TODO
   const tapeFloorsFromBaseboards = 0  // TODO
   const doors                    = 0  // TODO
