@@ -1,6 +1,6 @@
 import {
   collection, doc, addDoc, updateDoc, getDoc, getDocs, deleteDoc,
-  query, where, orderBy, serverTimestamp, Timestamp,
+  query, where, serverTimestamp, Timestamp,
 } from 'firebase/firestore'
 import { db } from './firestore'
 import type { InteriorEstimateDraft } from '@/types/interiorEstimate'
@@ -53,7 +53,7 @@ export async function getInteriorEstimate(id: string): Promise<InteriorEstimateR
 
 export async function listInteriorEstimates(userId: string): Promise<InteriorEstimateRecord[]> {
   const snap = await getDocs(
-    query(collection(db, COLLECTION), where('userId', '==', userId), orderBy('createdAt', 'desc'))
+    query(collection(db, COLLECTION), where('userId', '==', userId))
   )
   return snap.docs.map(d => {
     const data = d.data()
