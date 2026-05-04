@@ -106,6 +106,7 @@ async function createGhlInvoice(
     issueDate,
 
     businessDetails: {
+      logoUrl: 'https://assets.cdn.filesafe.space/KmTuAFWyGn4ijrs1sIzJ/media/682e521b6595bee932068728.png',
       name:    company.name,
       phoneNo: company.phone,
       website: company.website,
