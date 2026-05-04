@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { getSettingsDoc, saveSettingsDoc } from '@/lib/firebase/settings'
 import { DEFAULT_INTERIOR_RATES } from '@/lib/defaultSettings'
-import type { InteriorProductionRates } from '@/types/interiorSettings'
+import type { InteriorProductionRates, WallTypeRate } from '@/types/interiorSettings'
 
 // ── Rate metadata ─────────────────────────────────────────────────────────────
 
@@ -17,6 +17,16 @@ const PREP_WORK = [
   { key: 'handCutSameColor',           label: 'Hand Cut Line Same Color (Walls to Ceiling)'             },
   { key: 'handCutChangeColor',         label: 'Hand Cut Line Change Color (Walls to Ceiling)'           },
   { key: 'caulkingBaseboards',         label: 'Caulking in Baseboards'                                  },
+]
+
+const WALL_TYPES = [
+  { key: 'texturedSameColor',       label: 'Textured Walls — Same Color'                  },
+  { key: 'texturedChangeColor',     label: 'Textured Walls — Change Color'                },
+  { key: 'smoothSameColor',         label: 'Smooth Walls — Same Color'                    },
+  { key: 'smoothChangeColor',       label: 'Smooth Walls — Change Color'                  },
+  { key: 'primeNewTexturedDrywall', label: 'Prime & Paint New Textured Drywall'           },
+  { key: 'primeNewSmoothDrywall',   label: 'Prime & Paint New Smooth Drywall'             },
+  { key: 'primeAndPaintDarkWalls',  label: 'Prime & Paint Dark Walls'                     },
 ]
 
 // ── Component ─────────────────────────────────────────────────────────────────
@@ -39,6 +49,16 @@ export default function InteriorRatesAccordion() {
     }))
   }
 
+  function setWallRate(key: string, field: keyof WallTypeRate, value: number) {
+    setRates(prev => ({
+      ...prev,
+      wallTypes: {
+        ...prev.wallTypes,
+        [key]: { ...(prev.wallTypes[key] ?? { sqftPerHr: 0, handCut: 0 }), [field]: value },
+      },
+    }))
+  }
+
   async function handleSave() {
     setStatus('saving')
     try {
@@ -54,6 +74,8 @@ export default function InteriorRatesAccordion() {
     setOpen(prev => ({ ...prev, [key]: !prev[key] }))
   }
 
+  const wallTypes = rates.wallTypes ?? {}
+
   if (status === 'loading') return <div className="py-8 text-center text-gray-400 text-sm">Loading…</div>
 
   return (
@@ -66,6 +88,14 @@ export default function InteriorRatesAccordion() {
           values={rates.prepWork}
           unit="ln/sq/hr"
           onChange={(key, v) => setRate('prepWork', key, v)}
+        />
+      </Accordion>
+
+      <Accordion label="Wall Types" open={!!open.wallTypes} onToggle={() => toggle('wallTypes')}>
+        <WallTypeTable
+          items={WALL_TYPES}
+          values={wallTypes}
+          onChange={setWallRate}
         />
       </Accordion>
 
@@ -143,6 +173,50 @@ function RateTable({ items, values, unit, onChange }: {
             </td>
           </tr>
         ))}
+      </tbody>
+    </table>
+  )
+}
+
+function WallTypeTable({ items, values, onChange }: {
+  items:    { key: string; label: string }[]
+  values:   Record<string, WallTypeRate>
+  onChange: (key: string, field: keyof WallTypeRate, value: number) => void
+}) {
+  return (
+    <table className="w-full text-sm">
+      <thead>
+        <tr className="bg-white border-b border-gray-100">
+          <th className="text-left px-5 py-2.5 font-medium text-gray-500">Wall Type</th>
+          <th className="text-right px-4 py-2.5 font-medium text-gray-500 w-36">SqFt/Hr</th>
+          <th className="text-right px-4 py-2.5 font-medium text-gray-500 w-36">Hand Cut</th>
+        </tr>
+      </thead>
+      <tbody className="divide-y divide-gray-50">
+        {items.map((item, i) => {
+          const row = values[item.key] ?? { sqftPerHr: 0, handCut: 0 }
+          return (
+            <tr key={item.key} className={i % 2 === 0 ? 'bg-white' : 'bg-gray-50/40'}>
+              <td className="px-5 py-2.5 text-gray-700">{item.label}</td>
+              <td className="px-4 py-2 text-right">
+                <input
+                  type="number" step="0.01" min="0"
+                  value={row.sqftPerHr}
+                  onChange={e => onChange(item.key, 'sqftPerHr', parseFloat(e.target.value) || 0)}
+                  className="w-28 px-3 py-1 text-right text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-brand-500"
+                />
+              </td>
+              <td className="px-4 py-2 text-right">
+                <input
+                  type="number" step="1" min="0"
+                  value={row.handCut}
+                  onChange={e => onChange(item.key, 'handCut', parseFloat(e.target.value) || 0)}
+                  className="w-28 px-3 py-1 text-right text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-brand-500"
+                />
+              </td>
+            </tr>
+          )
+        })}
       </tbody>
     </table>
   )

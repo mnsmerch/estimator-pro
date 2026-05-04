@@ -31,8 +31,14 @@ export interface InteriorPaintProduct {
   coverage:       number   // sq ft per gallon
 }
 
+export interface WallTypeRate {
+  sqftPerHr: number
+  handCut:   number
+}
+
 export interface InteriorProductionRates {
-  prepWork: Record<string, number>
+  prepWork:  Record<string, number>
+  wallTypes: Record<string, WallTypeRate>
   // more categories added as they come in
 }
 

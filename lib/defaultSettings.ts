@@ -5,7 +5,7 @@ import type {
   PaintProduct,
   ProductionRates,
 } from '@/types/settings'
-import type { InteriorBusinessRules, InteriorProductionConstants, InteriorPaintProduct, InteriorProductionRates } from '@/types/interiorSettings'
+import type { InteriorBusinessRules, InteriorProductionConstants, InteriorPaintProduct, InteriorProductionRates, WallTypeRate } from '@/types/interiorSettings'
 
 export const DEFAULT_COMPANY: CompanySettings = {
   name: 'Vanhousing Painters LLC',
@@ -167,6 +167,15 @@ export const DEFAULT_INTERIOR_RATES: InteriorProductionRates = {
     handCutSameColor:              60,
     handCutChangeColor:            40,
     caulkingBaseboards:            75,
+  },
+  wallTypes: {
+    texturedSameColor:       { sqftPerHr: 265,   handCut: 60 },
+    texturedChangeColor:     { sqftPerHr: 150,   handCut: 40 },
+    smoothSameColor:         { sqftPerHr: 210,   handCut: 60 },
+    smoothChangeColor:       { sqftPerHr: 120,   handCut: 40 },
+    primeNewTexturedDrywall: { sqftPerHr: 95.78, handCut: 40 },
+    primeNewSmoothDrywall:   { sqftPerHr: 76.36, handCut: 40 },
+    primeAndPaintDarkWalls:  { sqftPerHr: 96.00, handCut: 40 },
   },
 }
 
