@@ -39,7 +39,7 @@ export default function EstimateDetailPage({ params }: { params: Promise<{ id: s
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
-      <header className="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
+      <header className="sticky top-0 z-40 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 rounded-lg bg-brand-600 flex items-center justify-center">
             <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
@@ -48,8 +48,13 @@ export default function EstimateDetailPage({ params }: { params: Promise<{ id: s
           </div>
           <span className="font-bold text-gray-900 text-lg">Estimator Pro</span>
         </div>
-        <div className="flex items-center gap-4">
-          <a href="/estimates" className="text-sm text-gray-500 hover:text-gray-800">← Estimates</a>
+        <div className="flex items-center gap-5">
+          <nav className="flex items-center gap-5">
+            <a href="/dashboard" className="text-sm text-gray-600 hover:text-brand-600 font-medium transition-colors">Dashboard</a>
+            <a href="/estimates" className="text-sm text-brand-600 font-semibold transition-colors">Estimates</a>
+            <a href="/contracts" className="text-sm text-gray-600 hover:text-brand-600 font-medium transition-colors">Contracts</a>
+            <a href="/settings" className="text-sm text-gray-600 hover:text-brand-600 font-medium transition-colors">Settings</a>
+          </nav>
           <a
             href={`/estimates/${id}/edit`}
             className="px-4 py-2 text-sm font-medium rounded-lg bg-brand-600 text-white hover:bg-brand-700"

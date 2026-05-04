@@ -21,7 +21,7 @@ export default function SettingsPage() {
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
-      <header className="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
+      <header className="sticky top-0 z-40 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 rounded-lg bg-brand-600 flex items-center justify-center">
             <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
@@ -30,7 +30,12 @@ export default function SettingsPage() {
           </div>
           <span className="font-bold text-gray-900 text-lg">Estimator Pro</span>
         </div>
-        <a href="/dashboard" className="text-sm text-gray-500 hover:text-gray-800">← Dashboard</a>
+        <nav className="flex items-center gap-5">
+          <a href="/dashboard" className="text-sm text-gray-600 hover:text-brand-600 font-medium transition-colors">Dashboard</a>
+          <a href="/estimates" className="text-sm text-gray-600 hover:text-brand-600 font-medium transition-colors">Estimates</a>
+          <a href="/contracts" className="text-sm text-gray-600 hover:text-brand-600 font-medium transition-colors">Contracts</a>
+          <a href="/settings" className="text-sm text-brand-600 font-semibold transition-colors">Settings</a>
+        </nav>
       </header>
 
       <div className="max-w-5xl mx-auto px-6 py-8">
