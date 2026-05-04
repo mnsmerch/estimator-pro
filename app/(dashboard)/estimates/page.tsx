@@ -57,7 +57,7 @@ export default function EstimatesPage() {
     if (!user) return
     Promise.all([
       listEstimates(user.uid),
-      listInteriorEstimates(user.uid),
+      listInteriorEstimates(user.uid).catch(() => [] as Awaited<ReturnType<typeof listInteriorEstimates>>),
     ]).then(([exterior, interior]) => {
       const ext: ListItem[] = exterior.map(e => ({
         id: e.id!, clientName: e.clientName ?? '', address: e.clientAddress ?? '',
@@ -74,7 +74,7 @@ export default function EstimatesPage() {
       })
       setEstimates(all)
       setLoading(false)
-    })
+    }).catch(() => setLoading(false))
   }, [user])
 
   // Close modal on Escape
