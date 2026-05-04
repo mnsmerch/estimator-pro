@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useMemo, use, useRef, useCallback } from 'react'
 import { getEstimate, acceptEstimate } from '@/lib/firebase/estimates'
-import { saveSignedContract } from '@/lib/firebase/signedContracts'
 import { getSettingsDoc } from '@/lib/firebase/settings'
 import { buildApplicationList } from '@/lib/applicationList'
 import { calcEstimate, calcMarkup } from '@/lib/estimateEngine'
@@ -334,19 +333,23 @@ export default function ProposalPage({ params }: { params: Promise<{ id: string 
         }
       }
 
-      // 4. Save to signed_contracts Firestore collection
+      // 4. Save to signed_contracts via API (Admin SDK bypasses auth rules)
       try {
-        await saveSignedContract({
-          clientName:        estimate.clientName,
-          estimateId:        id,
-          grandTotal,
-          depositAmount,
-          balanceDue,
-          pdfUrl:            capturedPdfUrl,
-          depositInvoiceUrl: capturedDepositInvoiceUrl,
+        await fetch('/api/save-signed-contract', {
+          method:  'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body:    JSON.stringify({
+            clientName:        estimate.clientName,
+            estimateId:        id,
+            grandTotal,
+            depositAmount,
+            balanceDue,
+            pdfUrl:            capturedPdfUrl,
+            depositInvoiceUrl: capturedDepositInvoiceUrl,
+          }),
         })
       } catch (err) {
-        console.error('[handleSign] saveSignedContract failed:', err)
+        console.error('[handleSign] save-signed-contract failed:', err)
         // Non-critical — don't block the user
       }
     } catch (err) {
