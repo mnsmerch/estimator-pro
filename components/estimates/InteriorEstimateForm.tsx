@@ -1210,6 +1210,7 @@ export default function InteriorEstimateForm({
                   ['Wall Gallons',      painterOverview.wallGallons,    false],
                   ['Ceiling Gallons',   painterOverview.ceilingGallons, false],
                   ['Trim Gallons',      painterOverview.trimGallons,    false],
+                  ['Misc Gallons',      painterOverview.miscGallons,    false],
                   ['Recycle Fee',       painterOverview.recycleFee,     true],
                   ['Sundries',          painterOverview.sundries,       true],
                   ['Materials Total',   painterOverview.materialsTotal, true],

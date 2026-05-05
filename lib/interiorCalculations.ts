@@ -365,7 +365,8 @@ export interface PainterOverview {
   // ── Materials & Labor ─────────────────────────────────────────────────────
   wallGallons:      number
   ceilingGallons:   number
-  trimGallons:      number   // ROUNDUP(all raw trim gallons combined, 0): baseboards+doors+frames+windows
+  trimGallons:      number   // ROUNDUP(baseboards+doors+frames+windows raw gallons, 0) — no misc
+  miscGallons:      number   // ROUNDUP(misc linear+sqft raw gallons, 0) — separate from trim
   recycleFee:      number   // totalGallons × avgRecycleFee (rounded for display)
   sundries:        number   // allPrepRaw × sundriesPerHour (rounded for display)
   materialsTotal:  number   // paint costs + recycleFee + sundries
@@ -555,7 +556,9 @@ export function calculatePainterOverview(
     // no gallons for hourly misc items
   }
 
-  const trimGallons = Math.ceil(baseboardRawGallons + doorRawGallons + doorFrameRawGallons + windowRawGallons + miscRawGallons)
+  // Trim and misc gallons are separate rows in the sheet (misc uses its own paint selection)
+  const trimGallons = Math.ceil(baseboardRawGallons + doorRawGallons + doorFrameRawGallons + windowRawGallons)
+  const miscGallons = Math.ceil(miscRawGallons)
 
   // ── Other ────────────────────────────────────────────────────────────────
   const other = option.otherEntries.reduce(
@@ -610,7 +613,7 @@ export function calculatePainterOverview(
   const ceilingGallons = Math.ceil(ceilingRawGallons)
 
   // ── Materials & Labor ────────────────────────────────────────────────────
-  const totalGallons = wallGallons + ceilingGallons + trimGallons
+  const totalGallons = wallGallons + ceilingGallons + trimGallons + miscGallons
 
   // avgRecycleFee = average of 1-gal and 5-gal recycle fees (Inputs!B32)
   const avgRecycleFee  = (rules.recycleFeeGallon + rules.recycleFeeFiveGal) / 2
@@ -638,8 +641,8 @@ export function calculatePainterOverview(
   const wallsTotal      = ru2(paintWalls + tapeCaulkWallsToBaseboards + handCutLineWallsToCeilings)
   const ceilingsTotal   = ru2(paintCeilings + maskFloorMoveFurniture)
   const baseboardsTotal = ru2(paintBaseboards + tapeFloorsFromBaseboards)
-  // Painting all Trim = paintBaseboards + doors + doorFrames + windows + miscellaneous
-  const paintingAllTrim = ru2(paintBaseboards + doors + doorFrames + windows + miscellaneous)
+  // Painting all Trim = K8+K10+K11+K12 (no miscellaneous — misc is its own row in sheet)
+  const paintingAllTrim = ru2(paintBaseboards + doors + doorFrames + windows)
   // All Prep = ROUNDUP(K4+K7+K9+K15+K16, 2)
   const allPrep         = Math.ceil(allPrepRaw * 100) / 100
 
@@ -669,6 +672,7 @@ export function calculatePainterOverview(
     wallGallons,
     ceilingGallons,
     trimGallons,
+    miscGallons,
     recycleFee,
     sundries,
     materialsTotal,
