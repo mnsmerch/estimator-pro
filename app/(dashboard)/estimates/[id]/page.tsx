@@ -2,6 +2,7 @@
 
 import { useState, useEffect, use } from 'react'
 import { getEstimate } from '@/lib/firebase/estimates'
+import AppHeader from '@/components/AppHeader'
 import type { EstimateData } from '@/types/estimate'
 
 const STATUS_LABEL: Record<string, string> = {
@@ -38,31 +39,7 @@ export default function EstimateDetailPage({ params }: { params: Promise<{ id: s
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <header className="sticky top-0 z-40 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-brand-600 flex items-center justify-center">
-            <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M9.53 2.47a.75.75 0 0 1 0 1.06L4.81 8.25H15a6.75 6.75 0 0 1 0 13.5h-3a.75.75 0 0 1 0-1.5h3a5.25 5.25 0 1 0 0-10.5H4.81l4.72 4.72a.75.75 0 1 1-1.06 1.06l-6-6a.75.75 0 0 1 0-1.06l6-6a.75.75 0 0 1 1.06 0Z" />
-            </svg>
-          </div>
-          <span className="font-bold text-gray-900 text-lg">Estimator Pro</span>
-        </div>
-        <div className="flex items-center gap-5">
-          <nav className="flex items-center gap-5">
-            <a href="/dashboard" className="text-sm text-gray-600 hover:text-brand-600 font-medium transition-colors">Dashboard</a>
-            <a href="/estimates" className="text-sm text-brand-600 font-semibold transition-colors">Estimates</a>
-            <a href="/contracts" className="text-sm text-gray-600 hover:text-brand-600 font-medium transition-colors">Contracts</a>
-            <a href="/settings" className="text-sm text-gray-600 hover:text-brand-600 font-medium transition-colors">Settings</a>
-          </nav>
-          <a
-            href={`/estimates/${id}/edit`}
-            className="px-4 py-2 text-sm font-medium rounded-lg bg-brand-600 text-white hover:bg-brand-700"
-          >
-            Edit
-          </a>
-        </div>
-      </header>
+      <AppHeader />
 
       <main className="max-w-5xl mx-auto px-6 py-10 space-y-6">
         <div className="flex items-center justify-between">
