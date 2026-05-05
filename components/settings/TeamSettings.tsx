@@ -177,7 +177,7 @@ export default function TeamSettings() {
           <p className="text-xs text-gray-500 mt-0.5">Create a new login for your team.</p>
         </div>
 
-        <form onSubmit={handleCreate} className="px-6 py-5 space-y-4">
+        <form onSubmit={handleCreate} className="px-6 py-5 space-y-4" autoComplete="off">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">Full Name</label>
@@ -192,6 +192,7 @@ export default function TeamSettings() {
               <input
                 type="email" placeholder="john@example.com" value={email}
                 onChange={e => setEmail(e.target.value)}
+                autoComplete="off"
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
               />
             </div>
@@ -200,6 +201,7 @@ export default function TeamSettings() {
               <input
                 type="password" placeholder="Min. 6 characters" value={password}
                 onChange={e => setPassword(e.target.value)}
+                autoComplete="new-password"
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
               />
             </div>
