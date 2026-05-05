@@ -392,9 +392,6 @@ export function calculatePainterOverview(
   let tapeCaulkWallsToBaseboards = 0
   let handCutLineWallsToCeilings = 0
 
-  // D12: any ceiling section is a same-color type → skip hand cut line at ceiling junction
-  const hasSameColorCeiling = option.ceilings.some(c => SAME_COLOR_CEILING_KEYS.has(c.ceilingType))
-
   for (const section of option.walls) {
     const wallRate = rates.wallTypes[section.wallType]
     if (!wallRate) continue
@@ -417,10 +414,9 @@ export function calculatePainterOverview(
       tapeCaulkWallsToBaseboards += sectionLength / tapingRate
     }
 
-    // K5: same-color ceiling → no hand cut needed at ceiling junction (D12=TRUE skips in sheet)
-    if (!hasSameColorCeiling) {
-      handCutLineWallsToCeilings += sectionLength / wallRate.handCut
-    }
+    // K5: always apply hand cut when walls are present
+    // D12 (sheet condition to skip) has no equivalent in our scope — default to always calculating
+    handCutLineWallsToCeilings += sectionLength / wallRate.handCut
   }
 
   // ── Paint Ceilings + Mask Floor ──────────────────────────────────────────
