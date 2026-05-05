@@ -1207,10 +1207,9 @@ export default function InteriorEstimateForm({
               </div>
               <div className="divide-y divide-gray-50 text-xs pb-2">
                 {([
-                  ['Wall Gallons',      painterOverview.wallGallons,     false],
-                  ['Ceiling Gallons',    painterOverview.ceilingGallons,   false],
-                  ['Baseboard Gallons',  painterOverview.baseboardGallons,  false],
-                  ['Door Gallons',       painterOverview.doorGallons,       false],
+                  ['Wall Gallons',      painterOverview.wallGallons,    false],
+                  ['Ceiling Gallons',   painterOverview.ceilingGallons, false],
+                  ['Trim Gallons',      painterOverview.trimGallons,    false],
                   ['Recycle Fee',       painterOverview.recycleFee,     true],
                   ['Sundries',          painterOverview.sundries,       true],
                   ['Materials Total',   painterOverview.materialsTotal, true],
