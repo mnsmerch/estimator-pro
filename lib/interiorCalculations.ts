@@ -335,6 +335,137 @@ export function calculateDoorCalc(
   return { hours, gallons, laborCost, price }
 }
 
+// ── Door Frame Calc ────────────────────────────────────────────────────────────
+
+export function calculateDoorFrameCalc(
+  option:        RoomOption,
+  rates:         InteriorProductionRates,
+  constants:     InteriorProductionConstants,
+  paintProducts: InteriorPaintProduct[],
+  rules:         InteriorBusinessRules,
+): DoorCalc {
+  const product        = paintProducts.find(p => p.id === option.paints.trim)
+  const coverage       = product?.coverage       ?? 400
+  const pricePerGallon = product?.pricePerGallon ?? 0
+  const widthFt        = (constants.doorFrameWidthIn ?? 4) / 12
+
+  let totalHours      = 0
+  let totalRawGallons = 0
+
+  for (const entry of option.doorFrames) {
+    const frameRate = rates.doorFrameTypes[entry.doorFrameType]
+    if (!frameRate) continue
+    const count = entry.count === '' ? 0 : entry.count
+    if (count === 0) continue
+    totalHours      += count * frameRate.hours
+    totalRawGallons += (count * frameRate.lnft * widthFt / coverage) * 2
+  }
+
+  if (totalHours === 0) return { hours: 0, gallons: 0, laborCost: 0, price: 0 }
+
+  const hours     = Math.round(totalHours * 100) / 100
+  const gallons   = Math.ceil(totalRawGallons)
+  const rawLabor  = totalHours * rules.wage * rules.payrollBurden
+  const laborCost = Math.round(rawLabor * 100) / 100
+  const markup    = 1 - (rules.netProfitMargin + rules.overheadMargin + rules.marketingMargin + rules.salesMargin + rules.productionMgmtMargin)
+  const price     = markup > 0 ? Math.round((rawLabor + gallons * pricePerGallon) / markup * 100) / 100 : 0
+
+  return { hours, gallons, laborCost, price }
+}
+
+// ── Window Calc ────────────────────────────────────────────────────────────────
+
+export function calculateWindowCalc(
+  option:        RoomOption,
+  rates:         InteriorProductionRates,
+  constants:     InteriorProductionConstants,
+  paintProducts: InteriorPaintProduct[],
+  rules:         InteriorBusinessRules,
+): DoorCalc {
+  const product        = paintProducts.find(p => p.id === option.paints.trim)
+  const coverage       = product?.coverage       ?? 400
+  const pricePerGallon = product?.pricePerGallon ?? 0
+  const widthFt        = (constants.windowTrimWidthIn ?? 4) / 12
+
+  let totalHours      = 0
+  let totalRawGallons = 0
+
+  for (const entry of option.windows) {
+    const winRate = rates.windowTypes[entry.windowType]
+    if (!winRate) continue
+    const count = entry.count === '' ? 0 : entry.count
+    if (count === 0) continue
+    totalHours      += count * winRate.hours
+    totalRawGallons += (count * winRate.lnft * widthFt / coverage) * 2
+  }
+
+  if (totalHours === 0) return { hours: 0, gallons: 0, laborCost: 0, price: 0 }
+
+  const hours     = Math.round(totalHours * 100) / 100
+  const gallons   = Math.ceil(totalRawGallons)
+  const rawLabor  = totalHours * rules.wage * rules.payrollBurden
+  const laborCost = Math.round(rawLabor * 100) / 100
+  const markup    = 1 - (rules.netProfitMargin + rules.overheadMargin + rules.marketingMargin + rules.salesMargin + rules.productionMgmtMargin)
+  const price     = markup > 0 ? Math.round((rawLabor + gallons * pricePerGallon) / markup * 100) / 100 : 0
+
+  return { hours, gallons, laborCost, price }
+}
+
+// ── Misc Calc ──────────────────────────────────────────────────────────────────
+
+export function calculateMiscCalc(
+  option:        RoomOption,
+  rates:         InteriorProductionRates,
+  constants:     InteriorProductionConstants,
+  paintProducts: InteriorPaintProduct[],
+  rules:         InteriorBusinessRules,
+): DoorCalc {
+  // Misc uses its own paint (separate from trim); defaults to $0 if not set
+  const miscCoverage = (paintProducts.find(p => p.id === option.paints.trim)?.coverage) ?? 400
+  const miscPrice    = 0   // "No Paint or Paint Provided" — $0 cost for misc paint
+  const widthFt      = (constants.miscTrimWidthIn ?? 4) / 12
+
+  let totalHours      = 0
+  let totalRawGallons = 0
+
+  for (const entry of option.miscLinearFeetEntries) {
+    const trimRate = rates.miscTrimTypes[entry.miscTrimType]
+    if (!trimRate) continue
+    const lf = entry.linearFeet === '' ? 0 : entry.linearFeet
+    if (lf === 0) continue
+    const coatMult = 2 - (SAME_COLOR_MISC_TRIM_KEYS.has(entry.miscTrimType) ? 1 : 0)
+    totalHours      += lf / trimRate.lnftPerHr
+    totalRawGallons += (lf * widthFt / miscCoverage) * coatMult
+  }
+
+  for (const entry of option.miscSquareFeetEntries) {
+    const sqftPerHr = rates.miscSqftTypes[entry.miscSqftType]
+    if (!sqftPerHr) continue
+    const sf = entry.squareFeet === '' ? 0 : entry.squareFeet
+    if (sf === 0) continue
+    totalHours      += sf / sqftPerHr
+    totalRawGallons += sf / miscCoverage * 2
+  }
+
+  for (const entry of option.miscHourlyEntries) {
+    const hrsPerUnit = rates.miscHourlyTypes[entry.miscHourlyType]
+    if (!hrsPerUnit) continue
+    const units = entry.units === '' ? 0 : entry.units
+    totalHours += units * hrsPerUnit
+  }
+
+  if (totalHours === 0) return { hours: 0, gallons: 0, laborCost: 0, price: 0 }
+
+  const hours     = Math.round(totalHours * 100) / 100
+  const gallons   = Math.ceil(totalRawGallons)
+  const rawLabor  = totalHours * rules.wage * rules.payrollBurden
+  const laborCost = Math.round(rawLabor * 100) / 100
+  const markup    = 1 - (rules.netProfitMargin + rules.overheadMargin + rules.marketingMargin + rules.salesMargin + rules.productionMgmtMargin)
+  const price     = markup > 0 ? Math.round((rawLabor + gallons * miscPrice) / markup * 100) / 100 : 0
+
+  return { hours, gallons, laborCost, price }
+}
+
 // ── Painter Hourly Overview ────────────────────────────────────────────────────
 
 export interface PainterOverview {
