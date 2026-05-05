@@ -197,11 +197,14 @@ export const DEFAULT_INTERIOR_RATES: InteriorProductionRates = {
   },
   baseboardTypes: {
     // lnft/hr — mirrors Inputs sheet M column (baseboard VLOOKUP table)
-    sameColor:    40,
-    changeColor:  30,
-    stainToPaint: 12,
-    prime2Coats:  25,
-    newInstall:   18.75,
+    sameColor:        40,
+    changeColor:      30,
+    stainToPaint:     12,
+    newInstall:       18.75,
+    prime2Coats:      25,
+    prime2CoatsCaulk: 21.42857143,
+    wainscoating:     10,
+    crownMolding:     20,
   },
   doorTypes: {
     // 7 base rows — all other rows are auto-calculated from these

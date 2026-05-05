@@ -55,11 +55,14 @@ const CEILING_TYPE_OPTIONS = [
 ]
 
 const BASEBOARD_TYPE_OPTIONS = [
-  { key: 'sameColor',    label: 'Same Color'                  },
-  { key: 'changeColor',  label: 'Change Color'                },
-  { key: 'stainToPaint', label: 'Stain to Paint (full sand)'  },
-  { key: 'prime2Coats',  label: 'Prime & 2 Coats'             },
-  { key: 'newInstall',   label: 'New Installation'            },
+  { key: 'sameColor',         label: 'Same Color'                          },
+  { key: 'changeColor',       label: 'Change Color'                        },
+  { key: 'stainToPaint',      label: 'Stain to Paint (full sand)'          },
+  { key: 'newInstall',        label: 'New Baseboards (never been painted)'  },
+  { key: 'prime2Coats',       label: 'Prime & 2 Coats'                     },
+  { key: 'prime2CoatsCaulk',  label: 'Prime & 2 Coats & Caulk In'         },
+  { key: 'wainscoating',      label: 'Repaint Wainscoatings'               },
+  { key: 'crownMolding',      label: 'Paint Crown Moldings'                },
 ]
 
 const DOOR_TYPE_OPTIONS = [
