@@ -481,11 +481,26 @@ export function calculatePainterOverview(
     doors          += count * doorRate.hours
     doorRawGallons += (count * doorRate.lnft * (1 / 3)) / doorCoverage * 2
   }
-  // doorFrameRawGallons, windowRawGallons — added here when implemented (TODO)
-  const trimGallons = Math.ceil(baseboardRawGallons + doorRawGallons)
+  // ── Door Frames ──────────────────────────────────────────────────────────
+  // Gallons: (count × frameType.lnft × doorFrameWidthIn/12 / coverage) × coatMult
+  // Hours:   count × frameType.hours
+  const doorFrameWidthFt = (constants.doorFrameWidthIn ?? 4) / 12
+  let doorFrames           = 0
+  let doorFrameRawGallons  = 0
 
-  const doorFrames               = 0  // TODO
-  const windows                  = 0  // TODO
+  for (const entry of option.doorFrames) {
+    const frameRate = rates.doorFrameTypes[entry.doorFrameType]
+    if (!frameRate) continue
+    const count = entry.count === '' ? 0 : entry.count
+    if (count === 0) continue
+    // No same-color door frame types defined yet — always 2 coats
+    doorFrames          += count * frameRate.hours
+    doorFrameRawGallons += (count * frameRate.lnft * doorFrameWidthFt / (doorProduct?.coverage ?? 400)) * 2
+  }
+
+  // windowRawGallons — added when implemented (TODO)
+  const trimGallons = Math.ceil(baseboardRawGallons + doorRawGallons + doorFrameRawGallons)
+  const windows      = 0  // TODO
   const miscellaneous            = 0  // TODO
 
   // ── Other ────────────────────────────────────────────────────────────────
