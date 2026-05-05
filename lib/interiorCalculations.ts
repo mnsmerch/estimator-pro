@@ -15,6 +15,12 @@ const SAME_COLOR_WALL_KEYS = new Set([
   'smoothSameColor',
 ])
 
+// Misc trim types that count as "same color" (1 coat for gallons)
+const SAME_COLOR_MISC_TRIM_KEYS = new Set([
+  'otherTrimSameColor',
+  'stairStringerSameColor',
+])
+
 // Ceiling types that count as "same color" (1 coat for gallons)
 const SAME_COLOR_CEILING_KEYS = new Set([
   'texturedSameColor',
@@ -514,8 +520,42 @@ export function calculatePainterOverview(
     windowRawGallons += (count * winRate.lnft * windowTrimWidthFt / (doorProduct?.coverage ?? 400)) * 2
   }
 
-  const trimGallons = Math.ceil(baseboardRawGallons + doorRawGallons + doorFrameRawGallons + windowRawGallons)
-  const miscellaneous            = 0  // TODO
+  // ── Miscellaneous ────────────────────────────────────────────────────────
+  // Three sub-types: linear feet (trim), square feet, hourly
+  // Gallons: linear uses miscTrimWidthIn, sqft uses direct area; both via trim paint coverage
+  const miscTrimWidthFt  = (constants.miscTrimWidthIn ?? 4) / 12
+  const miscCoverage     = doorProduct?.coverage ?? 400   // trim paint coverage for misc
+  let miscellaneous      = 0
+  let miscRawGallons     = 0
+
+  for (const entry of option.miscLinearFeetEntries) {
+    const trimRate = rates.miscTrimTypes[entry.miscTrimType]
+    if (!trimRate) continue
+    const lf = entry.linearFeet === '' ? 0 : entry.linearFeet
+    if (lf === 0) continue
+    const coatMult = 2 - (SAME_COLOR_MISC_TRIM_KEYS.has(entry.miscTrimType) ? 1 : 0)
+    miscellaneous  += lf / trimRate.lnftPerHr
+    miscRawGallons += (lf * miscTrimWidthFt / miscCoverage) * coatMult
+  }
+
+  for (const entry of option.miscSquareFeetEntries) {
+    const sqftPerHr = rates.miscSqftTypes[entry.miscSqftType]
+    if (!sqftPerHr) continue
+    const sf = entry.squareFeet === '' ? 0 : entry.squareFeet
+    if (sf === 0) continue
+    miscellaneous  += sf / sqftPerHr
+    miscRawGallons += sf / miscCoverage * 2   // always 2 coats for sqft misc
+  }
+
+  for (const entry of option.miscHourlyEntries) {
+    const hrsPerUnit = rates.miscHourlyTypes[entry.miscHourlyType]
+    if (!hrsPerUnit) continue
+    const units = entry.units === '' ? 0 : entry.units
+    miscellaneous += units * hrsPerUnit
+    // no gallons for hourly misc items
+  }
+
+  const trimGallons = Math.ceil(baseboardRawGallons + doorRawGallons + doorFrameRawGallons + windowRawGallons + miscRawGallons)
 
   // ── Other ────────────────────────────────────────────────────────────────
   const other = option.otherEntries.reduce(
