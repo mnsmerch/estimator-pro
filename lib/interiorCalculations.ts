@@ -435,7 +435,8 @@ export function calculateMiscCalc(
     if (lf === 0) continue
     const coatMult = 2 - (SAME_COLOR_MISC_TRIM_KEYS.has(entry.miscTrimType) ? 1 : 0)
     totalHours      += lf / trimRate.lnftPerHr
-    totalRawGallons += (lf * widthFt / miscCoverage) * coatMult
+    // paint field is a surface-area multiplier (e.g. railings paint:25 → 25× more surface per lnft)
+    totalRawGallons += (lf * trimRate.paint * widthFt / miscCoverage) * coatMult
   }
 
   for (const entry of option.miscSquareFeetEntries) {
@@ -667,7 +668,8 @@ export function calculatePainterOverview(
     if (lf === 0) continue
     const coatMult = 2 - (SAME_COLOR_MISC_TRIM_KEYS.has(entry.miscTrimType) ? 1 : 0)
     miscellaneous  += lf / trimRate.lnftPerHr
-    miscRawGallons += (lf * miscTrimWidthFt / miscCoverage) * coatMult
+    // paint field is a surface-area multiplier (e.g. railings paint:25 → 25× more surface per lnft)
+    miscRawGallons += (lf * trimRate.paint * miscTrimWidthFt / miscCoverage) * coatMult
   }
 
   for (const entry of option.miscSquareFeetEntries) {
