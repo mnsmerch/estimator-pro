@@ -402,7 +402,7 @@ export default function EstimateForm({ estimateId, initialData }: EstimateFormPr
         router.push(`/estimates/${estimateId}`)
       } else {
         const id = await createEstimate(payload)
-        router.push(`/estimates/${id}`)
+        router.push(`/estimates/${id}/edit`)
       }
     } catch (err) {
       console.error('Save failed:', err)
