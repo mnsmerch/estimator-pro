@@ -271,6 +271,64 @@ export function calculateBaseboardCalc(
   return { hours, gallons, laborCost, price }
 }
 
+// ── Door Calculations ─────────────────────────────────────────────────────────
+
+export interface DoorCalc {
+  hours:     number
+  gallons:   number
+  laborCost: number
+  price:     number
+}
+
+/**
+ * Door hours:   sum( count × hours_per_door ) across all door entries
+ * Door gallons: ceil( sum( (count × lnft × (1/3)) / coverage × coatMultiplier ) )
+ *   lnft comes from doorTypes lookup (e.g. 55 for 1 side, 110 for both sides)
+ *   (1/3) = door surface width factor
+ *   coatMultiplier = 2 for all standard door types
+ * Paint product = trim paint (option.paints.trim)
+ */
+export function calculateDoorCalc(
+  option:        RoomOption,
+  rates:         InteriorProductionRates,
+  paintProducts: InteriorPaintProduct[],
+  rules:         InteriorBusinessRules,
+): DoorCalc {
+  const product        = paintProducts.find(p => p.id === option.paints.trim)
+  const coverage       = product?.coverage       ?? 400
+  const pricePerGallon = product?.pricePerGallon ?? 0
+
+  let totalHours      = 0
+  let totalRawGallons = 0
+
+  for (const entry of option.doors) {
+    const doorRate = rates.doorTypes[entry.doorType]
+    if (!doorRate) continue
+    const count = entry.count === '' ? 0 : entry.count
+    if (count === 0) continue
+
+    totalHours      += count * doorRate.hours
+    // gallons = (count × lnft × (1/3)) / coverage × 2 coats
+    totalRawGallons += (count * doorRate.lnft * (1 / 3)) / coverage * 2
+  }
+
+  if (totalHours === 0) return { hours: 0, gallons: 0, laborCost: 0, price: 0 }
+
+  const hours      = Math.round(totalHours * 100) / 100
+  const gallons    = Math.ceil(totalRawGallons)
+  const rawLabor   = totalHours * rules.wage * rules.payrollBurden
+  const laborCost  = Math.round(rawLabor * 100) / 100
+
+  const markup = 1 - (
+    rules.netProfitMargin + rules.overheadMargin + rules.marketingMargin +
+    rules.salesMargin + rules.productionMgmtMargin
+  )
+  const materials = gallons * pricePerGallon
+  const price = markup > 0 ? Math.round((rawLabor + materials) / markup * 100) / 100 : 0
+
+  return { hours, gallons, laborCost, price }
+}
+
 // ── Painter Hourly Overview ────────────────────────────────────────────────────
 
 export interface PainterOverview {
@@ -282,7 +340,7 @@ export interface PainterOverview {
   maskFloorMoveFurniture:       number   // TODO: formula needed
   paintBaseboards:              number
   tapeFloorsFromBaseboards:     number
-  doors:                        number   // TODO: formula needed
+  doors:                        number
   doorFrames:                   number   // TODO: formula needed
   windows:                      number   // TODO: formula needed
   miscellaneous:                number   // TODO: formula needed
@@ -302,6 +360,7 @@ export interface PainterOverview {
   wallGallons:      number
   ceilingGallons:   number
   baseboardGallons: number
+  doorGallons:      number
   recycleFee:      number   // totalGallons × avgRecycleFee (rounded for display)
   sundries:        number   // allPrepRaw × sundriesPerHour (rounded for display)
   materialsTotal:  number   // paint costs + recycleFee + sundries
@@ -400,7 +459,23 @@ export function calculatePainterOverview(
   }
   const tapeFloorsFromBaseboards = totalBaseboardLnft > 0 ? totalBaseboardLnft / tapeLineRate_ : 0
   const baseboardGallons = Math.ceil(baseboardRawGallons)
-  const doors                    = 0  // TODO
+  // ── Doors ────────────────────────────────────────────────────────────────
+  let doors           = 0
+  let doorRawGallons  = 0
+  const doorProduct   = paintProducts.find(p => p.id === option.paints.trim)
+  const doorCoverage  = doorProduct?.coverage       ?? 400
+  const doorPrice_    = doorProduct?.pricePerGallon ?? 0
+
+  for (const entry of option.doors) {
+    const doorRate = rates.doorTypes[entry.doorType]
+    if (!doorRate) continue
+    const count = entry.count === '' ? 0 : entry.count
+    if (count === 0) continue
+    doors          += count * doorRate.hours
+    doorRawGallons += (count * doorRate.lnft * (1 / 3)) / doorCoverage * 2
+  }
+  const doorGallons = Math.ceil(doorRawGallons)
+
   const doorFrames               = 0  // TODO
   const windows                  = 0  // TODO
   const miscellaneous            = 0  // TODO
@@ -458,7 +533,7 @@ export function calculatePainterOverview(
   const ceilingGallons = Math.ceil(ceilingRawGallons)
 
   // ── Materials & Labor ────────────────────────────────────────────────────
-  const totalGallons = wallGallons + ceilingGallons + baseboardGallons  // + trimGallons + ... (TODO)
+  const totalGallons = wallGallons + ceilingGallons + baseboardGallons + doorGallons  // + doorFrameGallons + ... (TODO)
 
   // avgRecycleFee = average of 1-gal and 5-gal recycle fees (Inputs!B32)
   const avgRecycleFee  = (rules.recycleFeeGallon + rules.recycleFeeFiveGal) / 2
@@ -473,7 +548,7 @@ export function calculatePainterOverview(
 
   // materialsTotal = paint costs + recycle fee + sundries (SUM D19:D27)
   // Uses raw (unrounded) component values so precision matches the sheet's SUM formula
-  const paintCost      = wallGallons * wallPrice + ceilingGallons * ceilingPrice_ + baseboardGallons * baseboardPrice_
+  const paintCost      = wallGallons * wallPrice + ceilingGallons * ceilingPrice_ + baseboardGallons * baseboardPrice_ + doorGallons * doorPrice_
   const materialsTotal = Math.round((paintCost + rawRecycleFee + rawSundries) * 100) / 100
 
   // laborTotal = totalHours × wage (B29 × Inputs!B10)
@@ -513,6 +588,7 @@ export function calculatePainterOverview(
     wallGallons,
     ceilingGallons,
     baseboardGallons,
+    doorGallons,
     recycleFee,
     sundries,
     materialsTotal,
