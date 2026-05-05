@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, use } from 'react'
+import { useRouter } from 'next/navigation'
 import { getEstimate } from '@/lib/firebase/estimates'
 import AppHeader from '@/components/AppHeader'
 import type { EstimateData } from '@/types/estimate'
@@ -11,6 +12,7 @@ const STATUS_LABEL: Record<string, string> = {
 
 export default function EstimateDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
+  const router = useRouter()
   const [estimate, setEstimate] = useState<EstimateData | null>(null)
   const [loading, setLoading] = useState(true)
 
@@ -47,9 +49,20 @@ export default function EstimateDetailPage({ params }: { params: Promise<{ id: s
             <h1 className="text-2xl font-bold text-gray-900">{estimate.clientName || 'Unnamed Client'}</h1>
             <p className="text-gray-500 mt-1">{estimate.clientAddress}</p>
           </div>
-          <span className="text-sm font-medium px-3 py-1.5 rounded-full bg-gray-100 text-gray-600">
-            {STATUS_LABEL[estimate.status] ?? estimate.status}
-          </span>
+          <div className="flex items-center gap-3">
+            <span className="text-sm font-medium px-3 py-1.5 rounded-full bg-gray-100 text-gray-600">
+              {STATUS_LABEL[estimate.status] ?? estimate.status}
+            </span>
+            <button
+              onClick={() => router.push(`/estimates/${id}/edit`)}
+              className="flex items-center gap-1.5 px-4 py-1.5 bg-brand-600 hover:bg-brand-700 text-white text-sm font-semibold rounded-lg transition-colors"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Z" />
+              </svg>
+              Edit Estimate
+            </button>
+          </div>
         </div>
 
         {/* Client Info */}

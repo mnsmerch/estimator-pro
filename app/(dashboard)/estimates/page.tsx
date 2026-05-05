@@ -170,7 +170,7 @@ export default function EstimatesPage() {
             {filtered.map(est => {
               const href = est.kind === 'interior'
                 ? `/estimates/interior/${est.id}/edit`
-                : est.status === 'draft' ? `/estimates/${est.id}/edit` : `/estimates/${est.id}`
+                : `/estimates/${est.id}/edit`
               return (
                 <a
                   key={est.id}
