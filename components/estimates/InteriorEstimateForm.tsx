@@ -553,7 +553,7 @@ export default function InteriorEstimateForm({
         </nav>
       </header>
 
-      <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-5 sm:space-y-6">
+      <div className="max-w-3xl mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-5 sm:space-y-6">
 
         {/* Page title + client info */}
         <div>
@@ -976,7 +976,7 @@ export default function InteriorEstimateForm({
           </div>
 
           {/* ── Right: overview + calculations ───────────────────────────────── */}
-          <div className="w-full lg:w-64 lg:shrink-0 lg:sticky lg:top-24 space-y-4">
+          <div className="w-full lg:w-56 lg:shrink-0 lg:sticky lg:top-24 space-y-4">
 
             {/* Overview */}
             <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
