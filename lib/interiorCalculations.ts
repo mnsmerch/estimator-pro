@@ -544,6 +544,7 @@ export interface PainterOverview {
   ceilingGallons:   number
   trimGallons:      number   // ROUNDUP(baseboards+doors+frames+windows raw gallons, 0) — no misc
   miscGallons:      number   // ROUNDUP(misc linear+sqft raw gallons, 0) — separate from trim
+  otherGallons:     number   // sum of user-entered gallons from otherEntries
   recycleFee:      number   // totalGallons × avgRecycleFee (rounded for display)
   sundries:        number   // allPrepRaw × sundriesPerHour (rounded for display)
   materialsTotal:  number   // paint costs + recycleFee + sundries
@@ -739,9 +740,12 @@ export function calculatePainterOverview(
   const miscGallons = Math.ceil(miscRawGallons)
 
   // ── Other ────────────────────────────────────────────────────────────────
-  const other = option.otherEntries.reduce(
-    (sum, e) => sum + (e.hours === '' ? 0 : e.hours), 0
-  )
+  let other        = 0
+  let otherGallons = 0
+  for (const e of option.otherEntries) {
+    other        += e.hours   === '' ? 0 : e.hours
+    otherGallons += e.gallons === '' ? 0 : e.gallons
+  }
 
   // ── Set up and Clean Up ──────────────────────────────────────────────────
   // = (all productive hours) / cleanupHoursRatio
@@ -790,8 +794,13 @@ export function calculatePainterOverview(
   }
   const ceilingGallons = Math.ceil(ceilingRawGallons)
 
+  // ── Other paint product ───────────────────────────────────────────────────
+  const otherProduct      = paintProducts.find(p => p.id === option.paints.other)
+                         ?? paintProducts.find(p => p.id === option.paints.wall)
+  const otherPaintPrice_  = otherProduct?.pricePerGallon ?? 0
+
   // ── Materials & Labor ────────────────────────────────────────────────────
-  const totalGallons = wallGallons + ceilingGallons + trimGallons + miscGallons
+  const totalGallons = wallGallons + ceilingGallons + trimGallons + miscGallons + otherGallons
 
   // avgRecycleFee = average of 1-gal and 5-gal recycle fees (Inputs!B32)
   const avgRecycleFee  = (rules.recycleFeeGallon + rules.recycleFeeFiveGal) / 2
@@ -807,7 +816,7 @@ export function calculatePainterOverview(
   // materialsTotal = paint costs + recycle fee + sundries (SUM D19:D27)
   // Uses raw (unrounded) component values so precision matches the sheet's SUM formula
   const trimPrice_     = baseboardProduct?.pricePerGallon ?? 0
-  const paintCost      = wallGallons * wallPrice + ceilingGallons * ceilingPrice_ + trimGallons * trimPrice_
+  const paintCost      = wallGallons * wallPrice + ceilingGallons * ceilingPrice_ + trimGallons * trimPrice_ + otherGallons * otherPaintPrice_
   const materialsTotal = Math.round((paintCost + rawRecycleFee + rawSundries) * 100) / 100
 
   // laborTotal = totalHours × wage (B29 × Inputs!B10)
@@ -851,6 +860,7 @@ export function calculatePainterOverview(
     ceilingGallons,
     trimGallons,
     miscGallons,
+    otherGallons,
     recycleFee,
     sundries,
     materialsTotal,
