@@ -806,37 +806,37 @@ export default function InteriorEstimateForm({
             {/* ── Other ────────────────────────────────────────────────────── */}
             <SectionHeader label="Other (no standard for)" />
             <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-              <div className="px-5 py-3 space-y-3">
-                <div className="grid grid-cols-[1fr_120px_120px_auto] gap-3 text-xs font-medium text-gray-400 px-1">
-                  <span>Description</span>
-                  <span className="text-center"># of Hours</span>
-                  <span className="text-center"># of Gallons</span>
-                  <span className="w-6" />
-                </div>
+              <div className="px-4 py-3 space-y-3">
                 {activeOption.otherEntries.map(entry => (
-                  <div key={entry.id} className="grid grid-cols-[1fr_120px_120px_auto] gap-3 items-center">
+                  <div key={entry.id} className="flex items-end gap-2">
                     <input
                       type="text" placeholder="Describe the task…"
                       value={entry.description}
                       onChange={e => patchOtherEntry(activeOption.id, entry.id, { description: e.target.value })}
-                      className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+                      className="flex-1 min-w-0 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
                     />
-                    <input
-                      type="number" step="0.5" min="0" placeholder="0"
-                      value={entry.hours}
-                      onChange={e => { const r = e.target.value; patchOtherEntry(activeOption.id, entry.id, { hours: r === '' ? '' : parseFloat(r) || 0 }) }}
-                      className="px-3 py-2 border border-gray-300 rounded-lg text-sm text-center focus:outline-none focus:ring-2 focus:ring-brand-500"
-                    />
-                    <input
-                      type="number" step="0.1" min="0" placeholder="0"
-                      value={entry.gallons}
-                      onChange={e => { const r = e.target.value; patchOtherEntry(activeOption.id, entry.id, { gallons: r === '' ? '' : parseFloat(r) || 0 }) }}
-                      className="px-3 py-2 border border-gray-300 rounded-lg text-sm text-center focus:outline-none focus:ring-2 focus:ring-brand-500"
-                    />
+                    <div className="shrink-0 text-center">
+                      <div className="text-[10px] text-gray-400 mb-0.5">Hours</div>
+                      <input
+                        type="number" step="0.5" min="0" placeholder="0"
+                        value={entry.hours}
+                        onChange={e => { const r = e.target.value; patchOtherEntry(activeOption.id, entry.id, { hours: r === '' ? '' : parseFloat(r) || 0 }) }}
+                        className="w-16 px-2 py-2 border border-gray-300 rounded-lg text-sm text-center focus:outline-none focus:ring-2 focus:ring-brand-500"
+                      />
+                    </div>
+                    <div className="shrink-0 text-center">
+                      <div className="text-[10px] text-gray-400 mb-0.5">Gallons</div>
+                      <input
+                        type="number" step="0.1" min="0" placeholder="0"
+                        value={entry.gallons}
+                        onChange={e => { const r = e.target.value; patchOtherEntry(activeOption.id, entry.id, { gallons: r === '' ? '' : parseFloat(r) || 0 }) }}
+                        className="w-16 px-2 py-2 border border-gray-300 rounded-lg text-sm text-center focus:outline-none focus:ring-2 focus:ring-brand-500"
+                      />
+                    </div>
                     <button
                       onClick={() => removeOtherEntry(activeOption.id, entry.id)}
                       disabled={activeOption.otherEntries.length === 1}
-                      className="w-6 h-6 flex items-center justify-center text-gray-300 hover:text-red-400 disabled:opacity-0 transition-colors"
+                      className="w-6 h-6 flex items-center justify-center text-gray-300 hover:text-red-400 disabled:opacity-0 transition-colors mb-0.5 shrink-0"
                     >
                       <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                         <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
@@ -1449,32 +1449,30 @@ function TypeValueTable({
 }) {
   return (
     <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-      <div className="px-5 py-3 space-y-3">
-        <div className="grid grid-cols-[1fr_140px_auto] gap-3 text-xs font-medium text-gray-400 px-1">
-          <span>Type</span>
-          <span className="text-center">{colLabel}</span>
-          <span className="w-6" />
-        </div>
+      <div className="px-4 py-3 space-y-2.5">
         {entries.map(entry => (
-          <div key={entry.id} className="grid grid-cols-[1fr_140px_auto] gap-3 items-center">
+          <div key={entry.id} className="flex items-center gap-2">
             <select
               value={entry.type}
               onChange={e => onTypeChange(entry.id, e.target.value)}
-              className="px-2 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 bg-white"
+              className="flex-1 min-w-0 px-2 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 bg-white"
             >
               <option value="">Select type…</option>
               {options.map(o => <option key={o.key} value={o.key}>{o.label}</option>)}
             </select>
-            <input
-              type="number" step={step} min="0" placeholder="0"
-              value={entry.value}
-              onChange={e => onValueChange(entry.id, e.target.value)}
-              className="px-3 py-2 border border-gray-300 rounded-lg text-sm text-center focus:outline-none focus:ring-2 focus:ring-brand-500"
-            />
+            <div className="shrink-0 text-center">
+              <div className="text-[10px] text-gray-400 mb-0.5">{colLabel}</div>
+              <input
+                type="number" step={step} min="0" placeholder="0"
+                value={entry.value}
+                onChange={e => onValueChange(entry.id, e.target.value)}
+                className="w-20 px-2 py-2 border border-gray-300 rounded-lg text-sm text-center focus:outline-none focus:ring-2 focus:ring-brand-500"
+              />
+            </div>
             <button
               onClick={() => onRemove(entry.id)}
               disabled={entries.length === 1}
-              className="w-6 h-6 flex items-center justify-center text-gray-300 hover:text-red-400 disabled:opacity-0 transition-colors"
+              className="w-6 h-6 flex items-center justify-center text-gray-300 hover:text-red-400 disabled:opacity-0 transition-colors shrink-0"
             >
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
@@ -1520,14 +1518,12 @@ function LengthOnlyCard({
           </button>
         )}
       </div>
-      <div className="px-5 py-3 space-y-2">
-        <div className="grid grid-cols-[1fr_auto] gap-3 text-xs font-medium text-gray-400 mb-1 px-1">
-          <span>Length (ft)</span><span className="w-6" />
-        </div>
+      <div className="px-4 py-3 space-y-2">
         {measurements.map(m => (
-          <div key={m.id} className="grid grid-cols-[1fr_auto] gap-3 items-center">
+          <div key={m.id} className="flex items-center gap-2">
+            <span className="text-xs text-gray-400 shrink-0 w-16">Length (ft)</span>
             <input type="number" step="0.1" min="0" placeholder="0" value={m.value} onChange={e => onPatchRow(m.id, e.target.value)}
-              className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" />
+              className="w-24 px-3 py-2 border border-gray-300 rounded-lg text-sm text-center focus:outline-none focus:ring-2 focus:ring-brand-500" />
             <button onClick={() => onRemoveRow(m.id)} disabled={measurements.length === 1}
               className="w-6 h-6 flex items-center justify-center text-gray-300 hover:text-red-400 disabled:opacity-0 transition-colors">
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -1562,22 +1558,22 @@ function CountCard({
         <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">{label}</span>
         <span className="text-xs text-gray-400">{entries.length} / {max}</span>
       </div>
-      <div className="px-5 py-3 space-y-3">
-        <div className="grid grid-cols-[1fr_140px_auto] gap-3 text-xs font-medium text-gray-400 px-1">
-          <span>Type</span><span className="text-center">Count</span><span className="w-6" />
-        </div>
+      <div className="px-4 py-3 space-y-2.5">
         {entries.map(entry => (
-          <div key={entry.id} className="grid grid-cols-[1fr_140px_auto] gap-3 items-center">
+          <div key={entry.id} className="flex items-center gap-2">
             <select value={entry.type} onChange={e => onTypeChange(entry.id, e.target.value)}
-              className="px-2 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 bg-white">
+              className="flex-1 min-w-0 px-2 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 bg-white">
               <option value="">{typePlaceholder}</option>
               {typeOptions.map(o => <option key={o.key} value={o.key}>{o.label}</option>)}
             </select>
-            <input type="number" min="0" step="1" placeholder="0" value={entry.count}
-              onChange={e => { const r = e.target.value; onCountChange(entry.id, r === '' ? '' : parseInt(r) || 0) }}
-              className="px-3 py-2 border border-gray-300 rounded-lg text-sm text-center focus:outline-none focus:ring-2 focus:ring-brand-500" />
+            <div className="shrink-0 text-center">
+              <div className="text-[10px] text-gray-400 mb-0.5">Count</div>
+              <input type="number" min="0" step="1" placeholder="0" value={entry.count}
+                onChange={e => { const r = e.target.value; onCountChange(entry.id, r === '' ? '' : parseInt(r) || 0) }}
+                className="w-16 px-2 py-2 border border-gray-300 rounded-lg text-sm text-center focus:outline-none focus:ring-2 focus:ring-brand-500" />
+            </div>
             <button onClick={() => onRemove(entry.id)} disabled={entries.length === 1}
-              className="w-6 h-6 flex items-center justify-center text-gray-300 hover:text-red-400 disabled:opacity-0 transition-colors">
+              className="w-6 h-6 flex items-center justify-center text-gray-300 hover:text-red-400 disabled:opacity-0 transition-colors shrink-0">
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
               </svg>
@@ -1629,18 +1625,21 @@ function MeasurementCard({
           </button>
         )}
       </div>
-      <div className="px-5 py-3 space-y-2">
-        <div className="grid grid-cols-[1fr_1fr_auto] gap-3 text-xs font-medium text-gray-400 mb-1 px-1">
-          <span>{col1Label}</span><span>{col2Label}</span><span className="w-6" />
-        </div>
+      <div className="px-4 py-3 space-y-2">
         {measurements.map(m => (
-          <div key={m.id} className="grid grid-cols-[1fr_1fr_auto] gap-3 items-center">
-            <input type="number" step="0.1" min="0" placeholder="0" value={m.a} onChange={e => onPatchRow(m.id, 'a', e.target.value)}
-              className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" />
-            <input type="number" step="0.1" min="0" placeholder="0" value={m.b} onChange={e => onPatchRow(m.id, 'b', e.target.value)}
-              className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" />
+          <div key={m.id} className="flex items-end gap-2">
+            <div className="shrink-0">
+              <div className="text-[10px] text-gray-400 mb-0.5">{col1Label}</div>
+              <input type="number" step="0.1" min="0" placeholder="0" value={m.a} onChange={e => onPatchRow(m.id, 'a', e.target.value)}
+                className="w-24 px-3 py-2 border border-gray-300 rounded-lg text-sm text-center focus:outline-none focus:ring-2 focus:ring-brand-500" />
+            </div>
+            <div className="shrink-0">
+              <div className="text-[10px] text-gray-400 mb-0.5">{col2Label}</div>
+              <input type="number" step="0.1" min="0" placeholder="0" value={m.b} onChange={e => onPatchRow(m.id, 'b', e.target.value)}
+                className="w-24 px-3 py-2 border border-gray-300 rounded-lg text-sm text-center focus:outline-none focus:ring-2 focus:ring-brand-500" />
+            </div>
             <button onClick={() => onRemoveRow(m.id)} disabled={measurements.length === 1}
-              className="w-6 h-6 flex items-center justify-center text-gray-300 hover:text-red-400 disabled:opacity-0 transition-colors">
+              className="w-6 h-6 flex items-center justify-center text-gray-300 hover:text-red-400 disabled:opacity-0 transition-colors mb-0.5">
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
               </svg>
