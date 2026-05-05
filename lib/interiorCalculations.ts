@@ -498,9 +498,23 @@ export function calculatePainterOverview(
     doorFrameRawGallons += (count * frameRate.lnft * doorFrameWidthFt / (doorProduct?.coverage ?? 400)) * 2
   }
 
-  // windowRawGallons — added when implemented (TODO)
-  const trimGallons = Math.ceil(baseboardRawGallons + doorRawGallons + doorFrameRawGallons)
-  const windows      = 0  // TODO
+  // ── Windows ──────────────────────────────────────────────────────────────
+  // Gallons: (count × windowType.lnft × windowTrimWidthIn/12 / coverage) × coatMult
+  // Hours:   count × windowType.hours
+  const windowTrimWidthFt = (constants.windowTrimWidthIn ?? 4) / 12
+  let windows           = 0
+  let windowRawGallons  = 0
+
+  for (const entry of option.windows) {
+    const winRate = rates.windowTypes[entry.windowType]
+    if (!winRate) continue
+    const count = entry.count === '' ? 0 : entry.count
+    if (count === 0) continue
+    windows          += count * winRate.hours
+    windowRawGallons += (count * winRate.lnft * windowTrimWidthFt / (doorProduct?.coverage ?? 400)) * 2
+  }
+
+  const trimGallons = Math.ceil(baseboardRawGallons + doorRawGallons + doorFrameRawGallons + windowRawGallons)
   const miscellaneous            = 0  // TODO
 
   // ── Other ────────────────────────────────────────────────────────────────
