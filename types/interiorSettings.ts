@@ -47,12 +47,13 @@ export interface MiscTrimRate {
 }
 
 export interface InteriorProductionRates {
-  prepWork:       Record<string, number>
-  wallTypes:      Record<string, WallTypeRate>
-  ceilingTypes:   Record<string, number>
-  doorTypes:      Record<string, DoorBaseRate>
-  doorFrameTypes: Record<string, DoorBaseRate>
-  windowTypes:    Record<string, DoorBaseRate>
+  prepWork:         Record<string, number>
+  wallTypes:        Record<string, WallTypeRate>
+  ceilingTypes:     Record<string, number>
+  baseboardTypes:   Record<string, number>   // lnft/hr per baseboard type
+  doorTypes:        Record<string, DoorBaseRate>
+  doorFrameTypes:   Record<string, DoorBaseRate>
+  windowTypes:      Record<string, DoorBaseRate>
   miscTrimTypes:    Record<string, MiscTrimRate>
   sameColorOptions: Record<string, number>
   miscSqftTypes:    Record<string, number>

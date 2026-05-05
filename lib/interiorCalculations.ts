@@ -191,6 +191,86 @@ export function calculateCeilingCalc(
   return { hours, gallons, laborCost, price }
 }
 
+// ── Baseboard Calculations ────────────────────────────────────────────────────
+
+// Baseboard types where 1 coat is sufficient for gallons
+const SAME_COLOR_BASEBOARD_KEYS = new Set(['sameColor'])
+
+export interface BaseboardCalc {
+  hours:     number   // total labor hours (2 dp)
+  gallons:   number   // gallons needed, rounded up
+  laborCost: number   // raw hours × wage × payrollBurden (2 dp)
+  price:     number   // (labor + materials) / markup (2 dp)
+}
+
+/**
+ * Baseboard hours formula (mirrors sheet N column for baseboard row):
+ *   (lnft / productionRate) + (lnft / tapeLine)
+ *   Term 1 (paintBaseboards)        = lnft / lnftPerHr (per baseboard type)
+ *   Term 2 (tapeFloorsFromBaseboards) = lnft / tapeLine (40 lnft/hr)
+ *
+ * Baseboard gallons formula:
+ *   ceil( (lnft × (baseboardWidthIn/12) / coverage) × coatMultiplier )
+ *   sameColor = 1 coat, all others = 2 coats
+ *   Paint product = trim paint (option.paints.trim)
+ */
+export function calculateBaseboardCalc(
+  option:        RoomOption,
+  rates:         InteriorProductionRates,
+  constants:     InteriorProductionConstants,
+  paintProducts: InteriorPaintProduct[],
+  rules:         InteriorBusinessRules,
+): BaseboardCalc {
+  const tapeLineRate    = rates.prepWork.tapeLine ?? 40
+  const widthFt         = (constants.baseboardWidthIn ?? 4) / 12
+
+  const product         = paintProducts.find(p => p.id === option.paints.trim)
+  const coverage        = product?.coverage       ?? 400
+  const pricePerGallon  = product?.pricePerGallon ?? 0
+
+  let paintBaseboardsHours = 0
+  let totalLnft            = 0
+  let totalRawGallons      = 0
+
+  for (const section of option.baseboards) {
+    const lnftPerHr = rates.baseboardTypes[section.baseboardType]
+    if (!lnftPerHr) continue
+
+    let sectionLnft = 0
+    for (const m of section.measurements) {
+      sectionLnft += m.length === '' ? 0 : m.length
+    }
+    if (sectionLnft === 0) continue
+
+    paintBaseboardsHours += sectionLnft / lnftPerHr
+    totalLnft            += sectionLnft
+
+    const coatMult = 2 - (SAME_COLOR_BASEBOARD_KEYS.has(section.baseboardType) ? 1 : 0)
+    totalRawGallons += (sectionLnft * widthFt / coverage) * coatMult
+  }
+
+  if (paintBaseboardsHours === 0) {
+    return { hours: 0, gallons: 0, laborCost: 0, price: 0 }
+  }
+
+  const tapeFloorsHours = totalLnft / tapeLineRate
+  const totalHours      = paintBaseboardsHours + tapeFloorsHours
+  const hours           = Math.round(totalHours * 100) / 100
+  const gallons         = Math.ceil(totalRawGallons)
+
+  const rawLaborCost = totalHours * rules.wage * rules.payrollBurden
+  const laborCost    = Math.round(rawLaborCost * 100) / 100
+
+  const markup = 1 - (
+    rules.netProfitMargin + rules.overheadMargin + rules.marketingMargin +
+    rules.salesMargin + rules.productionMgmtMargin
+  )
+  const materials = gallons * pricePerGallon
+  const price = markup > 0 ? Math.round((rawLaborCost + materials) / markup * 100) / 100 : 0
+
+  return { hours, gallons, laborCost, price }
+}
+
 // ── Painter Hourly Overview ────────────────────────────────────────────────────
 
 export interface PainterOverview {
@@ -200,8 +280,8 @@ export interface PainterOverview {
   handCutLineWallsToCeilings:   number
   paintCeilings:                number
   maskFloorMoveFurniture:       number   // TODO: formula needed
-  paintBaseboards:              number   // TODO: formula needed
-  tapeFloorsFromBaseboards:     number   // TODO: formula needed
+  paintBaseboards:              number
+  tapeFloorsFromBaseboards:     number
   doors:                        number   // TODO: formula needed
   doorFrames:                   number   // TODO: formula needed
   windows:                      number   // TODO: formula needed
@@ -219,8 +299,9 @@ export interface PainterOverview {
   allPrep:          number   // ROUNDUP(tapeCaulk+maskFloor+tapeFloors+tapeCaulkLine+setup, 2)
 
   // ── Materials & Labor ─────────────────────────────────────────────────────
-  wallGallons:     number
-  ceilingGallons:  number
+  wallGallons:      number
+  ceilingGallons:   number
+  baseboardGallons: number
   recycleFee:      number   // totalGallons × avgRecycleFee (rounded for display)
   sundries:        number   // allPrepRaw × sundriesPerHour (rounded for display)
   materialsTotal:  number   // paint costs + recycleFee + sundries
@@ -295,9 +376,30 @@ export function calculatePainterOverview(
   // tapeCaulkLineWallsToCeilings: used when painting ceilings WITHOUT walls (needs ceiling perimeter)
   const tapeCaulkLineWallsToCeilings = 0  // TODO
 
-  // ── TODO sections (0 until formulas are added) ─────────────────────────
-  const paintBaseboards          = 0  // TODO
-  const tapeFloorsFromBaseboards = 0  // TODO
+  // ── Baseboards ───────────────────────────────────────────────────────────
+  const tapeLineRate_ = rates.prepWork.tapeLine ?? 40
+  const widthFt_      = (constants.baseboardWidthIn ?? 4) / 12
+  let paintBaseboards      = 0
+  let totalBaseboardLnft   = 0
+  let baseboardRawGallons  = 0
+  const baseboardProduct  = paintProducts.find(p => p.id === option.paints.trim)
+  const baseboardCoverage = baseboardProduct?.coverage       ?? 400
+  const baseboardPrice_   = baseboardProduct?.pricePerGallon ?? 0
+
+  for (const section of option.baseboards) {
+    const lnftPerHr = rates.baseboardTypes[section.baseboardType]
+    if (!lnftPerHr) continue
+    let sectionLnft = 0
+    for (const m of section.measurements) {
+      sectionLnft += m.length === '' ? 0 : m.length
+    }
+    paintBaseboards    += sectionLnft / lnftPerHr
+    totalBaseboardLnft += sectionLnft
+    const coatMult = 2 - (SAME_COLOR_BASEBOARD_KEYS.has(section.baseboardType) ? 1 : 0)
+    baseboardRawGallons += (sectionLnft * widthFt_ / baseboardCoverage) * coatMult
+  }
+  const tapeFloorsFromBaseboards = totalBaseboardLnft > 0 ? totalBaseboardLnft / tapeLineRate_ : 0
+  const baseboardGallons = Math.ceil(baseboardRawGallons)
   const doors                    = 0  // TODO
   const doorFrames               = 0  // TODO
   const windows                  = 0  // TODO
@@ -356,7 +458,7 @@ export function calculatePainterOverview(
   const ceilingGallons = Math.ceil(ceilingRawGallons)
 
   // ── Materials & Labor ────────────────────────────────────────────────────
-  const totalGallons = wallGallons + ceilingGallons  // + trimGallons + ... (TODO)
+  const totalGallons = wallGallons + ceilingGallons + baseboardGallons  // + trimGallons + ... (TODO)
 
   // avgRecycleFee = average of 1-gal and 5-gal recycle fees (Inputs!B32)
   const avgRecycleFee  = (rules.recycleFeeGallon + rules.recycleFeeFiveGal) / 2
@@ -371,7 +473,7 @@ export function calculatePainterOverview(
 
   // materialsTotal = paint costs + recycle fee + sundries (SUM D19:D27)
   // Uses raw (unrounded) component values so precision matches the sheet's SUM formula
-  const paintCost      = wallGallons * wallPrice + ceilingGallons * ceilingPrice_  // + trim + ... (TODO)
+  const paintCost      = wallGallons * wallPrice + ceilingGallons * ceilingPrice_ + baseboardGallons * baseboardPrice_
   const materialsTotal = Math.round((paintCost + rawRecycleFee + rawSundries) * 100) / 100
 
   // laborTotal = totalHours × wage (B29 × Inputs!B10)
@@ -410,6 +512,7 @@ export function calculatePainterOverview(
     allPrep,
     wallGallons,
     ceilingGallons,
+    baseboardGallons,
     recycleFee,
     sundries,
     materialsTotal,

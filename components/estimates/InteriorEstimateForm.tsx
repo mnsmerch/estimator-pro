@@ -7,7 +7,7 @@ import { getSettingsDoc } from '@/lib/firebase/settings'
 import { DEFAULT_INTERIOR_PAINT_PRODUCTS } from '@/lib/defaultSettings'
 import { createInteriorEstimate, updateInteriorEstimate } from '@/lib/firebase/interiorEstimates'
 import { uploadPhoto, deletePhoto } from '@/lib/firebase/storage'
-import { calculateWallCalc, calculateCeilingCalc, calculatePainterOverview, calculateCostBreakdown } from '@/lib/interiorCalculations'
+import { calculateWallCalc, calculateCeilingCalc, calculateBaseboardCalc, calculatePainterOverview, calculateCostBreakdown } from '@/lib/interiorCalculations'
 import { DEFAULT_INTERIOR_RATES, DEFAULT_INTERIOR_RULES, DEFAULT_INTERIOR_CONSTANTS } from '@/lib/defaultSettings'
 import type { InteriorEstimateRecord } from '@/lib/firebase/interiorEstimates'
 import { computeOverview } from '@/types/interiorEstimate'
@@ -518,6 +518,7 @@ export default function InteriorEstimateForm({
   const overview       = computeOverview(activeOption)
   const wallCalc       = calculateWallCalc(activeOption, DEFAULT_INTERIOR_RATES, products, rules)
   const ceilingCalc    = calculateCeilingCalc(activeOption, DEFAULT_INTERIOR_RATES, products, rules)
+  const baseboardCalc  = calculateBaseboardCalc(activeOption, DEFAULT_INTERIOR_RATES, DEFAULT_INTERIOR_CONSTANTS, products, rules)
   const painterOverview = calculatePainterOverview(activeOption, DEFAULT_INTERIOR_RATES, DEFAULT_INTERIOR_CONSTANTS, products, rules)
   const costBreakdown   = calculateCostBreakdown(painterOverview, rules)
   const isEditing      = !!estimateId
@@ -1068,6 +1069,37 @@ export default function InteriorEstimateForm({
                     </div>
                   </div>
                 )}
+
+                {/* Baseboards */}
+                {baseboardCalc.hours > 0 && (
+                  <div className="px-4 py-2">
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-1.5">Baseboards</p>
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-gray-500">Hours</span>
+                      <span className="text-sm font-semibold tabular-nums text-brand-700">
+                        {baseboardCalc.hours.toFixed(2)}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between mt-1">
+                      <span className="text-xs text-gray-500">Gallons</span>
+                      <span className="text-sm font-semibold tabular-nums text-brand-700">
+                        {baseboardCalc.gallons}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between mt-1">
+                      <span className="text-xs text-gray-500">Labor</span>
+                      <span className="text-sm font-semibold tabular-nums text-brand-700">
+                        ${baseboardCalc.laborCost.toFixed(2)}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between mt-1">
+                      <span className="text-xs text-gray-500">Price</span>
+                      <span className="text-sm font-semibold tabular-nums text-green-700">
+                        ${baseboardCalc.price.toFixed(2)}
+                      </span>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -1141,7 +1173,8 @@ export default function InteriorEstimateForm({
               <div className="divide-y divide-gray-50 text-xs pb-2">
                 {([
                   ['Wall Gallons',      painterOverview.wallGallons,     false],
-                  ['Ceiling Gallons',   painterOverview.ceilingGallons,  false],
+                  ['Ceiling Gallons',    painterOverview.ceilingGallons,   false],
+                  ['Baseboard Gallons',  painterOverview.baseboardGallons, false],
                   ['Recycle Fee',       painterOverview.recycleFee,     true],
                   ['Sundries',          painterOverview.sundries,       true],
                   ['Materials Total',   painterOverview.materialsTotal, true],

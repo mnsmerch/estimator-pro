@@ -195,6 +195,14 @@ export const DEFAULT_INTERIOR_RATES: InteriorProductionRates = {
     popcornVaultedChangeColor:    40,
     // 4 auto-calculated prime+paint rates are derived — not stored
   },
+  baseboardTypes: {
+    // lnft/hr — mirrors Inputs sheet M column (baseboard VLOOKUP table)
+    sameColor:    40,
+    changeColor:  30,
+    stainToPaint: 12,
+    prime2Coats:  25,
+    newInstall:   18.75,
+  },
   doorTypes: {
     // 7 base rows — all other rows are auto-calculated from these
     doors1Side:                  { hours: 1,    lnft: 55  },
