@@ -622,26 +622,15 @@ export default function InteriorEstimateForm({
           {/* ── Left: form ───────────────────────────────────────────────────── */}
           <div className="flex-1 min-w-0 space-y-4">
 
-            {/* Room name + Coats */}
-            <div className="bg-white rounded-xl border border-gray-200 px-5 py-4 flex items-end gap-4">
-              <div className="flex-1">
-                <label className="block text-sm font-medium text-gray-700 mb-1">Room / Area Name</label>
-                <input
-                  type="text" placeholder="e.g. Master Bedroom"
-                  value={activeOption.name}
-                  onChange={e => patchOption(activeOption.id, { name: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
-                />
-              </div>
-              <div className="w-28">
-                <label className="block text-sm font-medium text-gray-700 mb-1">Coats</label>
-                <input
-                  type="number" min="1" max="5" step="1"
-                  value={activeOption.coats}
-                  onChange={e => patchOption(activeOption.id, { coats: parseInt(e.target.value) || 1 })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm text-center focus:outline-none focus:ring-2 focus:ring-brand-500"
-                />
-              </div>
+            {/* Room name */}
+            <div className="bg-white rounded-xl border border-gray-200 px-5 py-4">
+              <label className="block text-sm font-medium text-gray-700 mb-1">Room / Area Name</label>
+              <input
+                type="text" placeholder="e.g. Master Bedroom"
+                value={activeOption.name}
+                onChange={e => patchOption(activeOption.id, { name: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+              />
             </div>
 
             {/* Materials */}
