@@ -467,6 +467,51 @@ export function calculateMiscCalc(
   return { hours, gallons, laborCost, price }
 }
 
+// ── Other Calc ────────────────────────────────────────────────────────────────
+
+/**
+ * Other (no standard for) — user enters hours and gallons directly.
+ * Paint product = option.paints.other (falls back to wall paint price if not set).
+ * Labor and price use the same markup as all other sections.
+ */
+export function calculateOtherCalc(
+  option:        RoomOption,
+  paintProducts: InteriorPaintProduct[],
+  rules:         InteriorBusinessRules,
+): DoorCalc {
+  let totalHours   = 0
+  let totalGallons = 0
+
+  for (const entry of option.otherEntries) {
+    totalHours   += entry.hours   === '' ? 0 : entry.hours
+    totalGallons += entry.gallons === '' ? 0 : entry.gallons
+  }
+
+  if (totalHours === 0 && totalGallons === 0) return { hours: 0, gallons: 0, laborCost: 0, price: 0 }
+
+  const otherProduct  = paintProducts.find(p => p.id === option.paints.other)
+                     ?? paintProducts.find(p => p.id === option.paints.wall)
+  const pricePerGallon = otherProduct?.pricePerGallon ?? 0
+
+  const rawLabor  = totalHours * rules.wage * rules.payrollBurden
+  const laborCost = Math.round(rawLabor * 100) / 100
+
+  const markup = 1 - (
+    rules.netProfitMargin + rules.overheadMargin + rules.marketingMargin +
+    rules.salesMargin + rules.productionMgmtMargin
+  )
+  const price = markup > 0
+    ? Math.round((rawLabor + totalGallons * pricePerGallon) / markup * 100) / 100
+    : 0
+
+  return {
+    hours:    totalHours,
+    gallons:  totalGallons,
+    laborCost,
+    price,
+  }
+}
+
 // ── Painter Hourly Overview ────────────────────────────────────────────────────
 
 export interface PainterOverview {
