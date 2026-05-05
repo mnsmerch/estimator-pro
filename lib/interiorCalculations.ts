@@ -350,10 +350,10 @@ export interface PainterOverview {
   totalHoursByRoom:             number
 
   // ── Summary rows ──────────────────────────────────────────────────────────
-  wallsTotal:       number   // paintWalls + tapeCaulk + handCut
-  ceilingsTotal:    number   // paintCeilings
-  baseboardsTotal:  number   // paintBaseboards + tapeFloors
-  paintingAllTrim:  number   // doors + doorFrames + windows + miscellaneous
+  wallsTotal:       number   // ROUNDUP(paintWalls + tapeCaulk + handCut, 2)
+  ceilingsTotal:    number   // ROUNDUP(paintCeilings + maskFloor, 2)
+  baseboardsTotal:  number   // ROUNDUP(paintBaseboards + tapeFloors, 2)
+  paintingAllTrim:  number   // ROUNDUP(paintBaseboards + doors + doorFrames + windows + miscellaneous, 2)
   allPrep:          number   // ROUNDUP(tapeCaulk+maskFloor+tapeFloors+tapeCaulkLine+setup, 2)
 
   // ── Materials & Labor ─────────────────────────────────────────────────────
@@ -555,10 +555,13 @@ export function calculatePainterOverview(
   const laborTotal = Math.round(totalHoursByRoom * rules.wage * 100) / 100
 
   // ── Summary rows ─────────────────────────────────────────────────────────
-  const wallsTotal      = paintWalls + tapeCaulkWallsToBaseboards + handCutLineWallsToCeilings
-  const ceilingsTotal   = paintCeilings + tapeCaulkLineWallsToCeilings
-  const baseboardsTotal = paintBaseboards + tapeFloorsFromBaseboards
-  const paintingAllTrim = doors + doorFrames + windows + miscellaneous
+  // Summary rows all use ROUNDUP (Math.ceil to 2dp) to match sheet formula
+  const ru2 = (n: number) => Math.ceil(n * 100) / 100
+  const wallsTotal      = ru2(paintWalls + tapeCaulkWallsToBaseboards + handCutLineWallsToCeilings)
+  const ceilingsTotal   = ru2(paintCeilings + maskFloorMoveFurniture)
+  const baseboardsTotal = ru2(paintBaseboards + tapeFloorsFromBaseboards)
+  // Painting all Trim = paintBaseboards + doors + doorFrames + windows + miscellaneous
+  const paintingAllTrim = ru2(paintBaseboards + doors + doorFrames + windows + miscellaneous)
   // All Prep = ROUNDUP(K4+K7+K9+K15+K16, 2)
   const allPrep         = Math.ceil(allPrepRaw * 100) / 100
 
@@ -580,10 +583,10 @@ export function calculatePainterOverview(
     tapeCaulkLineWallsToCeilings: r2(tapeCaulkLineWallsToCeilings),
     setupAndCleanUp:              r2(setupAndCleanUp),
     totalHoursByRoom:             r2(totalHoursByRoom),
-    wallsTotal:                   r2(wallsTotal),
-    ceilingsTotal:                r2(ceilingsTotal),
-    baseboardsTotal:              r2(baseboardsTotal),
-    paintingAllTrim:              r2(paintingAllTrim),
+    wallsTotal,
+    ceilingsTotal,
+    baseboardsTotal,
+    paintingAllTrim,
     allPrep,
     wallGallons,
     ceilingGallons,
