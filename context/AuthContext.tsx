@@ -22,8 +22,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       setUser(firebaseUser)
       if (firebaseUser) {
-        const r = await getUserRole(firebaseUser.uid)
-        setRole(r)
+        try {
+          const r = await getUserRole(firebaseUser.uid)
+          setRole(r)
+        } catch {
+          // Firestore rules may not be set yet — fail open so the app doesn't hang
+          setRole(null)
+        }
       } else {
         setRole(null)
       }
