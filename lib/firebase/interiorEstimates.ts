@@ -9,11 +9,14 @@ import { INTERIOR_SCOPE_DEFAULTS } from '@/types/interiorEstimate'
 const COLLECTION = 'interiorEstimates'
 
 export interface InteriorEstimateRecord extends InteriorEstimateDraft {
-  id:        string
-  userId:    string
-  status:    'draft' | 'sent' | 'approved'
-  createdAt: string
-  updatedAt: string
+  id:               string
+  userId:           string
+  status:           'draft' | 'sent' | 'approved'
+  createdAt:        string
+  updatedAt:        string
+  signatureName?:   string
+  signatureDataUrl?: string
+  signatureDate?:   string
 }
 
 export async function createInteriorEstimate(data: InteriorEstimateDraft, userId: string): Promise<string> {
@@ -41,17 +44,42 @@ export async function getInteriorEstimate(id: string): Promise<InteriorEstimateR
   const ts = (field: unknown) =>
     field instanceof Timestamp ? field.toDate().toISOString() : ''
   return {
-    id:         snap.id,
-    userId:     d.userId     ?? '',
-    clientName: d.clientName ?? '',
-    address:    d.address    ?? '',
-    options:    d.options    ?? [],
-    photoUrls:  d.photoUrls  ?? [],
-    scope:      d.scope      ?? { ...INTERIOR_SCOPE_DEFAULTS },
-    status:     d.status     ?? 'draft',
-    createdAt:  ts(d.createdAt),
-    updatedAt:  ts(d.updatedAt),
+    id:               snap.id,
+    userId:           d.userId           ?? '',
+    clientName:       d.clientName       ?? '',
+    address:          d.address          ?? '',
+    options:          d.options          ?? [],
+    photoUrls:        d.photoUrls        ?? [],
+    scope:            d.scope            ?? { ...INTERIOR_SCOPE_DEFAULTS },
+    status:           d.status           ?? 'draft',
+    createdAt:        ts(d.createdAt),
+    updatedAt:        ts(d.updatedAt),
+    signatureName:    d.signatureName    ?? '',
+    signatureDataUrl: d.signatureDataUrl ?? '',
+    signatureDate:    d.signatureDate    ?? '',
   }
+}
+
+export async function acceptInteriorEstimate(id: string, name: string, dataUrl: string): Promise<void> {
+  const now = new Date()
+  const signatureDate = now.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
+  await updateDoc(doc(db, COLLECTION, id), {
+    status:           'approved',
+    signatureName:    name,
+    signatureDataUrl: dataUrl,
+    signatureDate,
+    updatedAt:        serverTimestamp(),
+  })
+}
+
+export async function resetSignatureForInteriorChangeOrder(id: string): Promise<void> {
+  await updateDoc(doc(db, COLLECTION, id), {
+    status:           'sent',
+    signatureName:    '',
+    signatureDataUrl: '',
+    signatureDate:    '',
+    updatedAt:        serverTimestamp(),
+  })
 }
 
 export async function listInteriorEstimates(userId: string): Promise<InteriorEstimateRecord[]> {

@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { useAuth } from '@/context/AuthContext'
 import { getSettingsDoc } from '@/lib/firebase/settings'
 import { DEFAULT_INTERIOR_PAINT_PRODUCTS } from '@/lib/defaultSettings'
-import { createInteriorEstimate, updateInteriorEstimate } from '@/lib/firebase/interiorEstimates'
+import { createInteriorEstimate, updateInteriorEstimate, resetSignatureForInteriorChangeOrder } from '@/lib/firebase/interiorEstimates'
 import { uploadPhoto, deletePhoto } from '@/lib/firebase/storage'
 import AppHeader from '@/components/AppHeader'
 import { calculateWallCalc, calculateCeilingCalc, calculateBaseboardCalc, calculateDoorCalc, calculateDoorFrameCalc, calculateWindowCalc, calculateMiscCalc, calculateOtherCalc, calculatePainterOverview, calculateCostBreakdown } from '@/lib/interiorCalculations'
@@ -542,9 +542,43 @@ export default function InteriorEstimateForm({
 
         {/* Page title + client info */}
         <div>
-          <h1 className="text-xl sm:text-2xl font-bold text-gray-900 mb-4">
-            {isEditing ? 'Edit Interior Estimate' : 'New Interior Estimate'}
-          </h1>
+          <div className="flex items-center justify-between mb-4 gap-3">
+            <h1 className="text-xl sm:text-2xl font-bold text-gray-900">
+              {isEditing ? 'Edit Interior Estimate' : 'New Interior Estimate'}
+            </h1>
+            {isEditing && estimateId && (
+              <div className="flex items-center gap-2 shrink-0">
+                {initialRecord?.status === 'approved' && (
+                  <span className="flex items-center gap-1.5 text-xs font-semibold text-green-700 bg-green-50 border border-green-200 rounded-full px-3 py-1">
+                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
+                    </svg>
+                    Signed
+                  </span>
+                )}
+                <button
+                  onClick={async () => {
+                    setSaving(true)
+                    try {
+                      if (estimateId) {
+                        await updateInteriorEstimate(estimateId, draft)
+                        if (initialRecord?.status === 'approved') {
+                          await resetSignatureForInteriorChangeOrder(estimateId)
+                        }
+                      }
+                      window.open(`/ip/${estimateId}`, '_blank')
+                    } finally {
+                      setSaving(false)
+                    }
+                  }}
+                  disabled={saving}
+                  className="hidden sm:inline-flex px-4 py-2 text-sm font-medium rounded-lg bg-brand-600 text-white hover:bg-brand-700 disabled:opacity-50"
+                >
+                  {saving ? 'Saving…' : initialRecord?.status === 'approved' ? 'Generate New Estimate ↗' : 'Generate Estimate ↗'}
+                </button>
+              </div>
+            )}
+          </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Client Name</label>
@@ -1357,7 +1391,7 @@ export default function InteriorEstimateForm({
         </div>
 
         {/* Save / Cancel */}
-        <div className="flex items-center gap-3 pb-12">
+        <div className="flex flex-wrap items-center gap-3 pb-12">
           <button
             onClick={handleSave}
             disabled={saving || !draft.clientName.trim()}
@@ -1365,6 +1399,28 @@ export default function InteriorEstimateForm({
           >
             {saving ? 'Saving…' : saved ? 'Saved!' : 'Save Draft'}
           </button>
+          {isEditing && estimateId && (
+            <button
+              onClick={async () => {
+                setSaving(true)
+                try {
+                  if (estimateId) {
+                    await updateInteriorEstimate(estimateId, draft)
+                    if (initialRecord?.status === 'approved') {
+                      await resetSignatureForInteriorChangeOrder(estimateId)
+                    }
+                  }
+                  window.open(`/ip/${estimateId}`, '_blank')
+                } finally {
+                  setSaving(false)
+                }
+              }}
+              disabled={saving}
+              className="sm:hidden px-6 py-2.5 bg-brand-600 hover:bg-brand-700 disabled:opacity-50 text-white text-sm font-semibold rounded-lg transition-colors"
+            >
+              {saving ? 'Saving…' : 'Generate Estimate ↗'}
+            </button>
+          )}
           <button
             onClick={() => router.push('/estimates')}
             className="px-6 py-2.5 bg-white hover:bg-gray-50 text-gray-600 text-sm font-medium rounded-lg border border-gray-200 transition-colors"
