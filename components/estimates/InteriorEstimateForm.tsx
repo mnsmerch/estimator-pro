@@ -253,11 +253,34 @@ function newOption(name = ''): RoomOption {
 
 function recordToDraft(r: InteriorEstimateRecord): InteriorEstimateDraft {
   return {
-    clientName: r.clientName,
-    address:    r.address,
-    options:    r.options,
-    photoUrls:  r.photoUrls ?? [],
-    scope:      r.scope     ?? { ...INTERIOR_SCOPE_DEFAULTS },
+    clientName:   r.clientName,
+    address:      r.address,
+    clientPhone:  r.clientPhone  ?? '',
+    clientEmail:  r.clientEmail  ?? '',
+    salesTaxRate: r.salesTaxRate ?? null,
+    options:      r.options,
+    photoUrls:    r.photoUrls ?? [],
+    scope:        r.scope     ?? { ...INTERIOR_SCOPE_DEFAULTS },
+  }
+}
+
+async function lookupSalesTax(fullAddress: string): Promise<number | null> {
+  try {
+    const zipMatch  = fullAddress.match(/\b(\d{5}(?:-\d{4})?)\b/)
+    const zip       = zipMatch?.[1] ?? ''
+    const parts     = fullAddress.split(/[,\n]+/).map(s => s.trim()).filter(Boolean)
+    const addr      = parts[0] ?? ''
+    const cityChunk = parts[1] ?? ''
+    const city      = cityChunk.replace(/\s+[A-Z]{2}\s+[\d-]+$/, '').replace(/\s+[A-Z]{2}$/, '').trim()
+    const res = await fetch('/api/tax-lookup', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ addr, city, zip }),
+    })
+    if (!res.ok) return null
+    const { rate } = await res.json() as { rate: number }
+    return typeof rate === 'number' ? rate : null
+  } catch {
+    return null
   }
 }
 
@@ -276,7 +299,7 @@ export default function InteriorEstimateForm({
   const firstOpt = initialRecord ? initialRecord.options[0] : newOption('Room 1')
 
   const [draft, setDraft]       = useState<InteriorEstimateDraft>(() =>
-    initialRecord ? recordToDraft(initialRecord) : { clientName: '', address: '', options: [firstOpt], photoUrls: [], scope: { ...INTERIOR_SCOPE_DEFAULTS } }
+    initialRecord ? recordToDraft(initialRecord) : { clientName: '', address: '', clientPhone: '', clientEmail: '', salesTaxRate: null, options: [firstOpt], photoUrls: [], scope: { ...INTERIOR_SCOPE_DEFAULTS } }
   )
   const [activeId, setActiveId] = useState<string>(firstOpt?.id ?? '')
   const [products, setProducts] = useState<InteriorPaintProduct[]>(DEFAULT_INTERIOR_PAINT_PRODUCTS)
@@ -587,7 +610,10 @@ export default function InteriorEstimateForm({
                     setSaving(true)
                     try {
                       if (estimateId) {
-                        await updateInteriorEstimate(estimateId, draft)
+                        const taxRate = draft.address ? await lookupSalesTax(draft.address) : null
+                        const updatedDraft = { ...draft, salesTaxRate: taxRate }
+                        setDraft(updatedDraft)
+                        await updateInteriorEstimate(estimateId, updatedDraft)
                         if (initialRecord?.status === 'approved') {
                           await resetSignatureForInteriorChangeOrder(estimateId)
                         }
@@ -621,6 +647,24 @@ export default function InteriorEstimateForm({
                 type="text" placeholder="e.g. 123 Main St, Seattle WA"
                 value={draft.address}
                 onChange={e => setDraft(prev => ({ ...prev, address: e.target.value }))}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
+              <input
+                type="tel" placeholder="253-555-0100"
+                value={draft.clientPhone ?? ''}
+                onChange={e => setDraft(prev => ({ ...prev, clientPhone: e.target.value }))}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+              <input
+                type="email" placeholder="client@email.com"
+                value={draft.clientEmail ?? ''}
+                onChange={e => setDraft(prev => ({ ...prev, clientEmail: e.target.value }))}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
               />
             </div>
@@ -1440,7 +1484,10 @@ export default function InteriorEstimateForm({
                 setSaving(true)
                 try {
                   if (estimateId) {
-                    await updateInteriorEstimate(estimateId, draft)
+                    const taxRate = draft.address ? await lookupSalesTax(draft.address) : null
+                    const updatedDraft = { ...draft, salesTaxRate: taxRate }
+                    setDraft(updatedDraft)
+                    await updateInteriorEstimate(estimateId, updatedDraft)
                     if (initialRecord?.status === 'approved') {
                       await resetSignatureForInteriorChangeOrder(estimateId)
                     }

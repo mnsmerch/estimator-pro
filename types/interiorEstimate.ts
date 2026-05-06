@@ -128,11 +128,14 @@ export const INTERIOR_SCOPE_DEFAULTS: InteriorScopeFields = {
 }
 
 export interface InteriorEstimateDraft {
-  clientName:  string
-  address:     string
-  options:     RoomOption[]
-  photoUrls:   string[]
-  scope:       InteriorScopeFields
+  clientName:    string
+  address:       string
+  clientPhone?:  string
+  clientEmail?:  string
+  salesTaxRate?: number | null
+  options:       RoomOption[]
+  photoUrls:     string[]
+  scope:         InteriorScopeFields
 }
 
 export interface OptionOverview {

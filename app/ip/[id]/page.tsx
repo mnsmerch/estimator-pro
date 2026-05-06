@@ -145,9 +145,12 @@ export default function InteriorProposalPage({ params }: { params: Promise<{ id:
     return Math.round(rawSum / (1 - salesDiscount) * 100) / 100
   }, [estimate, selectedRooms, roomBreakdowns, roomOverviews, rates, constants, products, rules])
 
+  const taxRate        = estimate?.salesTaxRate ?? null
+  const taxAmount      = taxRate != null ? Math.round(selectedTotal * taxRate * 100) / 100 : 0
+  const totalWithTax   = selectedTotal + taxAmount
   const depositPercent = rules.depositPercent ?? 0.20
-  const depositAmount  = selectedTotal * depositPercent
-  const balanceDue     = selectedTotal - depositAmount
+  const depositAmount  = Math.round(totalWithTax * depositPercent * 100) / 100
+  const balanceDue     = Math.round((totalWithTax - depositAmount) * 100) / 100
 
   function toggleRoom(roomId: string) {
     setSelectedRooms(prev => {
@@ -253,7 +256,9 @@ export default function InteriorProposalPage({ params }: { params: Promise<{ id:
         <div className="bg-white rounded-2xl border border-gray-200 p-5 sm:p-6">
           <p className="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-3">Prepared For</p>
           <p className="text-xl font-bold text-gray-900">{estimate.clientName || 'Client'}</p>
-          {estimate.address && <p className="text-sm text-gray-500 mt-1">{estimate.address}</p>}
+          {estimate.address     && <p className="text-sm text-gray-500 mt-1">{estimate.address}</p>}
+          {estimate.clientPhone && <p className="text-sm text-gray-500 mt-0.5">{estimate.clientPhone}</p>}
+          {estimate.clientEmail && <p className="text-sm text-gray-500 mt-0.5">{estimate.clientEmail}</p>}
         </div>
 
         {/* ── Scope of work ──────────────────────────────────────────────── */}
@@ -342,13 +347,27 @@ export default function InteriorProposalPage({ params }: { params: Promise<{ id:
               </span>
               <span className="text-sm font-medium text-gray-900 tabular-nums">{fmtD(selectedTotal)}</span>
             </div>
+            {taxRate != null && (
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-gray-600">
+                  Sales Tax ({(taxRate * 100).toFixed(1)}%
+                  {estimate.address ? (() => {
+                    const parts = estimate.address.split(/[,\n]+/).map((s: string) => s.trim()).filter(Boolean)
+                    const cityChunk = parts[1] ?? ''
+                    const city = cityChunk.replace(/\s+[A-Z]{2}\s+[\d-]+$/, '').replace(/\s+[A-Z]{2}$/, '').trim()
+                    return city ? ` — ${city}` : ''
+                  })() : ''})
+                </span>
+                <span className="text-sm font-medium text-gray-900 tabular-nums">+ {fmtD(taxAmount)}</span>
+              </div>
+            )}
             <div className="flex justify-between items-center">
               <span className="text-sm text-gray-600">Deposit ({Math.round(depositPercent * 100)}%)</span>
               <span className="text-sm font-medium text-gray-900 tabular-nums">{fmtD(depositAmount)}</span>
             </div>
             <div className="flex justify-between items-center pt-2 border-t border-gray-100">
               <span className="text-sm font-bold text-gray-900">Total</span>
-              <span className="text-lg font-bold text-gray-900 tabular-nums">{fmtD(selectedTotal)}</span>
+              <span className="text-lg font-bold text-gray-900 tabular-nums">{fmtD(totalWithTax)}</span>
             </div>
             <div className="flex justify-between items-center">
               <span className="text-sm text-gray-500">Balance due on completion</span>
