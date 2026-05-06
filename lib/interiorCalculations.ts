@@ -581,8 +581,6 @@ export function calculatePainterOverview(
     const wallRate = rates.wallTypes[section.wallType]
     if (!wallRate) continue
 
-    const isSameColorWall = SAME_COLOR_WALL_KEYS.has(section.wallType)
-
     let sectionLength = 0
     let sectionSqft   = 0
     for (const m of section.measurements) {
@@ -592,15 +590,8 @@ export function calculatePainterOverview(
       sectionSqft   += l * h
     }
 
-    paintWalls += sectionSqft / wallRate.sqftPerHr
-
-    // K4: same-color walls → no tape caulk needed (D13=TRUE skips in sheet)
-    if (!isSameColorWall) {
-      tapeCaulkWallsToBaseboards += sectionLength / tapingRate
-    }
-
-    // K5: always apply hand cut when walls are present
-    // D12 (sheet condition to skip) has no equivalent in our scope — default to always calculating
+    paintWalls                 += sectionSqft  / wallRate.sqftPerHr
+    tapeCaulkWallsToBaseboards += sectionLength / tapingRate
     handCutLineWallsToCeilings += sectionLength / wallRate.handCut
   }
 
