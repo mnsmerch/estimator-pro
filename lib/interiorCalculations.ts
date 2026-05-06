@@ -958,6 +958,23 @@ export function calculateCostBreakdown(
   }
 }
 
+// ── Combined gallons helper ───────────────────────────────────────────────────
+
+/**
+ * When buying paint for multiple rooms together, fewer total gallons are needed
+ * than summing per-room ceiled gallons (fewer individual round-ups).
+ * This matches the sheet's combined total-gallon count used for the recycle fee.
+ */
+export function sumCombinedGallons(overviews: PainterOverview[]): number {
+  return (
+    Math.ceil(overviews.reduce((s, po) => s + po.wallRawGallons,    0)) +
+    Math.ceil(overviews.reduce((s, po) => s + po.ceilingRawGallons, 0)) +
+    Math.ceil(overviews.reduce((s, po) => s + po.trimRawGallons,    0)) +
+    Math.ceil(overviews.reduce((s, po) => s + po.miscRawGallons,    0)) +
+    overviews.reduce((s, po) => s + po.otherGallons, 0)
+  )
+}
+
 // ── Combining Rooms & Items Savings ───────────────────────────────────────────
 
 /**

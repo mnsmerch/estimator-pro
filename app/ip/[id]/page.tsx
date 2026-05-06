@@ -7,6 +7,7 @@ import {
   calculatePainterOverview,
   calculateCostBreakdown,
   calculateCombiningSavings,
+  sumCombinedGallons,
 } from '@/lib/interiorCalculations'
 import {
   DEFAULT_INTERIOR_RULES,
@@ -97,7 +98,7 @@ export default function InteriorProposalPage({ params }: { params: Promise<{ id:
     load()
   }, [id])
 
-  // Per-room breakdowns (for individual prices and raw subtotals)
+  // Per-room breakdowns and overviews (for prices and recycle-fee correction)
   const roomBreakdowns = useMemo(() => {
     if (!estimate) return new Map<string, ReturnType<typeof getRoomBreakdown>>()
     const map = new Map<string, ReturnType<typeof getRoomBreakdown>>()
@@ -107,21 +108,42 @@ export default function InteriorProposalPage({ params }: { params: Promise<{ id:
     return map
   }, [estimate, rates, constants, products, rules])
 
-  // Total of selected rooms — with combining savings
+  const roomOverviews = useMemo(() => {
+    if (!estimate) return new Map<string, ReturnType<typeof calculatePainterOverview>>()
+    const map = new Map<string, ReturnType<typeof calculatePainterOverview>>()
+    for (const option of estimate.options) {
+      map.set(option.id, calculatePainterOverview(option, rates, constants, products, rules))
+    }
+    return map
+  }, [estimate, rates, constants, products, rules])
+
+  // Total of selected rooms — with combining savings and recycle-fee correction
   const selectedTotal = useMemo(() => {
     if (!estimate) return 0
     const selected = estimate.options.filter(o => selectedRooms.has(o.id))
     if (selected.length === 0) return 0
     const salesDiscount = rules.salesDiscount ?? 0.10
+    const markup = 1 - (rules.netProfitMargin + rules.overheadMargin + rules.marketingMargin + rules.salesMargin + rules.productionMgmtMargin)
     const savings = selected.length > 1
       ? calculateCombiningSavings(selected, rates, constants, products, rules)
       : 0
+
+    // Recycle fee correction: rooms bought together need fewer gallons → lower recycle fee
+    let recycleFeeCorr = 0
+    if (selected.length > 1 && markup > 0) {
+      const selOverviews = selected.map(o => roomOverviews.get(o.id)!).filter(Boolean)
+      const avgRecycleFee = (rules.recycleFeeGallon + rules.recycleFeeFiveGal) / 2
+      const combinedG = sumCombinedGallons(selOverviews)
+      const perRoomG  = selOverviews.reduce((s, po) => s + po.wallGallons + po.ceilingGallons + po.trimGallons + po.miscGallons + po.otherGallons, 0)
+      recycleFeeCorr  = (perRoomG - combinedG) * avgRecycleFee / markup
+    }
+
     const rawSum = selected.reduce((s, o) => {
       const cb = roomBreakdowns.get(o.id)
       return s + (cb?.rawSubtotalBeforeSavings ?? 0)
-    }, 0) - savings
+    }, 0) - savings - recycleFeeCorr
     return Math.round(rawSum / (1 - salesDiscount) * 100) / 100
-  }, [estimate, selectedRooms, roomBreakdowns, rates, constants, products, rules])
+  }, [estimate, selectedRooms, roomBreakdowns, roomOverviews, rates, constants, products, rules])
 
   const depositPercent = rules.depositPercent ?? 0.20
   const depositAmount  = selectedTotal * depositPercent

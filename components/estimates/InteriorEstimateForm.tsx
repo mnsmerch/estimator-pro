@@ -8,7 +8,7 @@ import { DEFAULT_INTERIOR_PAINT_PRODUCTS } from '@/lib/defaultSettings'
 import { createInteriorEstimate, updateInteriorEstimate, resetSignatureForInteriorChangeOrder } from '@/lib/firebase/interiorEstimates'
 import { uploadPhoto, deletePhoto } from '@/lib/firebase/storage'
 import AppHeader from '@/components/AppHeader'
-import { calculateWallCalc, calculateCeilingCalc, calculateBaseboardCalc, calculateDoorCalc, calculateDoorFrameCalc, calculateWindowCalc, calculateMiscCalc, calculateOtherCalc, calculatePainterOverview, calculateCostBreakdown, calculateCombiningSavings } from '@/lib/interiorCalculations'
+import { calculateWallCalc, calculateCeilingCalc, calculateBaseboardCalc, calculateDoorCalc, calculateDoorFrameCalc, calculateWindowCalc, calculateMiscCalc, calculateOtherCalc, calculatePainterOverview, calculateCostBreakdown, calculateCombiningSavings, sumCombinedGallons } from '@/lib/interiorCalculations'
 import { DEFAULT_INTERIOR_RATES, DEFAULT_INTERIOR_RULES, DEFAULT_INTERIOR_CONSTANTS } from '@/lib/defaultSettings'
 import type { InteriorEstimateRecord } from '@/lib/firebase/interiorEstimates'
 import { computeOverview } from '@/types/interiorEstimate'
@@ -539,11 +539,21 @@ export default function InteriorEstimateForm({
     : 0
   const markup_             = 1 - (rules.netProfitMargin + rules.overheadMargin + rules.marketingMargin + rules.salesMargin + rules.productionMgmtMargin)
   const salesDiscount       = rules.salesDiscount ?? 0.10
-  // Sum raw values across all rooms, divide by markup ONCE — matches sheet formula (D25+D26+D27)/B23
+  const avgRecycleFee_      = (rules.recycleFeeGallon + rules.recycleFeeFiveGal) / 2
+
+  // Combined gallons (ceil of combined raw per surface) — fewer than summing per-room ceiled gallons
+  const combinedTotalGallons_ = draft.options.length > 1 ? sumCombinedGallons(allOverviews) : allOverviews.reduce((s, po) => s + po.wallGallons + po.ceilingGallons + po.trimGallons + po.miscGallons + po.otherGallons, 0)
+  const perRoomTotalGallons_  = allOverviews.reduce((s, po) => s + po.wallGallons + po.ceilingGallons + po.trimGallons + po.miscGallons + po.otherGallons, 0)
+  // Recycle fee correction: gallons saved by combining × fee/gal ÷ markup
+  const recycleFeeCorrection_ = markup_ > 0 ? (perRoomTotalGallons_ - combinedTotalGallons_) * avgRecycleFee_ / markup_ : 0
+
+  // Grand Total and Setup — sum raw values, divide by markup once
   const allRoomsGrandTotal  = markup_ > 0 ? Math.round(allOverviews.reduce((s, po) => s + po.rawProductiveLaborCost + po.rawPaintCost, 0) / markup_ * 100) / 100 : 0
   const allRoomsSetup       = markup_ > 0 ? Math.round(allOverviews.reduce((s, po) => s + po.setupAndCleanUpRaw * rules.wage * rules.payrollBurden, 0) / markup_ * 100) / 100 : 0
-  const allRoomsSundries    = markup_ > 0 ? Math.round(allOverviews.reduce((s, po) => s + po.rawSundries + po.rawRecycleFee, 0) / markup_ * 100) / 100 : 0
-  const allRoomsRawSum      = allBreakdowns.reduce((s, cb) => s + cb.rawSubtotalBeforeSavings, 0) - combiningSavings
+  // Sundries: sum raw prep sundries + COMBINED gallons × recycle rate / markup — matches sheet (D26+D25+D27)/B23
+  const allRoomsSundries    = markup_ > 0 ? Math.round((allOverviews.reduce((s, po) => s + po.rawSundries, 0) + combinedTotalGallons_ * avgRecycleFee_) / markup_ * 100) / 100 : 0
+  // Total price: subtract recycle fee correction (gallon savings already in combiningSavings for paint cost)
+  const allRoomsRawSum      = allBreakdowns.reduce((s, cb) => s + cb.rawSubtotalBeforeSavings, 0) - combiningSavings - recycleFeeCorrection_
   const allRoomsTotalPrice  = Math.round(allRoomsRawSum / (1 - salesDiscount) * 100) / 100
 
   const isEditing      = !!estimateId
