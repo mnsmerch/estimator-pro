@@ -94,9 +94,10 @@ export function calculateWallCalc(
     totalRawGallons += (sectionSqft / coverage) * coatMultiplier
   }
 
-  const hours     = Math.round(totalHours * 100) / 100
-  const gallons   = Math.ceil(totalRawGallons)
-  const laborCost = Math.round(hours * rules.wage * rules.payrollBurden * 100) / 100
+  const hours      = Math.round(totalHours * 100) / 100
+  const gallons    = Math.ceil(totalRawGallons)
+  const rawLabor   = totalHours * rules.wage * rules.payrollBurden
+  const laborCost  = Math.round(rawLabor * 100) / 100
 
   const markup    = 1 - (
     rules.netProfitMargin +
@@ -107,7 +108,7 @@ export function calculateWallCalc(
   )
   const pricePerGallon = paintProducts.find(p => p.id === option.paints.wall)?.pricePerGallon ?? 0
   const materials = gallons * pricePerGallon
-  const price     = markup > 0 ? Math.round((laborCost + materials) / markup * 100) / 100 : 0
+  const price     = markup > 0 ? Math.round((rawLabor + materials) / markup * 100) / 100 : 0
 
   return {
     hours,
