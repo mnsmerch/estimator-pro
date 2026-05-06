@@ -537,10 +537,12 @@ export default function InteriorEstimateForm({
   const combiningSavings    = draft.options.length > 1
     ? calculateCombiningSavings(draft.options, DEFAULT_INTERIOR_RATES, DEFAULT_INTERIOR_CONSTANTS, products, rules)
     : 0
+  const markup_             = 1 - (rules.netProfitMargin + rules.overheadMargin + rules.marketingMargin + rules.salesMargin + rules.productionMgmtMargin)
   const salesDiscount       = rules.salesDiscount ?? 0.10
-  const allRoomsGrandTotal  = Math.round(allBreakdowns.reduce((s, cb) => s + cb.grandTotal,      0) * 100) / 100
-  const allRoomsSetup       = Math.round(allBreakdowns.reduce((s, cb) => s + cb.setupAndCleanUp, 0) * 100) / 100
-  const allRoomsSundries    = Math.round(allBreakdowns.reduce((s, cb) => s + cb.sundriesAndFees, 0) * 100) / 100
+  // Sum raw values across all rooms, divide by markup ONCE — matches sheet formula (D25+D26+D27)/B23
+  const allRoomsGrandTotal  = markup_ > 0 ? Math.round(allOverviews.reduce((s, po) => s + po.rawProductiveLaborCost + po.rawPaintCost, 0) / markup_ * 100) / 100 : 0
+  const allRoomsSetup       = markup_ > 0 ? Math.round(allOverviews.reduce((s, po) => s + po.setupAndCleanUpRaw * rules.wage * rules.payrollBurden, 0) / markup_ * 100) / 100 : 0
+  const allRoomsSundries    = markup_ > 0 ? Math.round(allOverviews.reduce((s, po) => s + po.rawSundries + po.rawRecycleFee, 0) / markup_ * 100) / 100 : 0
   const allRoomsRawSum      = allBreakdowns.reduce((s, cb) => s + cb.rawSubtotalBeforeSavings, 0) - combiningSavings
   const allRoomsTotalPrice  = Math.round(allRoomsRawSum / (1 - salesDiscount) * 100) / 100
 
