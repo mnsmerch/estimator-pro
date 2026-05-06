@@ -557,6 +557,12 @@ export interface PainterOverview {
   rawRecycleFee:            number  // unrounded D25
   rawSundries:              number  // unrounded D26
   rawPaintCost:             number  // unrounded paint gallons × price
+
+  // ── Raw gallons (pre-ceil) for combining savings calculation ──────────────
+  wallRawGallons:    number  // before Math.ceil
+  ceilingRawGallons: number
+  trimRawGallons:    number  // baseboards+doors+frames+windows combined, before ceil
+  miscRawGallons:    number
 }
 
 /**
@@ -862,18 +868,23 @@ export function calculatePainterOverview(
     rawRecycleFee,
     rawSundries,
     rawPaintCost:           paintCost,
+    wallRawGallons,
+    ceilingRawGallons,
+    trimRawGallons:         baseboardRawGallons + doorRawGallons + doorFrameRawGallons + windowRawGallons,
+    miscRawGallons,
   }
 }
 
 // ── Cost and Price Breakdown ──────────────────────────────────────────────────
 
 export interface CostBreakdown {
-  grandTotal:       number   // (labor + paint) before overhead
-  setupAndCleanUp:  number   // (setupHours × wage × burden) / markup
-  combiningSavings: number   // 0 for now
-  sundriesAndFees:  number   // (sundries + recycleFee + tax) / markup
-  subtotal:         number   // round(sum / (1 − salesDiscount)) — whole dollars when tax=0
-  totalPrice:       number   // same as subtotal until further formula is provided
+  grandTotal:              number   // (labor + paint) before overhead
+  setupAndCleanUp:         number   // (setupHours × wage × burden) / markup
+  combiningSavings:        number   // 0 per-room; applied at the all-rooms level
+  sundriesAndFees:         number   // (sundries + recycleFee + tax) / markup
+  subtotal:                number   // round(sum / (1 − salesDiscount)) — whole dollars when tax=0
+  totalPrice:              number   // same as subtotal until further formula is provided
+  rawSubtotalBeforeSavings: number  // grandTotal + setupAndCleanUp + sundriesAndFees (raw, for combining savings)
 }
 
 /**
@@ -902,7 +913,7 @@ export function calculateCostBreakdown(
   )
 
   if (markup <= 0) {
-    return { grandTotal: 0, setupAndCleanUp: 0, combiningSavings: 0, sundriesAndFees: 0, subtotal: 0, totalPrice: 0 }
+    return { grandTotal: 0, setupAndCleanUp: 0, combiningSavings: 0, sundriesAndFees: 0, subtotal: 0, totalPrice: 0, rawSubtotalBeforeSavings: 0 }
   }
 
   // Grand Total = (productiveHours × wage × burden + paintCost) / markup
@@ -938,10 +949,90 @@ export function calculateCostBreakdown(
 
   return {
     grandTotal,
-    setupAndCleanUp:  setupCost,
+    setupAndCleanUp:          setupCost,
     combiningSavings,
     sundriesAndFees,
     subtotal,
     totalPrice,
+    rawSubtotalBeforeSavings: rawGrandTotal + rawSetupCost + rawSundriesAndFees,
   }
+}
+
+// ── Combining Rooms & Items Savings ───────────────────────────────────────────
+
+/**
+ * When multiple rooms share the same paint product, painting them together
+ * requires fewer total gallons than rounding up per room individually.
+ * This savings = (per-room-rounded total − combined-rounded total) × price / markup
+ * Matches the sheet formula: X15 = X4+X6+X8+X10
+ * Applies to: walls, ceilings, trim (all trim surfaces combined), and other.
+ * Misc is excluded (0-cost paint).
+ */
+export function calculateCombiningSavings(
+  options:       RoomOption[],
+  rates:         InteriorProductionRates,
+  constants:     InteriorProductionConstants,
+  paintProducts: InteriorPaintProduct[],
+  rules:         InteriorBusinessRules,
+): number {
+  if (options.length <= 1) return 0
+
+  const markup = 1 - (
+    rules.netProfitMargin + rules.overheadMargin + rules.marketingMargin +
+    rules.salesMargin     + rules.productionMgmtMargin
+  )
+  if (markup <= 0) return 0
+
+  const overviews = options.map(o =>
+    calculatePainterOverview(o, rates, constants, paintProducts, rules)
+  )
+
+  // Helper: gallon savings for one surface type, then convert to price savings
+  function galSavings(
+    rawPerRoom:       number[],
+    pricePerGallon:   (roomIdx: number) => number,
+  ): number {
+    const sumRaw     = rawPerRoom.reduce((s, g) => s + g, 0)
+    if (sumRaw === 0) return 0
+    const combined   = Math.ceil(sumRaw)
+    const perRoomSum = rawPerRoom.reduce((s, g) => s + Math.ceil(g), 0)
+    const saved      = perRoomSum - combined
+    if (saved <= 0) return 0
+    // Use the price of the first room that actually has gallons
+    const idx = rawPerRoom.findIndex(g => g > 0)
+    const price = idx >= 0 ? pricePerGallon(idx) : 0
+    return saved * price / markup
+  }
+
+  let savings = 0
+
+  // Walls
+  savings += galSavings(
+    overviews.map(po => po.wallRawGallons),
+    i => paintProducts.find(p => p.id === options[i].paints.wall)?.pricePerGallon ?? 0,
+  )
+
+  // Ceilings
+  savings += galSavings(
+    overviews.map(po => po.ceilingRawGallons),
+    i => paintProducts.find(p => p.id === options[i].paints.ceiling)?.pricePerGallon ?? 0,
+  )
+
+  // Trim (baseboards + doors + frames + windows all use trim paint)
+  savings += galSavings(
+    overviews.map(po => po.trimRawGallons),
+    i => paintProducts.find(p => p.id === options[i].paints.trim)?.pricePerGallon ?? 0,
+  )
+
+  // Other
+  savings += galSavings(
+    overviews.map(po => po.otherGallons),  // user-entered (exact integers)
+    i => {
+      const prod = paintProducts.find(p => p.id === options[i].paints.other)
+                ?? paintProducts.find(p => p.id === options[i].paints.wall)
+      return prod?.pricePerGallon ?? 0
+    },
+  )
+
+  return Math.round(savings * 100) / 100
 }

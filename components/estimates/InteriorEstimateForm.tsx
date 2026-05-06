@@ -8,7 +8,7 @@ import { DEFAULT_INTERIOR_PAINT_PRODUCTS } from '@/lib/defaultSettings'
 import { createInteriorEstimate, updateInteriorEstimate, resetSignatureForInteriorChangeOrder } from '@/lib/firebase/interiorEstimates'
 import { uploadPhoto, deletePhoto } from '@/lib/firebase/storage'
 import AppHeader from '@/components/AppHeader'
-import { calculateWallCalc, calculateCeilingCalc, calculateBaseboardCalc, calculateDoorCalc, calculateDoorFrameCalc, calculateWindowCalc, calculateMiscCalc, calculateOtherCalc, calculatePainterOverview, calculateCostBreakdown } from '@/lib/interiorCalculations'
+import { calculateWallCalc, calculateCeilingCalc, calculateBaseboardCalc, calculateDoorCalc, calculateDoorFrameCalc, calculateWindowCalc, calculateMiscCalc, calculateOtherCalc, calculatePainterOverview, calculateCostBreakdown, calculateCombiningSavings } from '@/lib/interiorCalculations'
 import { DEFAULT_INTERIOR_RATES, DEFAULT_INTERIOR_RULES, DEFAULT_INTERIOR_CONSTANTS } from '@/lib/defaultSettings'
 import type { InteriorEstimateRecord } from '@/lib/firebase/interiorEstimates'
 import { computeOverview } from '@/types/interiorEstimate'
@@ -530,6 +530,20 @@ export default function InteriorEstimateForm({
   const otherCalc       = calculateOtherCalc(activeOption, products, rules)
   const painterOverview = calculatePainterOverview(activeOption, DEFAULT_INTERIOR_RATES, DEFAULT_INTERIOR_CONSTANTS, products, rules)
   const costBreakdown   = calculateCostBreakdown(painterOverview, rules)
+
+  // ── All-rooms totals (for Cost & Price Breakdown section) ────────────────────
+  const allOverviews        = draft.options.map(o => calculatePainterOverview(o, DEFAULT_INTERIOR_RATES, DEFAULT_INTERIOR_CONSTANTS, products, rules))
+  const allBreakdowns       = allOverviews.map(po => calculateCostBreakdown(po, rules))
+  const combiningSavings    = draft.options.length > 1
+    ? calculateCombiningSavings(draft.options, DEFAULT_INTERIOR_RATES, DEFAULT_INTERIOR_CONSTANTS, products, rules)
+    : 0
+  const salesDiscount       = rules.salesDiscount ?? 0.10
+  const allRoomsGrandTotal  = Math.round(allBreakdowns.reduce((s, cb) => s + cb.grandTotal,      0) * 100) / 100
+  const allRoomsSetup       = Math.round(allBreakdowns.reduce((s, cb) => s + cb.setupAndCleanUp, 0) * 100) / 100
+  const allRoomsSundries    = Math.round(allBreakdowns.reduce((s, cb) => s + cb.sundriesAndFees, 0) * 100) / 100
+  const allRoomsRawSum      = allBreakdowns.reduce((s, cb) => s + cb.rawSubtotalBeforeSavings, 0) - combiningSavings
+  const allRoomsTotalPrice  = Math.round(allRoomsRawSum / (1 - salesDiscount) * 100) / 100
+
   const isEditing      = !!estimateId
 
   // ── Render ───────────────────────────────────────────────────────────────────
@@ -1357,30 +1371,39 @@ export default function InteriorEstimateForm({
               </div>
             </div>
 
-            {/* Cost and Price Breakdown */}
+            {/* Cost and Price Breakdown — all rooms combined */}
             <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
               <div className="px-4 py-3 border-b border-gray-100">
-                <h3 className="text-sm font-semibold text-gray-700">Cost and Price Breakdown</h3>
+                <h3 className="text-sm font-semibold text-gray-700">
+                  Cost and Price Breakdown
+                  {draft.options.length > 1 && <span className="ml-1 text-xs font-normal text-gray-400">(all rooms)</span>}
+                </h3>
               </div>
               <div className="py-2">
                 {([
-                  ['Grand Total of Paint and Labor', costBreakdown.grandTotal,       true],
-                  ['Set up and Clean Up',             costBreakdown.setupAndCleanUp,  true],
-                  ['Combining Rooms & Items Savings', costBreakdown.combiningSavings, true],
-                  ['Sundries & Paint Store Fees',     costBreakdown.sundriesAndFees,  true],
-                  ['Subtotal',                        costBreakdown.subtotal,         true],
-                ] as [string, number, boolean][]).map(([label, val, isMoney]) => (
+                  ['Grand Total of Paint and Labor', allRoomsGrandTotal, true],
+                  ['Set up and Clean Up',             allRoomsSetup,      true],
+                  ['Sundries & Paint Store Fees',     allRoomsSundries,   true],
+                ] as [string, number, boolean][]).map(([label, val]) => (
                   <div key={label} className="flex items-center justify-between px-4 py-1.5">
-                    <span className="text-gray-500">{label}</span>
-                    <span className={`font-semibold tabular-nums ${val > 0 ? 'text-brand-700' : 'text-gray-300'}`}>
-                      {val > 0 ? (isMoney ? `$${val.toFixed(2)}` : val.toString()) : '—'}
+                    <span className="text-xs text-gray-500">{label}</span>
+                    <span className={`text-xs font-semibold tabular-nums ${val > 0 ? 'text-brand-700' : 'text-gray-300'}`}>
+                      {val > 0 ? `$${val.toFixed(2)}` : '—'}
                     </span>
                   </div>
                 ))}
+                {combiningSavings > 0 && (
+                  <div className="flex items-center justify-between px-4 py-1.5">
+                    <span className="text-xs text-gray-500">Combining Rooms Savings</span>
+                    <span className="text-xs font-semibold tabular-nums text-green-600">
+                      −${combiningSavings.toFixed(2)}
+                    </span>
+                  </div>
+                )}
                 <div className="mx-4 mt-2 pt-2 border-t border-gray-100 flex items-center justify-between">
                   <span className="text-sm font-bold text-gray-800">Total Price</span>
-                  <span className={`text-sm font-bold tabular-nums ${costBreakdown.totalPrice > 0 ? 'text-brand-700' : 'text-gray-300'}`}>
-                    {costBreakdown.totalPrice > 0 ? `$${costBreakdown.totalPrice.toLocaleString()}` : '—'}
+                  <span className={`text-sm font-bold tabular-nums ${allRoomsTotalPrice > 0 ? 'text-brand-700' : 'text-gray-300'}`}>
+                    {allRoomsTotalPrice > 0 ? `$${allRoomsTotalPrice.toLocaleString()}` : '—'}
                   </span>
                 </div>
               </div>

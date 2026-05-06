@@ -6,6 +6,7 @@ import { getSettingsDoc } from '@/lib/firebase/settings'
 import {
   calculatePainterOverview,
   calculateCostBreakdown,
+  calculateCombiningSavings,
 } from '@/lib/interiorCalculations'
 import {
   DEFAULT_INTERIOR_RULES,
@@ -23,16 +24,15 @@ function fmtD(n: number) {
   return n.toLocaleString('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 2 })
 }
 
-function getRoomPrice(
+function getRoomBreakdown(
   option: RoomOption,
   rates: InteriorProductionRates,
   constants: InteriorProductionConstants,
   products: InteriorPaintProduct[],
   rules: InteriorBusinessRules,
-): number {
+) {
   const po = calculatePainterOverview(option, rates, constants, products, rules)
-  const cb = calculateCostBreakdown(po, rules)
-  return cb.totalPrice
+  return calculateCostBreakdown(po, rules)
 }
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
@@ -97,24 +97,31 @@ export default function InteriorProposalPage({ params }: { params: Promise<{ id:
     load()
   }, [id])
 
-  // Per-room prices
-  const roomPrices = useMemo(() => {
-    if (!estimate) return new Map<string, number>()
-    const map = new Map<string, number>()
+  // Per-room breakdowns (for individual prices and raw subtotals)
+  const roomBreakdowns = useMemo(() => {
+    if (!estimate) return new Map<string, ReturnType<typeof getRoomBreakdown>>()
+    const map = new Map<string, ReturnType<typeof getRoomBreakdown>>()
     for (const option of estimate.options) {
-      map.set(option.id, getRoomPrice(option, rates, constants, products, rules))
+      map.set(option.id, getRoomBreakdown(option, rates, constants, products, rules))
     }
     return map
   }, [estimate, rates, constants, products, rules])
 
-  // Total of selected rooms
+  // Total of selected rooms — with combining savings
   const selectedTotal = useMemo(() => {
-    let total = 0
-    for (const [id, price] of roomPrices) {
-      if (selectedRooms.has(id)) total += price
-    }
-    return total
-  }, [roomPrices, selectedRooms])
+    if (!estimate) return 0
+    const selected = estimate.options.filter(o => selectedRooms.has(o.id))
+    if (selected.length === 0) return 0
+    const salesDiscount = rules.salesDiscount ?? 0.10
+    const savings = selected.length > 1
+      ? calculateCombiningSavings(selected, rates, constants, products, rules)
+      : 0
+    const rawSum = selected.reduce((s, o) => {
+      const cb = roomBreakdowns.get(o.id)
+      return s + (cb?.rawSubtotalBeforeSavings ?? 0)
+    }, 0) - savings
+    return Math.round(rawSum / (1 - salesDiscount) * 100) / 100
+  }, [estimate, selectedRooms, roomBreakdowns, rates, constants, products, rules])
 
   const depositPercent = rules.depositPercent ?? 0.20
   const depositAmount  = selectedTotal * depositPercent
@@ -277,7 +284,7 @@ export default function InteriorProposalPage({ params }: { params: Promise<{ id:
           {/* Room list */}
           <div className="space-y-2">
             {estimate.options.map(option => {
-              const price     = roomPrices.get(option.id) ?? 0
+              const price     = roomBreakdowns.get(option.id)?.totalPrice ?? 0
               const isChecked = selectedRooms.has(option.id)
               return (
                 <label
