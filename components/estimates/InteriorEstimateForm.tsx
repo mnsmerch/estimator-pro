@@ -264,21 +264,52 @@ function recordToDraft(r: InteriorEstimateRecord): InteriorEstimateDraft {
   }
 }
 
+const WA_DOR_URL = 'https://webgis.dor.wa.gov/webapi/AddressRates.aspx'
+
+async function taxLookupCall(addr: string, city: string, zip: string): Promise<number | null> {
+  const params = new URLSearchParams({ output: 'text', addr, city, zip })
+  const res = await fetch(`${WA_DOR_URL}?${params}`)
+  if (!res.ok) return null
+  const text = await res.text()
+  const rateMatch = text.match(/Rate=([\d.]+)/)
+  const codeMatch = text.match(/ResultCode=(\d+)/)
+  const rate       = rateMatch ? parseFloat(rateMatch[1]) : null
+  const resultCode = codeMatch ? parseInt(codeMatch[1])   : null
+  if (rate === null || resultCode === null || resultCode >= 6) return null
+  return rate
+}
+
 async function lookupSalesTax(fullAddress: string): Promise<number | null> {
   try {
-    const zipMatch  = fullAddress.match(/\b(\d{5}(?:-\d{4})?)\b/)
+    // Match zip at END of string to avoid picking up 5-digit street numbers (e.g. 11403)
+    const zipMatch  = fullAddress.match(/(\d{5}(?:-\d{4})?)\s*$/)
     const zip       = zipMatch?.[1] ?? ''
     const parts     = fullAddress.split(/[,\n]+/).map(s => s.trim()).filter(Boolean)
     const addr      = parts[0] ?? ''
     const cityChunk = parts[1] ?? ''
-    const city      = cityChunk.replace(/\s+[A-Z]{2}\s+[\d-]+$/, '').replace(/\s+[A-Z]{2}$/, '').trim()
-    const res = await fetch('/api/tax-lookup', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ addr, city, zip }),
-    })
-    if (!res.ok) return null
-    const { rate } = await res.json() as { rate: number }
-    return typeof rate === 'number' ? rate : null
+    // Strip state code (2 letters, any case) and optional zip from the city chunk
+    const city = cityChunk
+      .replace(/\s+[A-Za-z]{2}\s+[\d-]+$/, '')
+      .replace(/\s+[A-Za-z]{2}$/, '')
+      .trim()
+
+    // Try full lookup first
+    const rate = await taxLookupCall(addr, city, zip)
+    if (rate !== null) return rate
+
+    // Fallback: city + zip only (no street)
+    if (zip) {
+      const rate2 = await taxLookupCall('', city, zip)
+      if (rate2 !== null) return rate2
+    }
+
+    // Last resort: zip only
+    if (zip) {
+      const rate3 = await taxLookupCall('', '', zip)
+      if (rate3 !== null) return rate3
+    }
+
+    return null
   } catch {
     return null
   }
@@ -296,16 +327,25 @@ export default function InteriorEstimateForm({
   const router  = useRouter()
   const { user } = useAuth()
 
-  const firstOpt = initialRecord ? initialRecord.options[0] : newOption('Room 1')
+  const firstOpt = (initialRecord && initialRecord.options.length > 0)
+    ? initialRecord.options[0]
+    : newOption('Room 1')
 
-  const [draft, setDraft]       = useState<InteriorEstimateDraft>(() =>
-    initialRecord ? recordToDraft(initialRecord) : { clientName: '', address: '', clientPhone: '', clientEmail: '', salesTaxRate: null, options: [firstOpt], photoUrls: [], scope: { ...INTERIOR_SCOPE_DEFAULTS } }
-  )
+  const [draft, setDraft]       = useState<InteriorEstimateDraft>(() => {
+    if (initialRecord) {
+      const base = recordToDraft(initialRecord)
+      return { ...base, options: base.options.length > 0 ? base.options : [firstOpt] }
+    }
+    return { clientName: '', address: '', clientPhone: '', clientEmail: '', salesTaxRate: null, options: [firstOpt], photoUrls: [], scope: { ...INTERIOR_SCOPE_DEFAULTS } }
+  })
   const [activeId, setActiveId] = useState<string>(firstOpt?.id ?? '')
   const [products, setProducts] = useState<InteriorPaintProduct[]>(DEFAULT_INTERIOR_PAINT_PRODUCTS)
   const [rules, setRules]       = useState(DEFAULT_INTERIOR_RULES)
+  const [clientFolderId]  = useState(initialRecord?.clientFolderId  ?? '')
+  const [clientContactId] = useState(initialRecord?.clientContactId ?? '')
   const [saving, setSaving]         = useState(false)
   const [saved, setSaved]           = useState(false)
+  const [taxLookupFailed, setTaxLookupFailed] = useState(false)
   const [uploadingPhotos, setUploadingPhotos] = useState(false)
   const [uploadError, setUploadError]         = useState<string | null>(null)
 
@@ -608,9 +648,11 @@ export default function InteriorEstimateForm({
                 <button
                   onClick={async () => {
                     setSaving(true)
+                    setTaxLookupFailed(false)
                     try {
                       if (estimateId) {
                         const taxRate = draft.address ? await lookupSalesTax(draft.address) : null
+                        if (draft.address && taxRate === null) setTaxLookupFailed(true)
                         const updatedDraft = { ...draft, salesTaxRate: taxRate }
                         setDraft(updatedDraft)
                         await updateInteriorEstimate(estimateId, updatedDraft)
@@ -618,7 +660,7 @@ export default function InteriorEstimateForm({
                           await resetSignatureForInteriorChangeOrder(estimateId)
                         }
                       }
-                      window.open(`/ip/${estimateId}`, '_blank')
+                      window.open(`/ip/${estimateId}?t=${Date.now()}`, '_blank')
                     } finally {
                       setSaving(false)
                     }
@@ -646,9 +688,15 @@ export default function InteriorEstimateForm({
               <input
                 type="text" placeholder="e.g. 123 Main St, Seattle WA"
                 value={draft.address}
-                onChange={e => setDraft(prev => ({ ...prev, address: e.target.value }))}
+                onChange={e => { setDraft(prev => ({ ...prev, address: e.target.value, salesTaxRate: null })); setTaxLookupFailed(false) }}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
               />
+              {draft.salesTaxRate != null
+                ? <p className="mt-1 text-xs text-green-600">WA sales tax: {(draft.salesTaxRate * 100).toFixed(1)}%</p>
+                : taxLookupFailed
+                  ? <p className="mt-1 text-xs text-amber-600">Tax rate not found — check address includes city &amp; zip</p>
+                  : null
+              }
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
@@ -668,6 +716,18 @@ export default function InteriorEstimateForm({
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
               />
             </div>
+            {clientFolderId && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Folder ID</label>
+                <input type="text" value={clientFolderId} readOnly className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-gray-50 text-gray-500 cursor-not-allowed" />
+              </div>
+            )}
+            {clientContactId && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Contact ID</label>
+                <input type="text" value={clientContactId} readOnly className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-gray-50 text-gray-500 cursor-not-allowed" />
+              </div>
+            )}
           </div>
         </div>
 
@@ -1482,9 +1542,11 @@ export default function InteriorEstimateForm({
             <button
               onClick={async () => {
                 setSaving(true)
+                setTaxLookupFailed(false)
                 try {
                   if (estimateId) {
                     const taxRate = draft.address ? await lookupSalesTax(draft.address) : null
+                    if (draft.address && taxRate === null) setTaxLookupFailed(true)
                     const updatedDraft = { ...draft, salesTaxRate: taxRate }
                     setDraft(updatedDraft)
                     await updateInteriorEstimate(estimateId, updatedDraft)
@@ -1492,7 +1554,7 @@ export default function InteriorEstimateForm({
                       await resetSignatureForInteriorChangeOrder(estimateId)
                     }
                   }
-                  window.open(`/ip/${estimateId}`, '_blank')
+                  window.open(`/ip/${estimateId}?t=${Date.now()}`, '_blank')
                 } finally {
                   setSaving(false)
                 }

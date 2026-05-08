@@ -284,7 +284,28 @@ export default function ProposalPage({ params }: { params: Promise<{ id: string 
         }
       }
 
-      // 3. Create GHL invoices (deposit + balance) if contact ID is present
+      // 3. Create work order
+      try {
+        const scopeParts = [scopeProject, scopePrepWork, scopePainting, scopeCleanUp, scopeWalkThrough].filter(Boolean)
+        await fetch('/api/work-orders/create', {
+          method:  'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body:    JSON.stringify({
+            estimateId:      id,
+            estimateType:    'exterior',
+            clientName:      estimate.clientName,
+            clientAddress:   estimate.clientAddress,
+            clientEmail:     estimate.clientEmail,
+            clientPhone:     estimate.clientPhone,
+            clientContactId: estimate.clientContactId ?? '',
+            scopeOfWork:     scopeParts.join('\n\n'),
+          }),
+        })
+      } catch {
+        // Non-blocking — don't fail signing if work order creation fails
+      }
+
+      // 4. Create GHL invoices (deposit + balance) if contact ID is present
       if (estimate.clientContactId) {
         setInvoiceStatus('creating')
         try {

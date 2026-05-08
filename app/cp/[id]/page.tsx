@@ -1,0 +1,623 @@
+'use client'
+
+import { useState, useEffect, use, useRef, useCallback } from 'react'
+import { getCabinetEstimateFromServer, acceptCabinetEstimate } from '@/lib/firebase/cabinetEstimates'
+import { getSettingsDoc } from '@/lib/firebase/settings'
+import { DEFAULT_COMPANY } from '@/lib/defaultSettings'
+import type { CabinetEstimateRecord } from '@/lib/firebase/cabinetEstimates'
+import type { CompanySettings } from '@/types/settings'
+import { calculateCabinet, CABINET_PRICING } from '@/types/cabinetEstimate'
+
+function fmtD(n: number) {
+  return n.toLocaleString('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 2 })
+}
+
+function parseCityFromAddress(address: string): string {
+  const parts = address.split(/[,\n]+/).map(s => s.trim()).filter(Boolean)
+  const cityChunk = parts[1] ?? ''
+  return cityChunk.replace(/\s+[A-Za-z]{2}\s+[\d-]+$/, '').replace(/\s+[A-Za-z]{2}$/, '').trim()
+}
+
+// ─── Page ─────────────────────────────────────────────────────────────────────
+
+export default function CabinetProposalPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = use(params)
+
+  const [estimate,  setEstimate]  = useState<CabinetEstimateRecord | null>(null)
+  const [company,   setCompany]   = useState<CompanySettings>(DEFAULT_COMPANY)
+  const [loading,   setLoading]   = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
+
+  const [applyDiscount, setApplyDiscount] = useState(true)
+  const [logoLoaded,    setLogoLoaded]    = useState(false)
+  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null)
+
+  // Signature
+  const [sigName,    setSigName]    = useState('')
+  const [sigDataUrl, setSigDataUrl] = useState<string | null>(null)
+  const [agreed,     setAgreed]     = useState(false)
+  const [signing,    setSigning]    = useState(false)
+  const [signed,     setSigned]     = useState(false)
+
+  useEffect(() => {
+    async function load() {
+      try {
+        const [est, co] = await Promise.all([
+          getCabinetEstimateFromServer(id),
+          getSettingsDoc<CompanySettings>('company', DEFAULT_COMPANY),
+        ])
+        if (est) {
+          setEstimate(est)
+          setSigned(est.status === 'approved')
+          setSigName(est.signatureName ?? '')
+        }
+        setCompany(co)
+        setLoading(false)
+      } catch (err) {
+        setLoadError(err instanceof Error ? err.message : String(err))
+        setLoading(false)
+      }
+    }
+    load()
+  }, [id])
+
+  // ── Pricing ────────────────────────────────────────────────────────────────
+  const bd = estimate ? calculateCabinet(estimate) : null
+  const subtotal       = bd?.total ?? 0
+  const discountAmount = applyDiscount ? Math.round(subtotal * 0.10 * 100) / 100 : 0
+  const discounted     = subtotal - discountAmount
+  const taxRate        = estimate?.salesTaxRate ?? null
+  const taxAmount      = taxRate != null ? Math.round(discounted * taxRate * 100) / 100 : 0
+  const totalWithTax   = discounted + taxAmount
+  const depositPercent = 0.20
+  const depositAmount  = Math.round(totalWithTax * depositPercent * 100) / 100
+  const balanceDue     = Math.round((totalWithTax - depositAmount) * 100) / 100
+
+  async function handleSign() {
+    if (!sigName.trim() || !agreed || !sigDataUrl || !estimate) return
+    setSigning(true)
+    try {
+      await acceptCabinetEstimate(id, sigName.trim(), sigDataUrl)
+      setSigned(true)
+      setEstimate(prev => prev ? { ...prev, status: 'approved', signatureName: sigName.trim() } : prev)
+    } catch (err) {
+      console.error('Failed to accept estimate:', err)
+    } finally {
+      setSigning(false)
+    }
+  }
+
+  // ── Loading / error ────────────────────────────────────────────────────────
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-100 flex items-center justify-center">
+        <div className="w-6 h-6 border-2 border-brand-600 border-t-transparent rounded-full animate-spin" />
+      </div>
+    )
+  }
+  if (loadError || !estimate) {
+    return (
+      <div className="min-h-screen bg-gray-100 flex items-center justify-center p-6">
+        <div className="bg-white rounded-2xl border border-red-200 p-8 max-w-md w-full text-center">
+          <p className="text-red-600 font-medium">{loadError ?? 'Estimate not found.'}</p>
+        </div>
+      </div>
+    )
+  }
+
+  const hasPhotos = estimate.photoUrls.length > 0
+  const hasScope  = !!(estimate.scope.projectDescription || estimate.scope.prepWork || estimate.scope.paintProcess || estimate.scope.finalTouches || estimate.scope.paintProducts)
+
+  return (
+    <div className="min-h-screen bg-gray-100 py-6 px-4">
+      <div className="max-w-2xl mx-auto space-y-4">
+
+        {/* ── Company header ──────────────────────────────────────────────── */}
+        <div className="bg-brand-700 text-white rounded-2xl p-5 sm:p-7">
+          {/* Row 1: logo + name + date */}
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex items-center gap-3 min-w-0">
+              {company.logoUrl && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={company.logoUrl}
+                  alt={`${company.name} logo`}
+                  onLoad={() => setLogoLoaded(true)}
+                  className={`h-12 w-12 sm:h-14 sm:w-14 object-contain rounded-lg bg-white p-1.5 shrink-0 shadow-sm transition-opacity duration-300 ${logoLoaded ? 'opacity-100' : 'opacity-0'}`}
+                />
+              )}
+              <h1 className="text-lg sm:text-2xl font-bold tracking-tight leading-tight">{company.name}</h1>
+            </div>
+            <div className="text-right shrink-0">
+              <p className="text-brand-300 text-xs uppercase tracking-wide">Cabinet Estimate</p>
+              <p className="text-sm font-semibold mt-0.5 whitespace-nowrap">
+                {new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
+              </p>
+            </div>
+          </div>
+          {/* Row 2: contact details */}
+          <div className="mt-3 pt-3 border-t border-brand-600 space-y-0.5">
+            <p className="text-brand-200 text-sm">{company.streetAddress} · {company.cityStateZip}</p>
+            <p className="text-brand-200 text-sm">{[company.phone, company.email].filter(Boolean).join(' · ')}</p>
+            {company.website      && <p className="text-brand-200 text-sm">{company.website}</p>}
+            {company.licenseNumber && <p className="text-brand-200 text-sm">Lic# {company.licenseNumber}</p>}
+          </div>
+        </div>
+
+        {/* ── Client info ─────────────────────────────────────────────────── */}
+        <div className="bg-white rounded-2xl border border-gray-200 p-5 sm:p-6">
+          <p className="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-3">Prepared For</p>
+          <p className="text-xl font-bold text-gray-900">{estimate.clientName || 'Client'}</p>
+          {estimate.address     && <p className="text-sm text-gray-500 mt-1">{estimate.address}</p>}
+          {estimate.clientPhone && <p className="text-sm text-gray-500 mt-0.5">{estimate.clientPhone}</p>}
+          {estimate.clientEmail && <p className="text-sm text-gray-500 mt-0.5">{estimate.clientEmail}</p>}
+        </div>
+
+        {/* ── Scope of work ───────────────────────────────────────────────── */}
+        {hasScope && (
+          <div className="bg-white rounded-2xl border border-gray-200 p-5 sm:p-6 space-y-5">
+            <h2 className="text-base font-bold text-gray-900">Scope of Work</h2>
+            {estimate.scope.projectDescription && <ScopeBlock label="Project Description" text={estimate.scope.projectDescription} />}
+            {estimate.scope.prepWork           && <ScopeBlock label="Prep Work"           text={estimate.scope.prepWork} />}
+            {estimate.scope.paintProcess       && <ScopeBlock label="Paint Process"       text={estimate.scope.paintProcess} />}
+            {estimate.scope.finalTouches       && <ScopeBlock label="Final Touches"       text={estimate.scope.finalTouches} />}
+            {estimate.scope.paintProducts      && <ScopeBlock label="Paint Products"      text={estimate.scope.paintProducts} />}
+          </div>
+        )}
+
+        {/* ── Photos ──────────────────────────────────────────────────────── */}
+        {hasPhotos && (
+          <div className="bg-white rounded-2xl border border-gray-200 p-5 sm:p-6">
+            <h2 className="text-base font-bold text-gray-900 mb-3">Project Photos</h2>
+            <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+              {estimate.photoUrls.map((url, idx) => (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  key={url}
+                  src={url}
+                  alt={`Photo ${idx + 1}`}
+                  className="w-full aspect-square object-cover rounded-xl cursor-pointer hover:opacity-90 transition-opacity"
+                  onClick={() => setLightboxIndex(idx)}
+                />
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* ── Discount toggle ─────────────────────────────────────────────── */}
+        <div className={`rounded-2xl border-2 p-5 transition-colors ${
+          applyDiscount ? 'bg-green-50 border-green-400' : 'bg-white border-gray-200'
+        }`}>
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex-1">
+              <p className="text-base font-bold text-gray-900">Sign Today &amp; Save 10%</p>
+              <p className="text-sm text-gray-600 mt-0.5">
+                Accept this estimate today and save{' '}
+                <span className="font-semibold text-green-700">{fmtD(subtotal * 0.10)}</span>{' '}
+                off your project.
+              </p>
+              {applyDiscount && (
+                <p className="text-sm font-semibold text-green-700 mt-2">
+                  ✓ 10% discount applied — {fmtD(discountAmount)} savings included in your total
+                </p>
+              )}
+            </div>
+            <button
+              role="switch"
+              aria-checked={applyDiscount}
+              onClick={() => setApplyDiscount(v => !v)}
+              className={`relative inline-flex h-7 w-12 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 ${
+                applyDiscount ? 'bg-green-500' : 'bg-gray-300'
+              }`}
+            >
+              <span className={`pointer-events-none inline-block h-6 w-6 transform rounded-full bg-white shadow-md transition-transform ${
+                applyDiscount ? 'translate-x-5' : 'translate-x-0'
+              }`} />
+            </button>
+          </div>
+        </div>
+
+        {/* ── Pricing summary ─────────────────────────────────────────────── */}
+        {bd && (
+          <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
+            <div className="bg-gray-800 text-white text-center text-xs font-bold py-2.5 tracking-widest uppercase">
+              Your Estimate
+            </div>
+            <div className="p-6">
+
+              {/* Line items */}
+              <div className="space-y-2.5">
+                {bd.doorsTotal > 0 && (
+                  <PriceLine
+                    label={`${bd.doors} Door${bd.doors !== 1 ? 's' : ''} × ${fmtD(CABINET_PRICING.perDoor)}`}
+                    value={fmtD(bd.doorsTotal)}
+                  />
+                )}
+                {bd.drawersTotal > 0 && (
+                  <PriceLine
+                    label={`${bd.drawers} Drawer${bd.drawers !== 1 ? 's' : ''} × ${fmtD(CABINET_PRICING.perDrawer)}`}
+                    value={fmtD(bd.drawersTotal)}
+                  />
+                )}
+                {bd.panelsTotal > 0 && (
+                  <PriceLine
+                    label={`${bd.totalPanelEquivs} Panel Door-Equiv × ${fmtD(CABINET_PRICING.perPanelDoorEquiv)}`}
+                    value={fmtD(bd.panelsTotal)}
+                  />
+                )}
+                {bd.twoToneTotal > 0 && (
+                  <PriceLine label="Two-tone Color Scheme" value={fmtD(bd.twoToneTotal)} />
+                )}
+                {bd.patchHolesTotal > 0 && (
+                  <PriceLine
+                    label={`Patch / Drill Holes (${bd.doors + bd.drawers} items × ${fmtD(CABINET_PRICING.perPatchDrill)})`}
+                    value={fmtD(bd.patchHolesTotal)}
+                  />
+                )}
+                {bd.aquaCoatTotal > 0 && (
+                  <PriceLine
+                    label={`AquaCoat Grain Filler (${bd.doors + bd.drawers} items × ${fmtD(CABINET_PRICING.perAquaCoat)})`}
+                    value={fmtD(bd.aquaCoatTotal)}
+                  />
+                )}
+              </div>
+
+              {/* Subtotal / discount / tax */}
+              <div className="border-t border-gray-100 mt-4 pt-4 space-y-2.5">
+                <PriceLine label="Subtotal" value={fmtD(subtotal)} />
+                {applyDiscount && (
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm font-medium text-green-700">Discount (10% — Sign Today)</span>
+                    <span className="text-sm font-medium text-green-700 tabular-nums">− {fmtD(discountAmount)}</span>
+                  </div>
+                )}
+                {taxRate != null && (
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-gray-600">
+                      Sales Tax ({(taxRate * 100).toFixed(1)}%{parseCityFromAddress(estimate.address) ? ` — ${parseCityFromAddress(estimate.address)}` : ''})
+                    </span>
+                    <span className="text-sm text-gray-900 tabular-nums">+ {fmtD(taxAmount)}</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Deposit banner */}
+              <div className="bg-brand-50 border-t border-brand-200 mt-4 px-4 py-4 -mx-6 flex justify-between items-center">
+                <div>
+                  <p className="text-sm font-bold text-brand-700">Deposit Due ({Math.round(depositPercent * 100)}%)</p>
+                  <p className="text-xs text-brand-500 mt-0.5">Required to secure your project start date</p>
+                </div>
+                <span className="text-xl font-bold text-brand-600 tabular-nums">{fmtD(depositAmount)}</span>
+              </div>
+
+              {/* Balance */}
+              <div className="border-t border-gray-100 pt-3 pb-1 flex justify-between items-center">
+                <span className="text-sm text-gray-400">Balance due on completion</span>
+                <span className="text-sm text-gray-400 tabular-nums">{fmtD(balanceDue)}</span>
+              </div>
+
+              {/* Total */}
+              <div className="border-t border-gray-200 pt-4 flex justify-between items-center">
+                <span className="text-base font-bold text-gray-900">Total</span>
+                <span className="text-base font-bold text-gray-900 tabular-nums">{fmtD(totalWithTax)}</span>
+              </div>
+
+            </div>
+          </div>
+        )}
+
+        {/* ── Terms & Conditions ──────────────────────────────────────────── */}
+        <TermsAndConditions />
+
+        {/* ── Signature ───────────────────────────────────────────────────── */}
+        <div className="bg-white rounded-2xl border border-gray-200 p-5 sm:p-6">
+          {signed ? (
+            <div className="text-center py-4 space-y-2">
+              <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center mx-auto">
+                <svg className="w-6 h-6 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
+                </svg>
+              </div>
+              <h3 className="text-xl font-bold text-gray-900">Estimate Accepted!</h3>
+              {estimate.signatureName && (
+                <p className="text-gray-500 mt-2">Signed by <strong>{estimate.signatureName}</strong></p>
+              )}
+              {estimate.signatureDataUrl && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={estimate.signatureDataUrl}
+                  alt="Signature"
+                  className="mx-auto mt-3 max-h-16 border border-gray-200 rounded-lg bg-gray-50 px-4 py-2"
+                />
+              )}
+              <p className="text-sm text-gray-400 mt-3">
+                Thank you! We will reach out shortly to schedule your project.
+              </p>
+            </div>
+          ) : (
+            <>
+              <h3 className="text-base font-bold text-gray-900 mb-1">Accept This Estimate</h3>
+              <p className="text-sm text-gray-400 mb-5">
+                By signing below you authorize {company.name} to proceed with the work described above at the price shown.
+              </p>
+              <div className="space-y-4">
+                <label className="flex items-start gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={agreed}
+                    onChange={e => setAgreed(e.target.checked)}
+                    className="mt-0.5 w-4 h-4 rounded accent-brand-600"
+                  />
+                  <span className="text-sm text-gray-600">
+                    I have read and agree to the scope of work and pricing outlined above.
+                  </span>
+                </label>
+
+                <div>
+                  <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">Full Name</label>
+                  <input
+                    type="text"
+                    value={sigName}
+                    onChange={e => setSigName(e.target.value)}
+                    placeholder="Type your full name"
+                    className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+                  />
+                </div>
+
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wide">
+                      Signature <span className="text-red-400">*</span>
+                    </label>
+                    {sigDataUrl && (
+                      <button onClick={() => setSigDataUrl(null)} className="text-xs text-gray-400 hover:text-red-500 transition-colors">
+                        Clear
+                      </button>
+                    )}
+                  </div>
+                  <SignaturePad onSign={setSigDataUrl} cleared={!sigDataUrl} />
+                  {!sigDataUrl && <p className="mt-1.5 text-xs text-gray-400">Draw your signature above using your finger or mouse.</p>}
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">Date</label>
+                  <input
+                    readOnly
+                    value={new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
+                    className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-gray-50 text-gray-400 cursor-default"
+                  />
+                </div>
+
+                <button
+                  onClick={handleSign}
+                  disabled={!agreed || !sigName.trim() || !sigDataUrl || signing}
+                  className="w-full py-3 rounded-xl bg-brand-600 text-white font-semibold text-sm hover:bg-brand-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                >
+                  {signing ? 'Signing…' : 'Sign & Accept Estimate'}
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+
+        {/* Footer */}
+        <p className="text-center text-xs text-gray-400 pb-6">
+          {company.name} · {company.phone} · {company.email}
+        </p>
+
+      </div>
+
+      {/* Lightbox */}
+      {lightboxIndex !== null && estimate.photoUrls.length > 0 && (
+        <Lightbox
+          urls={estimate.photoUrls}
+          index={lightboxIndex}
+          onClose={() => setLightboxIndex(null)}
+          onPrev={() => setLightboxIndex(i => i !== null ? (i - 1 + estimate.photoUrls.length) % estimate.photoUrls.length : 0)}
+          onNext={() => setLightboxIndex(i => i !== null ? (i + 1) % estimate.photoUrls.length : 0)}
+        />
+      )}
+    </div>
+  )
+}
+
+// ─── Sub-components ───────────────────────────────────────────────────────────
+
+function PriceLine({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex justify-between items-center">
+      <span className="text-sm text-gray-600">{label}</span>
+      <span className="text-sm font-medium text-gray-900 tabular-nums">{value}</span>
+    </div>
+  )
+}
+
+function ScopeBlock({ label, text }: { label: string; text: string }) {
+  return (
+    <div>
+      <p className="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-1">{label}</p>
+      <p className="text-sm text-gray-700 whitespace-pre-line leading-relaxed">{text}</p>
+    </div>
+  )
+}
+
+const DEFAULT_TERMS = `WARRANTY
+
+• Vanhousing Painters LLC gives workmanship warranty for a period of 3 years from date of significant completion of the project. If paint failure appears, we will supply labor and materials to correct the condition without cost. This warranty is in lieu of all other warranties, expressed or implied. Our responsibility is limited to correcting the condition as indicated above.
+
+• This warranty excludes, and in no event will Vanhousing Painters LLC be responsible for consequential or incidental damage caused by accident or abuse, temperature or humidity changes, settlement, or moisture.
+
+INSURANCE
+
+• Vanhousing Painters LLC carries full liability and auto insurance.
+
+• Certificate of insurance available upon request.
+
+STANDARDS
+
+• All work is to be completed in a workmanlike manner according to standard practices.
+
+• All work will be done as per standards of the PCA (Painting Contractors of America).
+
+GENERAL CONDITIONS
+
+• Any changes or additional work must be agreed upon in writing before work is performed.
+
+• Price is valid for 90 days, unless otherwise noted.
+
+PAYMENT TERMS
+
+• We require a 20% deposit upfront to secure your project start date.
+
+• The project will be billed in full and due upon completion of the scope.`
+
+function TermsAndConditions() {
+  const [open, setOpen] = useState(false)
+  return (
+    <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden">
+      <button
+        onClick={() => setOpen(o => !o)}
+        className="w-full flex items-center justify-between px-6 py-4 text-left hover:bg-gray-50 transition-colors"
+      >
+        <div className="flex items-center gap-3">
+          <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
+          </svg>
+          <span className="text-sm font-bold text-gray-900">Terms &amp; Conditions</span>
+        </div>
+        <svg className={`w-4 h-4 text-gray-400 transition-transform duration-200 ${open ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
+        </svg>
+      </button>
+      {open && (
+        <div className="px-6 pb-6 border-t border-gray-100">
+          <div className="mt-4 text-xs text-gray-600 whitespace-pre-line leading-relaxed">{DEFAULT_TERMS}</div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function Lightbox({ urls, index, onClose, onPrev, onNext }: {
+  urls: string[]; index: number; onClose: () => void; onPrev: () => void; onNext: () => void
+}) {
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') onClose()
+      if (e.key === 'ArrowLeft') onPrev()
+      if (e.key === 'ArrowRight') onNext()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onClose, onPrev, onNext])
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-sm" onClick={onClose}>
+      <div className="absolute top-4 left-1/2 -translate-x-1/2 text-white/60 text-sm tabular-nums">{index + 1} / {urls.length}</div>
+      <button onClick={onClose} className="absolute top-4 right-4 text-white/70 hover:text-white p-2 rounded-full hover:bg-white/10 transition-colors">
+        <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" /></svg>
+      </button>
+      {urls.length > 1 && (
+        <button onClick={e => { e.stopPropagation(); onPrev() }} className="absolute left-4 top-1/2 -translate-y-1/2 text-white/70 hover:text-white p-3 rounded-full hover:bg-white/10 transition-colors">
+          <svg className="w-7 h-7" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5" /></svg>
+        </button>
+      )}
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src={urls[index]} alt={`Photo ${index + 1}`} onClick={e => e.stopPropagation()} className="max-h-[90vh] max-w-[90vw] rounded-2xl object-contain shadow-2xl" />
+      {urls.length > 1 && (
+        <button onClick={e => { e.stopPropagation(); onNext() }} className="absolute right-4 top-1/2 -translate-y-1/2 text-white/70 hover:text-white p-3 rounded-full hover:bg-white/10 transition-colors">
+          <svg className="w-7 h-7" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" /></svg>
+        </button>
+      )}
+      {urls.length > 1 && (
+        <div className="absolute bottom-5 left-1/2 -translate-x-1/2 flex gap-1.5">
+          {urls.map((_, i) => <div key={i} className={`w-1.5 h-1.5 rounded-full transition-colors ${i === index ? 'bg-white' : 'bg-white/30'}`} />)}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function SignaturePad({ onSign, cleared }: { onSign: (dataUrl: string) => void; cleared: boolean }) {
+  const canvasRef = useRef<HTMLCanvasElement>(null)
+  const drawing   = useRef(false)
+  const lastPos   = useRef<{ x: number; y: number } | null>(null)
+
+  useEffect(() => {
+    if (!cleared) return
+    const canvas = canvasRef.current
+    if (!canvas) return
+    const ctx = canvas.getContext('2d')
+    ctx?.clearRect(0, 0, canvas.width, canvas.height)
+  }, [cleared])
+
+  const getPos = useCallback((e: React.MouseEvent | React.TouchEvent, canvas: HTMLCanvasElement) => {
+    const rect = canvas.getBoundingClientRect()
+    const scaleX = canvas.width / rect.width
+    const scaleY = canvas.height / rect.height
+    if ('touches' in e) {
+      const touch = e.touches[0]
+      return { x: (touch.clientX - rect.left) * scaleX, y: (touch.clientY - rect.top) * scaleY }
+    }
+    return { x: (e.clientX - rect.left) * scaleX, y: (e.clientY - rect.top) * scaleY }
+  }, [])
+
+  const startDraw = useCallback((e: React.MouseEvent | React.TouchEvent) => {
+    e.preventDefault()
+    const canvas = canvasRef.current
+    if (!canvas) return
+    drawing.current = true
+    lastPos.current = getPos(e, canvas)
+  }, [getPos])
+
+  const draw = useCallback((e: React.MouseEvent | React.TouchEvent) => {
+    e.preventDefault()
+    if (!drawing.current) return
+    const canvas = canvasRef.current
+    if (!canvas) return
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
+    const pos = getPos(e, canvas)
+    if (lastPos.current) {
+      ctx.beginPath()
+      ctx.strokeStyle = '#1e293b'
+      ctx.lineWidth   = 2.5
+      ctx.lineCap     = 'round'
+      ctx.lineJoin    = 'round'
+      ctx.moveTo(lastPos.current.x, lastPos.current.y)
+      ctx.lineTo(pos.x, pos.y)
+      ctx.stroke()
+    }
+    lastPos.current = pos
+  }, [getPos])
+
+  const endDraw = useCallback((e: React.MouseEvent | React.TouchEvent) => {
+    e.preventDefault()
+    if (!drawing.current) return
+    drawing.current = false
+    lastPos.current = null
+    const canvas = canvasRef.current
+    if (!canvas) return
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
+    const data = ctx.getImageData(0, 0, canvas.width, canvas.height).data
+    const hasInk = data.some((v, i) => i % 4 === 3 && v > 0)
+    if (hasInk) onSign(canvas.toDataURL('image/png'))
+  }, [onSign])
+
+  return (
+    <canvas
+      ref={canvasRef}
+      width={600}
+      height={150}
+      onMouseDown={startDraw}
+      onMouseMove={draw}
+      onMouseUp={endDraw}
+      onMouseLeave={endDraw}
+      onTouchStart={startDraw}
+      onTouchMove={draw}
+      onTouchEnd={endDraw}
+      className="w-full h-[150px] border-2 border-dashed border-gray-300 rounded-xl bg-gray-50 touch-none cursor-crosshair"
+    />
+  )
+}

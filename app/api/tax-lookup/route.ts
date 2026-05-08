@@ -17,7 +17,10 @@ export async function POST(req: NextRequest) {
   const url = `https://webgis.dor.wa.gov/webapi/AddressRates.aspx?${params.toString()}`
 
   try {
-    const res  = await fetch(url, { next: { revalidate: 0 } })
+    const res  = await fetch(url, {
+      next: { revalidate: 0 },
+      headers: { 'Accept-Encoding': 'identity' },
+    })
     const text = await res.text()
 
     // Response format: "LocationCode=3406  Rate=0.084  ResultCode=0"

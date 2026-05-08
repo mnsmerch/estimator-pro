@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useMemo, use, useRef, useCallback } from 'react'
-import { getInteriorEstimate, acceptInteriorEstimate } from '@/lib/firebase/interiorEstimates'
+import { getInteriorEstimateFromServer, acceptInteriorEstimate } from '@/lib/firebase/interiorEstimates'
 import { getSettingsDoc } from '@/lib/firebase/settings'
 import {
   calculatePainterOverview,
@@ -23,6 +23,13 @@ import type { RoomOption } from '@/types/interiorEstimate'
 
 function fmtD(n: number) {
   return n.toLocaleString('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 2 })
+}
+
+function parseCityFromAddress(address: string): string {
+  const parts = address.split(/[,\n]+/).map(s => s.trim()).filter(Boolean)
+  if (parts.length < 2) return ''
+  const cityChunk = parts[1] ?? ''
+  return cityChunk.replace(/\s+[A-Z]{2}\s+[\d-]+$/, '').replace(/\s+[A-Z]{2}$/, '').trim()
 }
 
 function getRoomBreakdown(
@@ -53,6 +60,9 @@ export default function InteriorProposalPage({ params }: { params: Promise<{ id:
   // Room selection state — all selected by default, set after load
   const [selectedRooms, setSelectedRooms] = useState<Set<string>>(new Set())
 
+  // Discount toggle
+  const [applyDiscount, setApplyDiscount] = useState(true)
+
   // Logo load state
   const [logoLoaded, setLogoLoaded] = useState(false)
 
@@ -66,11 +76,16 @@ export default function InteriorProposalPage({ params }: { params: Promise<{ id:
   const [signing,    setSigning]    = useState(false)
   const [signed,     setSigned]     = useState(false)
 
+  // Invoice state
+  const [invoiceStatus,      setInvoiceStatus]      = useState<'idle' | 'creating' | 'done' | 'error'>('idle')
+  const [invoiceError,       setInvoiceError]       = useState<string | null>(null)
+  const [depositInvoiceUrl,  setDepositInvoiceUrl]  = useState<string | null>(null)
+
   useEffect(() => {
     async function load() {
       try {
         const [est, r, pp, rt, ct, co] = await Promise.all([
-          getInteriorEstimate(id),
+          getInteriorEstimateFromServer(id),
           getSettingsDoc<InteriorBusinessRules>('interiorBusinessRules', DEFAULT_INTERIOR_RULES),
           getSettingsDoc<{ items: InteriorPaintProduct[] }>('interiorPaintProducts', { items: DEFAULT_INTERIOR_PAINT_PRODUCTS }),
           getSettingsDoc<InteriorProductionRates>('interiorRates', DEFAULT_INTERIOR_RATES),
@@ -145,9 +160,11 @@ export default function InteriorProposalPage({ params }: { params: Promise<{ id:
     return Math.round(rawSum / (1 - salesDiscount) * 100) / 100
   }, [estimate, selectedRooms, roomBreakdowns, roomOverviews, rates, constants, products, rules])
 
+  const discountAmount = applyDiscount ? Math.round(selectedTotal * 0.10 * 100) / 100 : 0
+  const discounted     = selectedTotal - discountAmount
   const taxRate        = estimate?.salesTaxRate ?? null
-  const taxAmount      = taxRate != null ? Math.round(selectedTotal * taxRate * 100) / 100 : 0
-  const totalWithTax   = selectedTotal + taxAmount
+  const taxAmount      = taxRate != null ? Math.round(discounted * taxRate * 100) / 100 : 0
+  const totalWithTax   = discounted + taxAmount
   const depositPercent = rules.depositPercent ?? 0.20
   const depositAmount  = Math.round(totalWithTax * depositPercent * 100) / 100
   const balanceDue     = Math.round((totalWithTax - depositAmount) * 100) / 100
@@ -168,9 +185,79 @@ export default function InteriorProposalPage({ params }: { params: Promise<{ id:
     if (!sigName.trim() || !agreed || !sigDataUrl || !estimate) return
     setSigning(true)
     try {
+      // 1. Save signature to Firestore
       await acceptInteriorEstimate(id, sigName.trim(), sigDataUrl)
       setSigned(true)
       setEstimate(prev => prev ? { ...prev, status: 'approved', signatureName: sigName.trim() } : prev)
+
+      // 2. Create work order
+      try {
+        const scopeParts = [
+          estimate.scope.projectDescription,
+          estimate.scope.prepWork,
+          estimate.scope.finalTouches,
+        ].filter(Boolean)
+        await fetch('/api/work-orders/create', {
+          method:  'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body:    JSON.stringify({
+            estimateId:      id,
+            estimateType:    'interior',
+            clientName:      estimate.clientName,
+            clientAddress:   estimate.address ?? '',
+            clientEmail:     estimate.clientEmail,
+            clientPhone:     estimate.clientPhone,
+            clientContactId: estimate.clientContactId ?? '',
+            scopeOfWork:     scopeParts.join('\n\n'),
+          }),
+        })
+      } catch {
+        // Non-blocking — don't fail signing if work order creation fails
+      }
+
+      // 3. Create GHL invoices (deposit + balance) if contact ID is present
+      if (estimate.clientContactId) {
+        setInvoiceStatus('creating')
+        try {
+          const itemLabel = `${applyDiscount ? '10% off ' : ''}Interior Painting`
+          const res = await fetch('/api/ghl/create-invoices', {
+            method:  'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body:    JSON.stringify({
+              contactId:    estimate.clientContactId,
+              contactName:  estimate.clientName,
+              contactEmail: estimate.clientEmail,
+              contactPhone: estimate.clientPhone,
+              depositAmount,
+              balanceDue,
+              depositPercent,
+              grandTotal:   totalWithTax,
+              itemLabel,
+              taxRate:      taxRate ?? null,
+              taxCity:      parseCityFromAddress(estimate.address ?? ''),
+              company: {
+                name:          company.name,
+                phone:         company.phone,
+                email:         company.email,
+                website:       company.website,
+                streetAddress: company.streetAddress,
+                cityStateZip:  company.cityStateZip,
+              },
+            }),
+          })
+          const json = await res.json() as { success?: boolean; error?: string; depositInvoiceUrl?: string }
+          if (json.error) {
+            setInvoiceStatus('error')
+            setInvoiceError(json.error)
+          } else {
+            setInvoiceStatus('done')
+            if (json.depositInvoiceUrl) setDepositInvoiceUrl(json.depositInvoiceUrl)
+          }
+        } catch (err) {
+          setInvoiceStatus('error')
+          setInvoiceError(err instanceof Error ? err.message : String(err))
+        }
+      }
     } catch (err) {
       console.error('Failed to accept estimate:', err)
     } finally {
@@ -220,35 +307,33 @@ export default function InteriorProposalPage({ params }: { params: Promise<{ id:
 
         {/* ── Company header ─────────────────────────────────────────────── */}
         <div className="bg-brand-700 text-white rounded-2xl p-5 sm:p-7">
+          {/* Row 1: logo + name + date */}
           <div className="flex items-start justify-between gap-3">
             <div className="flex items-center gap-3 min-w-0">
               {company.logoUrl && (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
                   src={company.logoUrl}
-                  alt={company.name}
+                  alt={`${company.name} logo`}
                   onLoad={() => setLogoLoaded(true)}
-                  className={`w-12 h-12 rounded-xl object-contain bg-white/10 transition-opacity duration-300 shrink-0 ${logoLoaded ? 'opacity-100' : 'opacity-0'}`}
+                  className={`h-12 w-12 sm:h-14 sm:w-14 object-contain rounded-lg bg-white p-1.5 shrink-0 shadow-sm transition-opacity duration-300 ${logoLoaded ? 'opacity-100' : 'opacity-0'}`}
                 />
               )}
-              <div className="min-w-0">
-                <h1 className="text-lg font-bold leading-tight">{company.name}</h1>
-                <p className="text-brand-200 text-xs mt-0.5">{company.streetAddress}</p>
-                <p className="text-brand-200 text-xs">{company.cityStateZip}</p>
-              </div>
+              <h1 className="text-lg sm:text-2xl font-bold tracking-tight leading-tight">{company.name}</h1>
             </div>
             <div className="text-right shrink-0">
-              <p className="text-brand-200 text-xs">
+              <p className="text-brand-300 text-xs uppercase tracking-wide">Interior Estimate</p>
+              <p className="text-sm font-semibold mt-0.5 whitespace-nowrap">
                 {new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
               </p>
-              <p className="text-brand-200 text-xs mt-0.5">Interior Estimate</p>
             </div>
           </div>
-          <div className="mt-4 pt-4 border-t border-brand-600 flex flex-wrap gap-x-5 gap-y-1">
-            {company.phone && <span className="text-brand-200 text-xs">{company.phone}</span>}
-            {company.email && <span className="text-brand-200 text-xs">{company.email}</span>}
-            {company.website && <span className="text-brand-200 text-xs">{company.website}</span>}
-            {company.licenseNumber && <span className="text-brand-200 text-xs">Lic# {company.licenseNumber}</span>}
+          {/* Row 2: contact details */}
+          <div className="mt-3 pt-3 border-t border-brand-600 space-y-0.5">
+            <p className="text-brand-200 text-sm">{company.streetAddress} · {company.cityStateZip}</p>
+            <p className="text-brand-200 text-sm">{[company.phone, company.email].filter(Boolean).join(' · ')}</p>
+            {company.website && <p className="text-brand-200 text-sm">{company.website}</p>}
+            {company.licenseNumber && <p className="text-brand-200 text-sm">Lic# {company.licenseNumber}</p>}
           </div>
         </div>
 
@@ -295,6 +380,40 @@ export default function InteriorProposalPage({ params }: { params: Promise<{ id:
           </div>
         )}
 
+        {/* ── Discount toggle ────────────────────────────────────────────── */}
+        <div className={`rounded-2xl border-2 p-5 transition-colors ${
+          applyDiscount ? 'bg-green-50 border-green-400' : 'bg-white border-gray-200'
+        }`}>
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex-1">
+              <p className="text-base font-bold text-gray-900">Sign Today &amp; Save 10%</p>
+              <p className="text-sm text-gray-600 mt-0.5">
+                Accept this estimate today and save{' '}
+                <span className="font-semibold text-green-700">{fmtD(selectedTotal * 0.10)}</span>{' '}
+                off your project.
+              </p>
+              {applyDiscount && (
+                <p className="text-sm font-semibold text-green-700 mt-2">
+                  ✓ 10% discount applied — {fmtD(discountAmount)} savings included in your total
+                </p>
+              )}
+            </div>
+            {/* Toggle */}
+            <button
+              role="switch"
+              aria-checked={applyDiscount}
+              onClick={() => setApplyDiscount(v => !v)}
+              className={`relative inline-flex h-7 w-12 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 ${
+                applyDiscount ? 'bg-green-500' : 'bg-gray-300'
+              }`}
+            >
+              <span className={`pointer-events-none inline-block h-6 w-6 transform rounded-full bg-white shadow-md transition-transform ${
+                applyDiscount ? 'translate-x-5' : 'translate-x-0'
+              }`} />
+            </button>
+          </div>
+        </div>
+
         {/* ── Rooms & Pricing ────────────────────────────────────────────── */}
         <div className="bg-white rounded-2xl border border-gray-200 p-5 sm:p-6 space-y-4">
           <div>
@@ -339,7 +458,7 @@ export default function InteriorProposalPage({ params }: { params: Promise<{ id:
             })}
           </div>
 
-          {/* Subtotal / tax */}
+          {/* Subtotal / discount / tax */}
           <div className="border-t border-gray-100 mt-4 pt-4 space-y-2.5">
             <div className="flex justify-between items-center">
               <span className="text-sm text-gray-600">
@@ -347,6 +466,12 @@ export default function InteriorProposalPage({ params }: { params: Promise<{ id:
               </span>
               <span className="text-sm font-medium text-gray-900 tabular-nums">{fmtD(selectedTotal)}</span>
             </div>
+            {applyDiscount && (
+              <div className="flex justify-between items-center">
+                <span className="text-sm font-medium text-green-700">Discount (10% — Sign Today)</span>
+                <span className="text-sm font-medium text-green-700 tabular-nums">− {fmtD(discountAmount)}</span>
+              </div>
+            )}
             {taxRate != null && (
               <div className="flex justify-between items-center">
                 <span className="text-sm text-gray-600">
@@ -411,6 +536,40 @@ export default function InteriorProposalPage({ params }: { params: Promise<{ id:
               <p className="text-sm text-gray-400 mt-3">
                 Thank you! We will reach out shortly to schedule your project.
               </p>
+
+              {/* Invoice status */}
+              <div className="mt-4">
+                {invoiceStatus === 'creating' && (
+                  <div className="flex items-center justify-center gap-2 text-sm text-gray-400">
+                    <div className="w-4 h-4 border-2 border-gray-300 border-t-brand-600 rounded-full animate-spin" />
+                    Creating invoices…
+                  </div>
+                )}
+                {invoiceStatus === 'done' && (
+                  <div className="flex flex-col items-center gap-3">
+                    <p className="text-sm text-green-600 font-medium">✓ Deposit &amp; balance invoices created</p>
+                    {depositInvoiceUrl && (
+                      <a
+                        href={depositInvoiceUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-2 px-6 py-3 bg-green-600 hover:bg-green-700 text-white font-semibold text-sm rounded-xl transition-colors shadow-sm"
+                      >
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 8.25h19.5M2.25 9h19.5m-16.5 5.25h6m-6 2.25h3m-3.75 3h15a2.25 2.25 0 0 0 2.25-2.25V6.75A2.25 2.25 0 0 0 19.5 4.5h-15a2.25 2.25 0 0 0-2.25 2.25v10.5A2.25 2.25 0 0 0 4.5 19.5Z" />
+                        </svg>
+                        Pay Deposit Now
+                      </a>
+                    )}
+                  </div>
+                )}
+                {invoiceStatus === 'error' && (
+                  <div className="bg-yellow-50 border border-yellow-200 rounded-xl px-4 py-3 text-left">
+                    <p className="text-sm font-semibold text-yellow-800">Invoice creation failed</p>
+                    {invoiceError && <p className="text-xs text-yellow-500 mt-1 font-mono break-all">{invoiceError}</p>}
+                  </div>
+                )}
+              </div>
             </div>
           ) : (
             <>

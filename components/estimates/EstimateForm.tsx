@@ -23,7 +23,8 @@ import type { EstimateData, EstimateRow, WoodReplacementRow, CustomItem } from '
 
 /** Best-effort parse of a freeform address into the fields WA DOR expects. */
 function parseAddressForTax(fullAddress: string): { addr: string; city: string; zip: string } {
-  const zipMatch  = fullAddress.match(/\b(\d{5}(?:-\d{4})?)\b/)
+  // Match zip at END of string to avoid picking up 5-digit street numbers (e.g. 11403)
+  const zipMatch  = fullAddress.match(/(\d{5}(?:-\d{4})?)\s*$/)
   const zip       = zipMatch?.[1] ?? ''
   // Split on commas or newlines; first chunk = street, second = "City, ST XXXXX"
   const parts     = fullAddress.split(/[,\n]+/).map(s => s.trim()).filter(Boolean)
@@ -34,17 +35,21 @@ function parseAddressForTax(fullAddress: string): { addr: string; city: string; 
   return { addr, city, zip }
 }
 
+const WA_DOR_URL = 'https://webgis.dor.wa.gov/webapi/AddressRates.aspx'
+
 async function lookupSalesTax(fullAddress: string): Promise<number | null> {
   try {
     const { addr, city, zip } = parseAddressForTax(fullAddress)
-    const res  = await fetch('/api/tax-lookup', {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ addr, city, zip }),
-    })
+    const params = new URLSearchParams({ output: 'text', addr, city, zip })
+    const res  = await fetch(`${WA_DOR_URL}?${params}`)
     if (!res.ok) return null
-    const { rate } = await res.json() as { rate: number }
-    return typeof rate === 'number' ? rate : null
+    const text = await res.text()
+    const rateMatch = text.match(/Rate=([\d.]+)/)
+    const codeMatch = text.match(/ResultCode=(\d+)/)
+    const rate       = rateMatch ? parseFloat(rateMatch[1]) : null
+    const resultCode = codeMatch ? parseInt(codeMatch[1])   : null
+    if (rate === null || resultCode === null || resultCode >= 6) return null
+    return rate
   } catch {
     return null
   }
@@ -463,14 +468,10 @@ export default function EstimateForm({ estimateId, initialData }: EstimateFormPr
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
       <header className="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between sticky top-0 z-10">
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-brand-600 flex items-center justify-center">
-            <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M9.53 2.47a.75.75 0 0 1 0 1.06L4.81 8.25H15a6.75 6.75 0 0 1 0 13.5h-3a.75.75 0 0 1 0-1.5h3a5.25 5.25 0 1 0 0-10.5H4.81l4.72 4.72a.75.75 0 1 1-1.06 1.06l-6-6a.75.75 0 0 1 0-1.06l6-6a.75.75 0 0 1 1.06 0Z" />
-            </svg>
-          </div>
+        <a href="/estimates" className="flex items-center gap-3">
+          <img src="/logo.png" alt="Logo" className="h-10 w-auto object-contain" />
           <span className="font-bold text-gray-900 text-lg">Estimator Pro</span>
-        </div>
+        </a>
         <div className="flex items-center gap-3">
           <a href="/estimates" className="text-sm text-gray-500 hover:text-gray-800">
             <span className="sm:hidden">←</span>

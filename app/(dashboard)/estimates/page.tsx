@@ -6,6 +6,7 @@ import { useAuth } from '@/context/AuthContext'
 import AppHeader from '@/components/AppHeader'
 import { listEstimates, deleteEstimate } from '@/lib/firebase/estimates'
 import { listInteriorEstimates, deleteInteriorEstimate } from '@/lib/firebase/interiorEstimates'
+import { listCabinetEstimates, deleteCabinetEstimate } from '@/lib/firebase/cabinetEstimates'
 import type { EstimateData } from '@/types/estimate'
 
 type ListItem = {
@@ -14,7 +15,7 @@ type ListItem = {
   address:    string
   status:     string
   createdAt:  Date | string | undefined
-  kind:       'exterior' | 'interior'
+  kind:       'exterior' | 'interior' | 'cabinet'
 }
 
 // ─── constants ───────────────────────────────────────────────────────────────
@@ -59,7 +60,8 @@ export default function EstimatesPage() {
     Promise.all([
       listEstimates(user.uid),
       listInteriorEstimates(user.uid).catch(() => [] as Awaited<ReturnType<typeof listInteriorEstimates>>),
-    ]).then(([exterior, interior]) => {
+      listCabinetEstimates(user.uid).catch(() => [] as Awaited<ReturnType<typeof listCabinetEstimates>>),
+    ]).then(([exterior, interior, cabinet]) => {
       const ext: ListItem[] = exterior.map(e => ({
         id: e.id!, clientName: e.clientName ?? '', address: e.clientAddress ?? '',
         status: e.status ?? 'draft', createdAt: e.createdAt, kind: 'exterior',
@@ -68,7 +70,11 @@ export default function EstimatesPage() {
         id: e.id, clientName: e.clientName, address: e.address,
         status: e.status, createdAt: e.createdAt, kind: 'interior',
       }))
-      const all = [...ext, ...int].sort((a, b) => {
+      const cab: ListItem[] = cabinet.map(e => ({
+        id: e.id, clientName: e.clientName, address: e.address,
+        status: e.status, createdAt: e.createdAt, kind: 'cabinet',
+      }))
+      const all = [...ext, ...int, ...cab].sort((a, b) => {
         const ta = a.createdAt ? new Date(a.createdAt as string).getTime() : 0
         const tb = b.createdAt ? new Date(b.createdAt as string).getTime() : 0
         return tb - ta
@@ -91,10 +97,17 @@ export default function EstimatesPage() {
     e.stopPropagation()
     if (!confirm(`Delete estimate for "${item.clientName || 'Unnamed Client'}"? This cannot be undone.`)) return
     setDeletingId(item.id)
-    if (item.kind === 'interior') await deleteInteriorEstimate(item.id)
-    else await deleteEstimate(item.id)
-    setEstimates(prev => prev.filter(est => est.id !== item.id))
-    setDeletingId(null)
+    try {
+      if (item.kind === 'interior') await deleteInteriorEstimate(item.id)
+      else if (item.kind === 'cabinet') await deleteCabinetEstimate(item.id)
+      else await deleteEstimate(item.id)
+      setEstimates(prev => prev.filter(est => est.id !== item.id))
+    } catch (err) {
+      console.error('Delete failed:', err)
+      alert('Failed to delete estimate. Please try again.')
+    } finally {
+      setDeletingId(null)
+    }
   }
 
   const filtered = filter === 'all'
@@ -170,7 +183,9 @@ export default function EstimatesPage() {
             {filtered.map(est => {
               const href = est.kind === 'interior'
                 ? `/estimates/interior/${est.id}/edit`
-                : `/estimates/${est.id}/edit`
+                : est.kind === 'cabinet'
+                  ? `/estimates/cabinet/${est.id}/edit`
+                  : `/estimates/${est.id}/edit`
               return (
                 <a
                   key={est.id}
@@ -180,9 +195,19 @@ export default function EstimatesPage() {
                   <div>
                     <div className="flex items-center gap-2">
                       <p className="font-semibold text-gray-900">{est.clientName || 'Unnamed Client'}</p>
+                      {est.kind === 'exterior' && (
+                        <span className="text-[10px] font-semibold uppercase tracking-wide bg-blue-100 text-blue-600 px-1.5 py-0.5 rounded-full">
+                          Exterior
+                        </span>
+                      )}
                       {est.kind === 'interior' && (
                         <span className="text-[10px] font-semibold uppercase tracking-wide bg-purple-100 text-purple-600 px-1.5 py-0.5 rounded-full">
                           Interior
+                        </span>
+                      )}
+                      {est.kind === 'cabinet' && (
+                        <span className="text-[10px] font-semibold uppercase tracking-wide bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full">
+                          Cabinet
                         </span>
                       )}
                     </div>
@@ -278,16 +303,18 @@ export default function EstimatesPage() {
                 </p>
               </button>
 
-              {/* Cabinet — coming soon */}
-              <div className="w-full text-left px-4 py-3.5 rounded-xl border border-gray-100 bg-gray-50 cursor-not-allowed opacity-60">
-                <div className="flex items-center justify-between">
-                  <p className="font-semibold text-gray-500">Cabinet Estimate</p>
-                  <span className="text-[10px] font-semibold uppercase tracking-wide bg-gray-200 text-gray-500 px-2 py-0.5 rounded-full">
-                    Coming soon
-                  </span>
-                </div>
-                <p className="text-sm text-gray-400 mt-0.5">Cabinet painting and refinishing</p>
-              </div>
+              {/* Cabinet — active */}
+              <button
+                onClick={() => { setModalOpen(false); router.push('/estimates/cabinet/new') }}
+                className="w-full text-left px-4 py-3.5 rounded-xl border border-gray-200 hover:border-brand-400 hover:bg-brand-50 transition-colors group"
+              >
+                <p className="font-semibold text-gray-900 group-hover:text-brand-700 transition-colors">
+                  Cabinet Estimate
+                </p>
+                <p className="text-sm text-gray-500 mt-0.5">
+                  Cabinet painting and refinishing
+                </p>
+              </button>
 
             </div>
           </div>

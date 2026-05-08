@@ -7,9 +7,10 @@ import { auth } from '@/lib/firebase/auth'
 import { useRouter, usePathname } from 'next/navigation'
 
 const NAV_LINKS = [
-  { href: '/dashboard', label: 'Dashboard' },
-  { href: '/estimates', label: 'Estimates' },
-  { href: '/contracts', label: 'Contracts' },
+  { href: '/dashboard',    label: 'Dashboard'    },
+  { href: '/estimates',    label: 'Estimates'    },
+  { href: '/work-orders',  label: 'Work Orders'  },
+  { href: '/contracts',    label: 'Contracts'    },
 ]
 
 export default function AppHeader() {
@@ -30,9 +31,9 @@ export default function AppHeader() {
         <Image
           src="/logo.png"
           alt="VanHousing Painters LLC"
-          width={48}
-          height={48}
-          className="h-10 w-auto object-contain"
+          width={72}
+          height={72}
+          className="h-14 w-auto object-contain"
           priority
         />
       </a>
