@@ -429,11 +429,11 @@ export default function CabinetProposalPage({ params }: { params: Promise<{ id: 
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
                           clientName:      estimate.clientName,
-                          clientAddress:   estimate.clientAddress,
-                          clientPhone:     estimate.clientPhone,
-                          clientEmail:     estimate.clientEmail,
-                          clientContactId: estimate.clientContactId ?? '',
-                          clientFolderId:  estimate.clientFolderId  ?? '',
+                          clientAddress:   estimate.address,
+                          clientPhone:     estimate.clientPhone     ?? '',
+                          clientEmail:     estimate.clientEmail     ?? '',
+                          clientContactId: '',
+                          clientFolderId:  '',
                           estimateUrl,
                         }),
                       })
