@@ -1,8 +1,7 @@
 'use client'
 
 import { useState, useEffect, use, useRef, useCallback } from 'react'
-import { getCabinetEstimateFromServer, acceptCabinetEstimate } from '@/lib/firebase/cabinetEstimates'
-import { getSettingsDoc } from '@/lib/firebase/settings'
+import { acceptCabinetEstimate } from '@/lib/firebase/cabinetEstimates'
 import { DEFAULT_COMPANY } from '@/lib/defaultSettings'
 import type { CabinetEstimateRecord } from '@/lib/firebase/cabinetEstimates'
 import type { CompanySettings } from '@/types/settings'
@@ -42,16 +41,20 @@ export default function CabinetProposalPage({ params }: { params: Promise<{ id: 
   useEffect(() => {
     async function load() {
       try {
-        const [est, co] = await Promise.all([
-          getCabinetEstimateFromServer(id),
-          getSettingsDoc<CompanySettings>('company', DEFAULT_COMPANY),
-        ])
-        if (est) {
-          setEstimate(est)
-          setSigned(est.status === 'approved')
-          setSigName(est.signatureName ?? '')
+        const res = await fetch(`/api/cabinet-proposal/${id}`)
+        if (!res.ok) {
+          const json = await res.json() as { error?: string }
+          throw new Error(json.error ?? `HTTP ${res.status}`)
         }
-        setCompany(co)
+        const json = await res.json() as {
+          estimate: CabinetEstimateRecord
+          company: CompanySettings
+        }
+        const est = json.estimate
+        setEstimate(est)
+        setSigned(est.status === 'approved')
+        setSigName(est.signatureName ?? '')
+        setCompany(json.company)
         setLoading(false)
       } catch (err) {
         setLoadError(err instanceof Error ? err.message : String(err))

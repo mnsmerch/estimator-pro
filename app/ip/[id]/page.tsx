@@ -1,8 +1,7 @@
 'use client'
 
 import { useState, useEffect, useMemo, use, useRef, useCallback } from 'react'
-import { getInteriorEstimateFromServer, acceptInteriorEstimate } from '@/lib/firebase/interiorEstimates'
-import { getSettingsDoc } from '@/lib/firebase/settings'
+import { acceptInteriorEstimate } from '@/lib/firebase/interiorEstimates'
 import {
   calculatePainterOverview,
   calculateCostBreakdown,
@@ -84,26 +83,29 @@ export default function InteriorProposalPage({ params }: { params: Promise<{ id:
   useEffect(() => {
     async function load() {
       try {
-        const [est, r, pp, rt, ct, co] = await Promise.all([
-          getInteriorEstimateFromServer(id),
-          getSettingsDoc<InteriorBusinessRules>('interiorBusinessRules', DEFAULT_INTERIOR_RULES),
-          getSettingsDoc<{ items: InteriorPaintProduct[] }>('interiorPaintProducts', { items: DEFAULT_INTERIOR_PAINT_PRODUCTS }),
-          getSettingsDoc<InteriorProductionRates>('interiorRates', DEFAULT_INTERIOR_RATES),
-          getSettingsDoc<InteriorProductionConstants>('interiorProductionConstants', DEFAULT_INTERIOR_CONSTANTS),
-          getSettingsDoc<CompanySettings>('company', DEFAULT_COMPANY),
-        ])
-        if (est) {
-          setEstimate(est)
-          // Select all rooms by default
-          setSelectedRooms(new Set(est.options.map(o => o.id)))
-          setSigned(est.status === 'approved')
-          setSigName(est.signatureName ?? '')
+        const res = await fetch(`/api/interior-proposal/${id}`)
+        if (!res.ok) {
+          const json = await res.json() as { error?: string }
+          throw new Error(json.error ?? `HTTP ${res.status}`)
         }
-        setRules(r)
-        setProducts(pp.items ?? DEFAULT_INTERIOR_PAINT_PRODUCTS)
-        setRates(rt)
-        setConstants(ct)
-        setCompany(co)
+        const json = await res.json() as {
+          estimate: InteriorEstimateRecord
+          rules: InteriorBusinessRules
+          products: InteriorPaintProduct[]
+          rates: InteriorProductionRates
+          constants: InteriorProductionConstants
+          company: CompanySettings
+        }
+        const est = json.estimate
+        setEstimate(est)
+        setSelectedRooms(new Set(est.options.map(o => o.id)))
+        setSigned(est.status === 'approved')
+        setSigName(est.signatureName ?? '')
+        setRules(json.rules)
+        setProducts(json.products)
+        setRates(json.rates)
+        setConstants(json.constants)
+        setCompany(json.company)
         setLoading(false)
       } catch (err) {
         setLoadError(err instanceof Error ? err.message : String(err))
