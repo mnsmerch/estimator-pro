@@ -218,10 +218,21 @@ export default function EstimateForm({ estimateId, initialData }: EstimateFormPr
   })
 
   function updateScope(field: keyof ScopeFields, value: string) {
-    setScopeByBrand(prev => ({
-      ...prev,
-      [selectedBrand]: { ...(prev[selectedBrand] ?? getDefaultScopeForBrand(selectedBrand)), [field]: value },
-    }))
+    setScopeByBrand(prev => {
+      if (field === 'scopePaintProducts') {
+        return {
+          ...prev,
+          [selectedBrand]: { ...(prev[selectedBrand] ?? getDefaultScopeForBrand(selectedBrand)), [field]: value },
+        }
+      }
+      // All other fields sync across every brand
+      return Object.fromEntries(
+        PAINT_BRANDS.map(b => [
+          b.key,
+          { ...(prev[b.key] ?? getDefaultScopeForBrand(b.key)), [field]: value },
+        ])
+      )
+    })
   }
 
   const currentScope = scopeByBrand[selectedBrand] ?? getDefaultScopeForBrand(selectedBrand)
