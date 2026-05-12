@@ -224,9 +224,9 @@ function uid(): string {
 // ── Factory functions ──────────────────────────────────────────────────────────
 
 function newWallMeasurement(): WallMeasurement   { return { id: uid(), length: '', height: '' } }
-function newWallSection(): WallSection           { return { id: uid(), wallType: '', measurements: [newWallMeasurement()] } }
+function newWallSection(): WallSection           { return { id: uid(), wallType: '', measurements: Array.from({ length: 10 }, newWallMeasurement) } }
 function newCeilingMeasurement(): CeilingMeasurement { return { id: uid(), length: '', width: '' } }
-function newCeilingSection(): CeilingSection     { return { id: uid(), ceilingType: '', measurements: [newCeilingMeasurement()] } }
+function newCeilingSection(): CeilingSection     { return { id: uid(), ceilingType: '', measurements: Array.from({ length: 5 }, newCeilingMeasurement) } }
 function newBaseboardMeasurement(): BaseboardMeasurement { return { id: uid(), length: '' } }
 function newBaseboardSection(): BaseboardSection { return { id: uid(), baseboardType: '', measurements: [newBaseboardMeasurement()] } }
 function newDoorEntry(): DoorEntry               { return { id: uid(), doorType: '', count: '' } }
