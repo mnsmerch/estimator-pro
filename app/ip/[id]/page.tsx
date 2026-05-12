@@ -676,7 +676,7 @@ export default function InteriorProposalPage({ params }: { params: Promise<{ id:
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
                           clientName:      estimate.clientName,
-                          clientAddress:   estimate.clientAddress,
+                          clientAddress:   estimate.address,
                           clientPhone:     estimate.clientPhone,
                           clientEmail:     estimate.clientEmail,
                           clientContactId: estimate.clientContactId ?? '',
