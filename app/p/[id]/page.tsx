@@ -1,8 +1,7 @@
 'use client'
 
 import { useState, useEffect, useMemo, use, useRef, useCallback } from 'react'
-import { getEstimate, acceptEstimate } from '@/lib/firebase/estimates'
-import { getSettingsDoc } from '@/lib/firebase/settings'
+import { acceptEstimate } from '@/lib/firebase/estimates'
 import { buildApplicationList } from '@/lib/applicationList'
 import { calcEstimate, calcMarkup } from '@/lib/estimateEngine'
 import {
@@ -84,28 +83,32 @@ export default function ProposalPage({ params }: { params: Promise<{ id: string 
   useEffect(() => {
     async function load() {
       try {
-      const [est, r, c, pp, rt, co] = await Promise.all([
-        getEstimate(id),
-        getSettingsDoc<BusinessRules>('businessRules', DEFAULT_BUSINESS_RULES),
-        getSettingsDoc<ProductionConstants>('productionConstants', DEFAULT_PRODUCTION_CONSTANTS),
-        getSettingsDoc<{ items: PaintProduct[] }>('paintProducts', { items: DEFAULT_PAINT_PRODUCTS }),
-        getSettingsDoc<ProductionRates>('rates', DEFAULT_RATES),
-        getSettingsDoc<CompanySettings>('company', DEFAULT_COMPANY),
-      ])
-      if (est) {
+        const res = await fetch(`/api/proposal/${id}`)
+        if (!res.ok) {
+          const json = await res.json() as { error?: string }
+          throw new Error(json.error ?? `HTTP ${res.status}`)
+        }
+        const json = await res.json() as {
+          estimate: EstimateData
+          rules: BusinessRules
+          constants: ProductionConstants
+          paintProducts: PaintProduct[]
+          rates: ProductionRates
+          company: CompanySettings
+        }
+        const est = json.estimate
         setEstimate(est)
         setSelectedBrand(est.selectedBrand ?? 'superPaint')
         setIncludeWood(est.woodReplacementOpen ?? false)
         setIncludeCustom(est.customItemsOpen ?? false)
         setSigned(est.status === 'approved')
         setSigName(est.signatureName ?? '')
-      }
-      setRules(r)
-      setConstants(c)
-      setPaintProducts(pp.items ?? DEFAULT_PAINT_PRODUCTS)
-      setRates(rt)
-      setCompany(co)
-      setLoading(false)
+        setRules(json.rules)
+        setConstants(json.constants)
+        setPaintProducts(json.paintProducts)
+        setRates(json.rates)
+        setCompany(json.company)
+        setLoading(false)
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : String(err)
         setLoadError(msg)
