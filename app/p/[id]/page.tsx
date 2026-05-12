@@ -80,6 +80,10 @@ export default function ProposalPage({ params }: { params: Promise<{ id: string 
   const [invoiceError,  setInvoiceError]    = useState<string | null>(null)
   const [depositInvoiceUrl, setDepositInvoiceUrl] = useState<string | null>(null)
 
+  const [sending,   setSending]   = useState(false)
+  const [sendDone,  setSendDone]  = useState(false)
+  const [sendError, setSendError] = useState<string | null>(null)
+
   useEffect(() => {
     async function load() {
       try {
@@ -866,17 +870,54 @@ export default function ProposalPage({ params }: { params: Promise<{ id: string 
             <p className="text-sm text-gray-400 mb-4">
               We&apos;ll send this estimate to your email so you can review and sign it later.
             </p>
-            <button
-              disabled
-              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl border border-gray-300 bg-white text-sm font-medium text-gray-400 cursor-not-allowed"
-              title="Coming soon"
-            >
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 0 1-2.25 2.25h-15a2.25 2.25 0 0 1-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0 0 19.5 4.5h-15a2.25 2.25 0 0 0-2.25 2.25m19.5 0v.243a2.25 2.25 0 0 1-1.07 1.916l-7.5 4.615a2.25 2.25 0 0 1-2.36 0L3.32 8.91a2.25 2.25 0 0 1-1.07-1.916V6.75" />
-              </svg>
-              Send Estimate
-            </button>
-            <p className="text-xs text-gray-300 mt-3">Email and text coming soon.</p>
+            {sendDone ? (
+              <p className="text-sm font-semibold text-green-600">✓ Estimate sent! Check your email.</p>
+            ) : (
+              <>
+                <button
+                  onClick={async () => {
+                    if (!estimate || sending) return
+                    setSending(true)
+                    setSendError(null)
+                    try {
+                      const estimateUrl = `${window.location.origin}/p/${id}`
+                      const res = await fetch('/api/send-estimate', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                          clientName:      estimate.clientName,
+                          clientAddress:   estimate.clientAddress,
+                          clientPhone:     estimate.clientPhone,
+                          clientEmail:     estimate.clientEmail,
+                          clientContactId: estimate.clientContactId ?? '',
+                          clientFolderId:  estimate.clientFolderId  ?? '',
+                          estimateUrl,
+                        }),
+                      })
+                      const json = await res.json() as { success?: boolean; error?: string }
+                      if (!res.ok || json.error) throw new Error(json.error ?? 'Failed to send')
+                      setSendDone(true)
+                    } catch (err) {
+                      setSendError(err instanceof Error ? err.message : 'Something went wrong')
+                    } finally {
+                      setSending(false)
+                    }
+                  }}
+                  disabled={sending}
+                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl border border-gray-300 bg-white text-sm font-medium text-gray-700 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  {sending ? (
+                    <div className="w-4 h-4 border-2 border-gray-300 border-t-gray-600 rounded-full animate-spin" />
+                  ) : (
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 0 1-2.25 2.25h-15a2.25 2.25 0 0 1-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0 0 19.5 4.5h-15a2.25 2.25 0 0 0-2.25 2.25m19.5 0v.243a2.25 2.25 0 0 1-1.07 1.916l-7.5 4.615a2.25 2.25 0 0 1-2.36 0L3.32 8.91a2.25 2.25 0 0 1-1.07-1.916V6.75" />
+                    </svg>
+                  )}
+                  {sending ? 'Sending…' : 'Send Estimate'}
+                </button>
+                {sendError && <p className="text-xs text-red-500 mt-2">{sendError}</p>}
+              </>
+            )}
           </div>
         )}
 
