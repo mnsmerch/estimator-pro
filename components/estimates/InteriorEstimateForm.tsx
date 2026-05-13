@@ -647,6 +647,8 @@ export default function InteriorEstimateForm({
                 )}
                 <button
                   onClick={async () => {
+                    // Open immediately (sync) so Safari/iOS doesn't block the popup
+                    const win = window.open('', '_blank')
                     setSaving(true)
                     setTaxLookupFailed(false)
                     try {
@@ -660,7 +662,7 @@ export default function InteriorEstimateForm({
                           await resetSignatureForInteriorChangeOrder(estimateId)
                         }
                       }
-                      window.open(`/ip/${estimateId}?t=${Date.now()}`, '_blank')
+                      if (win) win.location.href = `/ip/${estimateId}?t=${Date.now()}`
                     } finally {
                       setSaving(false)
                     }
@@ -1541,6 +1543,7 @@ export default function InteriorEstimateForm({
           {isEditing && estimateId && (
             <button
               onClick={async () => {
+                const win = window.open('', '_blank')
                 setSaving(true)
                 setTaxLookupFailed(false)
                 try {
@@ -1554,7 +1557,7 @@ export default function InteriorEstimateForm({
                       await resetSignatureForInteriorChangeOrder(estimateId)
                     }
                   }
-                  window.open(`/ip/${estimateId}?t=${Date.now()}`, '_blank')
+                  if (win) win.location.href = `/ip/${estimateId}?t=${Date.now()}`
                 } finally {
                   setSaving(false)
                 }

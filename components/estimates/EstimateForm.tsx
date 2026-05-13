@@ -501,15 +501,15 @@ export default function EstimateForm({ estimateId, initialData }: EstimateFormPr
               )}
               <button
                 onClick={async () => {
+                  const win = window.open('', '_blank')
                   setSaving(true)
                   try {
                     const taxRate = clientAddress ? await lookupSalesTax(clientAddress) : null
                     await saveQuiet(taxRate)
-                    // If previously signed, reset signature so client can sign the updated version
                     if (initialData?.status === 'approved') {
                       await resetSignatureForChangeOrder(estimateId)
                     }
-                    window.open(`/p/${estimateId}`, '_blank')
+                    if (win) win.location.href = `/p/${estimateId}`
                   } finally {
                     setSaving(false)
                   }
@@ -1165,6 +1165,7 @@ export default function EstimateForm({ estimateId, initialData }: EstimateFormPr
           {isEdit && estimateId && (
             <button
               onClick={async () => {
+                const win = window.open('', '_blank')
                 setSaving(true)
                 try {
                   const taxRate = clientAddress ? await lookupSalesTax(clientAddress) : null
@@ -1172,7 +1173,7 @@ export default function EstimateForm({ estimateId, initialData }: EstimateFormPr
                   if (initialData?.status === 'approved') {
                     await resetSignatureForChangeOrder(estimateId)
                   }
-                  window.open(`/p/${estimateId}`, '_blank')
+                  if (win) win.location.href = `/p/${estimateId}`
                 } finally {
                   setSaving(false)
                 }
