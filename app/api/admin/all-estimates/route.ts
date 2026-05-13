@@ -13,6 +13,19 @@ async function isAdmin(authHeader: string | null): Promise<boolean> {
   }
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function serializeDoc(data: Record<string, any>): Record<string, unknown> {
+  const out: Record<string, unknown> = {}
+  for (const [k, v] of Object.entries(data)) {
+    if (v && typeof v === 'object' && typeof v.toDate === 'function') {
+      out[k] = v.toDate().toISOString()
+    } else {
+      out[k] = v
+    }
+  }
+  return out
+}
+
 export async function GET(req: Request) {
   if (!await isAdmin(req.headers.get('authorization'))) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
@@ -25,9 +38,9 @@ export async function GET(req: Request) {
       adminDb.collection('cabinetEstimates').orderBy('createdAt', 'desc').get(),
     ])
 
-    const exterior = extSnap.docs.map(d => ({ id: d.id, ...d.data(), kind: 'exterior' }))
-    const interior = intSnap.docs.map(d => ({ id: d.id, ...d.data(), kind: 'interior' }))
-    const cabinet  = cabSnap.docs.map(d => ({ id: d.id, ...d.data(), kind: 'cabinet'  }))
+    const exterior = extSnap.docs.map(d => ({ id: d.id, ...serializeDoc(d.data()), kind: 'exterior' }))
+    const interior = intSnap.docs.map(d => ({ id: d.id, ...serializeDoc(d.data()), kind: 'interior' }))
+    const cabinet  = cabSnap.docs.map(d => ({ id: d.id, ...serializeDoc(d.data()), kind: 'cabinet'  }))
 
     return NextResponse.json({ exterior, interior, cabinet })
   } catch (err) {
