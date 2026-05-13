@@ -694,7 +694,7 @@ export default function ProposalPage({ params }: { params: Promise<{ id: string 
         )}
 
         {/* ── Terms & Conditions ─────────────────────────────────────────── */}
-        <TermsAndConditions companyName={company.name} />
+        <TermsAndConditions companyName={company.name} warrantyYears={['duration','emerald','emeraldRR'].includes(selectedBrand) ? 5 : 3} />
 
         {/* ── Accept / Signature ─────────────────────────────────────────── */}
         <div className="bg-white rounded-2xl border border-gray-200 p-6">
@@ -981,7 +981,7 @@ PAYMENT TERMS
 
 • The project will be billed in full and due upon completion of the scope.`
 
-function TermsAndConditions({ companyName: _ }: { companyName: string }) {
+function TermsAndConditions({ companyName: _, warrantyYears = 3 }: { companyName: string; warrantyYears?: number }) {
   const [open, setOpen] = useState(false)
   return (
     <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden">
@@ -1005,7 +1005,7 @@ function TermsAndConditions({ companyName: _ }: { companyName: string }) {
       {open && (
         <div className="px-6 pb-6 border-t border-gray-100">
           <div className="mt-4 text-xs text-gray-600 whitespace-pre-line leading-relaxed space-y-1">
-            {DEFAULT_TERMS}
+            {DEFAULT_TERMS.replace('3 years', `${warrantyYears} years`)}
           </div>
           <a
             href="https://www.pcapainted.org/resource-center/painting-standards/"
