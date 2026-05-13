@@ -7,10 +7,11 @@ import { auth } from '@/lib/firebase/auth'
 import { useRouter, usePathname } from 'next/navigation'
 
 const NAV_LINKS = [
-  { href: '/dashboard',    label: 'Dashboard'    },
-  { href: '/estimates',    label: 'Estimates'    },
-  { href: '/work-orders',  label: 'Work Orders'  },
-  { href: '/contracts',    label: 'Contracts'    },
+  { href: '/dashboard',             label: 'Dashboard'           },
+  { href: '/estimates',             label: 'Estimates'           },
+  { href: '/generated-estimates',   label: 'Generated Estimates' },
+  { href: '/work-orders',           label: 'Work Orders'         },
+  { href: '/contracts',             label: 'Contracts'           },
 ]
 
 export default function AppHeader() {
