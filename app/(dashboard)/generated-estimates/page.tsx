@@ -54,7 +54,7 @@ export default function GeneratedEstimatesPage() {
         let cab: GeneratedItem[] = []
 
         if (role === 'admin') {
-          const token = await user.getIdToken()
+          const token = await user!.getIdToken()
           const res = await fetch('/api/admin/all-estimates', {
             headers: { Authorization: `Bearer ${token}` },
           })
