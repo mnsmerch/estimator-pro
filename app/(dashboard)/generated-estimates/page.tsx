@@ -76,9 +76,9 @@ export default function GeneratedEstimatesPage() {
           }))
         } else {
           const [exterior, interior, cabinet] = await Promise.all([
-            listEstimates(user.uid),
-            listInteriorEstimates(user.uid).catch(() => []),
-            listCabinetEstimates(user.uid).catch(() => []),
+            listEstimates(user!.uid),
+            listInteriorEstimates(user!.uid).catch(() => []),
+            listCabinetEstimates(user!.uid).catch(() => []),
           ])
           ext = exterior.map(e => ({
             id: e.id!, clientName: e.clientName ?? '', address: e.clientAddress ?? '',
