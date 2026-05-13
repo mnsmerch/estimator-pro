@@ -38,43 +38,80 @@ const KIND_COLOR: Record<string, string> = {
 }
 
 export default function GeneratedEstimatesPage() {
-  const { user } = useAuth()
+  const { user, role } = useAuth()
   const [items,   setItems]   = useState<GeneratedItem[]>([])
   const [loading, setLoading] = useState(true)
   const [copied,  setCopied]  = useState<string | null>(null)
 
   useEffect(() => {
     if (!user) return
-    Promise.all([
-      listEstimates(user.uid),
-      listInteriorEstimates(user.uid).catch(() => []),
-      listCabinetEstimates(user.uid).catch(() => []),
-    ]).then(([exterior, interior, cabinet]) => {
+
+    async function load() {
       const origin = window.location.origin
-      const ext: GeneratedItem[] = exterior.map(e => ({
-        id: e.id!, clientName: e.clientName ?? '', address: e.clientAddress ?? '',
-        status: e.status ?? 'draft', createdAt: e.createdAt, kind: 'exterior',
-        proposalUrl: `${origin}/p/${e.id}`,
-      }))
-      const int: GeneratedItem[] = interior.map(e => ({
-        id: e.id, clientName: e.clientName, address: e.address,
-        status: e.status, createdAt: e.createdAt, kind: 'interior',
-        proposalUrl: `${origin}/ip/${e.id}`,
-      }))
-      const cab: GeneratedItem[] = cabinet.map(e => ({
-        id: e.id, clientName: e.clientName, address: e.address,
-        status: e.status, createdAt: e.createdAt, kind: 'cabinet',
-        proposalUrl: `${origin}/cp/${e.id}`,
-      }))
-      const all = [...ext, ...int, ...cab].sort((a, b) => {
-        const ta = a.createdAt ? new Date(a.createdAt as string).getTime() : 0
-        const tb = b.createdAt ? new Date(b.createdAt as string).getTime() : 0
-        return tb - ta
-      })
-      setItems(all)
-      setLoading(false)
-    }).catch(() => setLoading(false))
-  }, [user])
+      try {
+        let ext: GeneratedItem[] = []
+        let int: GeneratedItem[] = []
+        let cab: GeneratedItem[] = []
+
+        if (role === 'admin') {
+          const token = await user.getIdToken()
+          const res = await fetch('/api/admin/all-estimates', {
+            headers: { Authorization: `Bearer ${token}` },
+          })
+          const json = await res.json() as { exterior: Record<string, unknown>[]; interior: Record<string, unknown>[]; cabinet: Record<string, unknown>[] }
+          ext = json.exterior.map(e => ({
+            id: e.id as string, clientName: e.clientName as string ?? '', address: e.clientAddress as string ?? '',
+            status: e.status as string ?? 'draft', createdAt: e.createdAt as string, kind: 'exterior' as const,
+            proposalUrl: `${origin}/p/${e.id}`,
+          }))
+          int = json.interior.map(e => ({
+            id: e.id as string, clientName: e.clientName as string, address: e.address as string,
+            status: e.status as string, createdAt: e.createdAt as string, kind: 'interior' as const,
+            proposalUrl: `${origin}/ip/${e.id}`,
+          }))
+          cab = json.cabinet.map(e => ({
+            id: e.id as string, clientName: e.clientName as string, address: e.address as string,
+            status: e.status as string, createdAt: e.createdAt as string, kind: 'cabinet' as const,
+            proposalUrl: `${origin}/cp/${e.id}`,
+          }))
+        } else {
+          const [exterior, interior, cabinet] = await Promise.all([
+            listEstimates(user.uid),
+            listInteriorEstimates(user.uid).catch(() => []),
+            listCabinetEstimates(user.uid).catch(() => []),
+          ])
+          ext = exterior.map(e => ({
+            id: e.id!, clientName: e.clientName ?? '', address: e.clientAddress ?? '',
+            status: e.status ?? 'draft', createdAt: e.createdAt, kind: 'exterior' as const,
+            proposalUrl: `${origin}/p/${e.id}`,
+          }))
+          int = interior.map(e => ({
+            id: e.id, clientName: e.clientName, address: e.address,
+            status: e.status, createdAt: e.createdAt, kind: 'interior' as const,
+            proposalUrl: `${origin}/ip/${e.id}`,
+          }))
+          cab = cabinet.map(e => ({
+            id: e.id, clientName: e.clientName, address: e.address,
+            status: e.status, createdAt: e.createdAt, kind: 'cabinet' as const,
+            proposalUrl: `${origin}/cp/${e.id}`,
+          }))
+        }
+
+        const all = [...ext, ...int, ...cab].sort((a, b) => {
+          const ta = a.createdAt ? new Date(a.createdAt as string).getTime() : 0
+          const tb = b.createdAt ? new Date(b.createdAt as string).getTime() : 0
+          return tb - ta
+        })
+        setItems(all)
+      } catch {
+        // ignore
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    load()
+  }, [user, role])
 
   function handleCopy(e: React.MouseEvent, url: string) {
     e.preventDefault()

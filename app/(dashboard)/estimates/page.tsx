@@ -46,7 +46,7 @@ const STATUS_COLOR: Record<string, string> = {
 // ─── component ───────────────────────────────────────────────────────────────
 
 export default function EstimatesPage() {
-  const { user } = useAuth()
+  const { user, role } = useAuth()
   const router = useRouter()
 
   const [estimates, setEstimates]   = useState<ListItem[]>([])
@@ -57,32 +57,66 @@ export default function EstimatesPage() {
 
   useEffect(() => {
     if (!user) return
-    Promise.all([
-      listEstimates(user.uid),
-      listInteriorEstimates(user.uid).catch(() => [] as Awaited<ReturnType<typeof listInteriorEstimates>>),
-      listCabinetEstimates(user.uid).catch(() => [] as Awaited<ReturnType<typeof listCabinetEstimates>>),
-    ]).then(([exterior, interior, cabinet]) => {
-      const ext: ListItem[] = exterior.map(e => ({
-        id: e.id!, clientName: e.clientName ?? '', address: e.clientAddress ?? '',
-        status: e.status ?? 'draft', createdAt: e.createdAt, kind: 'exterior',
-      }))
-      const int: ListItem[] = interior.map(e => ({
-        id: e.id, clientName: e.clientName, address: e.address,
-        status: e.status, createdAt: e.createdAt, kind: 'interior',
-      }))
-      const cab: ListItem[] = cabinet.map(e => ({
-        id: e.id, clientName: e.clientName, address: e.address,
-        status: e.status, createdAt: e.createdAt, kind: 'cabinet',
-      }))
-      const all = [...ext, ...int, ...cab].sort((a, b) => {
-        const ta = a.createdAt ? new Date(a.createdAt as string).getTime() : 0
-        const tb = b.createdAt ? new Date(b.createdAt as string).getTime() : 0
-        return tb - ta
-      })
-      setEstimates(all)
-      setLoading(false)
-    }).catch(() => setLoading(false))
-  }, [user])
+
+    async function load() {
+      try {
+        let ext: ListItem[] = []
+        let int: ListItem[] = []
+        let cab: ListItem[] = []
+
+        if (role === 'admin') {
+          const token = await user.getIdToken()
+          const res = await fetch('/api/admin/all-estimates', {
+            headers: { Authorization: `Bearer ${token}` },
+          })
+          const json = await res.json() as { exterior: EstimateData[]; interior: Record<string, unknown>[]; cabinet: Record<string, unknown>[] }
+          ext = json.exterior.map((e: EstimateData) => ({
+            id: e.id!, clientName: e.clientName ?? '', address: e.clientAddress ?? '',
+            status: e.status ?? 'draft', createdAt: e.createdAt, kind: 'exterior' as const,
+          }))
+          int = json.interior.map((e: Record<string, unknown>) => ({
+            id: e.id as string, clientName: e.clientName as string, address: e.address as string,
+            status: e.status as string, createdAt: e.createdAt as string, kind: 'interior' as const,
+          }))
+          cab = json.cabinet.map((e: Record<string, unknown>) => ({
+            id: e.id as string, clientName: e.clientName as string, address: e.address as string,
+            status: e.status as string, createdAt: e.createdAt as string, kind: 'cabinet' as const,
+          }))
+        } else {
+          const [exterior, interior, cabinet] = await Promise.all([
+            listEstimates(user.uid),
+            listInteriorEstimates(user.uid).catch(() => [] as Awaited<ReturnType<typeof listInteriorEstimates>>),
+            listCabinetEstimates(user.uid).catch(() => [] as Awaited<ReturnType<typeof listCabinetEstimates>>),
+          ])
+          ext = exterior.map(e => ({
+            id: e.id!, clientName: e.clientName ?? '', address: e.clientAddress ?? '',
+            status: e.status ?? 'draft', createdAt: e.createdAt, kind: 'exterior' as const,
+          }))
+          int = interior.map(e => ({
+            id: e.id, clientName: e.clientName, address: e.address,
+            status: e.status, createdAt: e.createdAt, kind: 'interior' as const,
+          }))
+          cab = cabinet.map(e => ({
+            id: e.id, clientName: e.clientName, address: e.address,
+            status: e.status, createdAt: e.createdAt, kind: 'cabinet' as const,
+          }))
+        }
+
+        const all = [...ext, ...int, ...cab].sort((a, b) => {
+          const ta = a.createdAt ? new Date(a.createdAt as string).getTime() : 0
+          const tb = b.createdAt ? new Date(b.createdAt as string).getTime() : 0
+          return tb - ta
+        })
+        setEstimates(all)
+      } catch {
+        // ignore
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    load()
+  }, [user, role])
 
   // Close modal on Escape
   useEffect(() => {
