@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useEffect, useMemo, use, useRef, useCallback } from 'react'
-import { acceptEstimate } from '@/lib/firebase/estimates'
 import { buildApplicationList } from '@/lib/applicationList'
 import { calcEstimate, calcMarkup } from '@/lib/estimateEngine'
 import {
@@ -185,10 +184,55 @@ export default function ProposalPage({ params }: { params: Promise<{ id: string 
       const signatureDate = now.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
       const fileTimestamp = now.toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true }).replace(/,/g, '').replace(/:/g, '-').replace(/ /g, '_')
 
-      // 1. Save signature to Firestore
-      await acceptEstimate(id, sigName.trim(), sigDataUrl)
+      // 1. Save signature + create GHL invoices atomically server-side
+      const brandPresetForInvoice = PAINT_BRANDS.find(b => b.key === selectedBrand) ?? PAINT_BRANDS[0]
+      const itemLabel = `${applyDiscount ? '10% off ' : ''}Exterior Painting — ${brandPresetForInvoice.label}`
+      const acceptRes  = await fetch('/api/accept-estimate', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({
+          estimateId:     id,
+          estimateType:   'exterior',
+          signatureName:  sigName.trim(),
+          signatureDataUrl: sigDataUrl,
+          ...(estimate.clientContactId ? {
+            contactId:      estimate.clientContactId,
+            contactName:    estimate.clientName,
+            contactEmail:   estimate.clientEmail,
+            contactPhone:   estimate.clientPhone,
+            depositAmount,
+            balanceDue,
+            depositPercent,
+            grandTotal,
+            itemLabel,
+            taxRate:        taxRate ?? null,
+            taxCity:        parseCityFromAddress(estimate.clientAddress),
+            company: {
+              name:          company.name,
+              phone:         company.phone,
+              email:         company.email,
+              website:       company.website,
+              streetAddress: company.streetAddress,
+              cityStateZip:  company.cityStateZip,
+            },
+          } : {}),
+        }),
+      })
+      const acceptJson = await acceptRes.json() as { success?: boolean; error?: string; depositInvoiceUrl?: string }
+      if (!acceptRes.ok || acceptJson.error) throw new Error(acceptJson.error ?? 'Failed to accept estimate')
+
       setSigned(true)
       setEstimate(prev => prev ? { ...prev, status: 'approved', signatureName: sigName.trim() } : prev)
+
+      // Set invoice status from server response
+      if (estimate.clientContactId) {
+        if (acceptJson.depositInvoiceUrl) {
+          setInvoiceStatus('done')
+          setDepositInvoiceUrl(acceptJson.depositInvoiceUrl)
+        } else {
+          setInvoiceStatus('done')
+        }
+      }
 
       // 2. Generate PDF (always) and try Drive upload if folder ID is set
       {
@@ -312,52 +356,7 @@ export default function ProposalPage({ params }: { params: Promise<{ id: string 
         // Non-blocking — don't fail signing if work order creation fails
       }
 
-      // 4. Create GHL invoices (deposit + balance) if contact ID is present
-      if (estimate.clientContactId) {
-        setInvoiceStatus('creating')
-        try {
-          const brandPresetForInvoice = PAINT_BRANDS.find(b => b.key === selectedBrand) ?? PAINT_BRANDS[0]
-          const itemLabel = `${applyDiscount ? '10% off ' : ''}Exterior Painting — ${brandPresetForInvoice.label}`
-          const res = await fetch('/api/ghl/create-invoices', {
-            method:  'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body:    JSON.stringify({
-              contactId:      estimate.clientContactId,
-              contactName:    estimate.clientName,
-              contactEmail:   estimate.clientEmail,
-              contactPhone:   estimate.clientPhone,
-              depositAmount,
-              balanceDue,
-              depositPercent,
-              grandTotal,
-              itemLabel,
-              taxRate:        taxRate ?? null,
-              taxCity:        parseCityFromAddress(estimate.clientAddress),
-              company: {
-                name:          company.name,
-                phone:         company.phone,
-                email:         company.email,
-                website:       company.website,
-                streetAddress: company.streetAddress,
-                cityStateZip:  company.cityStateZip,
-              },
-            }),
-          })
-          const json = await res.json() as { success?: boolean; error?: string; depositInvoiceUrl?: string }
-          if (json.error) {
-            setInvoiceStatus('error')
-            setInvoiceError(json.error)
-          } else {
-            setInvoiceStatus('done')
-            if (json.depositInvoiceUrl) {
-              setDepositInvoiceUrl(json.depositInvoiceUrl)
-            }
-          }
-        } catch (err) {
-          setInvoiceStatus('error')
-          setInvoiceError(err instanceof Error ? err.message : String(err))
-        }
-      }
+      // GHL invoices are now created server-side in /api/accept-estimate
 
     } catch (err) {
       console.error('Failed to accept estimate:', err)
