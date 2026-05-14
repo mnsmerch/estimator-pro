@@ -414,6 +414,7 @@ export default function EstimateForm({ estimateId, initialData }: EstimateFormPr
       totalCoats:   currentScope.totalCoats,
       photoUrls,
       taxExcluded:  !includeTax,
+      salesTaxRate: includeTax ? (initialData?.salesTaxRate ?? null) : null,
     }
     try {
       if (isEdit && estimateId) {
@@ -464,7 +465,7 @@ export default function EstimateForm({ estimateId, initialData }: EstimateFormPr
       totalCoats:   currentScope.totalCoats,
       photoUrls,
       taxExcluded:  !includeTax,
-      ...(salesTaxRate != null ? { salesTaxRate } : {}),
+      salesTaxRate: includeTax ? (salesTaxRate ?? null) : null,
     }
     if (isEdit && estimateId) {
       await updateEstimate(estimateId, payload)
