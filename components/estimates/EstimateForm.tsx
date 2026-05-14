@@ -237,6 +237,8 @@ export default function EstimateForm({ estimateId, initialData }: EstimateFormPr
 
   const currentScope = scopeByBrand[selectedBrand] ?? getDefaultScopeForBrand(selectedBrand)
 
+  const [includeTax, setIncludeTax] = useState(initialData?.taxExcluded !== true)
+
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState(false)
   const [photoUrls, setPhotoUrls] = useState<string[]>(initialData?.photoUrls ?? [])
@@ -408,9 +410,10 @@ export default function EstimateForm({ estimateId, initialData }: EstimateFormPr
         Object.entries(scopeByBrand).map(([k, v]) => [k, v.scopePaintProducts])
       ),
       scopeByBrand,
-      totalColors: currentScope.totalColors,
-      totalCoats:  currentScope.totalCoats,
+      totalColors:  currentScope.totalColors,
+      totalCoats:   currentScope.totalCoats,
       photoUrls,
+      taxExcluded:  !includeTax,
     }
     try {
       if (isEdit && estimateId) {
@@ -457,9 +460,10 @@ export default function EstimateForm({ estimateId, initialData }: EstimateFormPr
         Object.entries(scopeByBrand).map(([k, v]) => [k, v.scopePaintProducts])
       ),
       scopeByBrand,
-      totalColors: currentScope.totalColors,
-      totalCoats:  currentScope.totalCoats,
+      totalColors:  currentScope.totalColors,
+      totalCoats:   currentScope.totalCoats,
       photoUrls,
+      taxExcluded:  !includeTax,
       ...(salesTaxRate != null ? { salesTaxRate } : {}),
     }
     if (isEdit && estimateId) {
@@ -504,7 +508,7 @@ export default function EstimateForm({ estimateId, initialData }: EstimateFormPr
                   const win = window.open('', '_blank')
                   setSaving(true)
                   try {
-                    const taxRate = clientAddress ? await lookupSalesTax(clientAddress) : null
+                    const taxRate = (includeTax && clientAddress) ? await lookupSalesTax(clientAddress) : null
                     await saveQuiet(taxRate)
                     if (initialData?.status === 'approved') {
                       await resetSignatureForChangeOrder(estimateId)
@@ -1114,6 +1118,27 @@ export default function EstimateForm({ estimateId, initialData }: EstimateFormPr
                   {customTotal > 0 && <SummaryRow label="Custom Items"     value={fmtCents(customTotal)} />}
                   <SummaryRow label="Subtotal" value={fmtCents(totals.subtotal + woodTotal + customTotal)} bold />
                   <SummaryRow label="10% Off"  value={fmtCents((totals.subtotal + woodTotal + customTotal) * 0.90)} />
+                  <div className="flex items-center justify-between pt-1">
+                    <label htmlFor="includeTax" className="text-sm text-gray-600 cursor-pointer select-none">
+                      Include Sales Tax
+                    </label>
+                    <button
+                      id="includeTax"
+                      role="switch"
+                      aria-checked={includeTax}
+                      onClick={() => setIncludeTax(v => !v)}
+                      className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors focus:outline-none focus:ring-2 focus:ring-brand-500 focus:ring-offset-1 ${
+                        includeTax ? 'bg-brand-600' : 'bg-gray-300'
+                      }`}
+                    >
+                      <span className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${
+                        includeTax ? 'translate-x-4' : 'translate-x-0'
+                      }`} />
+                    </button>
+                  </div>
+                  {!includeTax && (
+                    <p className="text-xs text-amber-600">Tax will not be added to this estimate.</p>
+                  )}
                 </div>
               </div>
             </div>

@@ -79,6 +79,7 @@ export interface EstimateData {
   photoUrls: string[]
   // Tax
   salesTaxRate?: number   // e.g. 0.101 — looked up from WA DOR at time of generation
+  taxExcluded?:  boolean  // when true, tax is intentionally not applied
   // Signature / acceptance
   signatureName?: string
   signatureDate?: string
