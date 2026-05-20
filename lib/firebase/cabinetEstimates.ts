@@ -136,7 +136,7 @@ export async function deleteCabinetEstimate(id: string): Promise<void> {
   await deleteDoc(doc(db, COLLECTION, id))
 }
 
-export async function duplicateCabinetEstimate(id: string, newClientName: string): Promise<string> {
+export async function duplicateCabinetEstimate(id: string, newClientName: string, userId: string): Promise<string> {
   const original = await getCabinetEstimate(id)
   if (!original) throw new Error('Estimate not found')
   const ref = await addDoc(collection(db, COLLECTION), {
@@ -155,7 +155,7 @@ export async function duplicateCabinetEstimate(id: string, newClientName: string
     scope:            original.scope,
     photoUrls:        original.photoUrls,
     notes:            original.notes           ?? '',
-    userId:           original.userId,
+    userId,
     status:           'draft',
     signatureName:    '',
     signatureDataUrl: '',

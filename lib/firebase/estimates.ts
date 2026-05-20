@@ -71,12 +71,15 @@ export async function deleteEstimate(id: string): Promise<void> {
   await deleteDoc(doc(db, COLLECTION, id))
 }
 
-export async function duplicateEstimate(id: string, newClientName: string): Promise<string> {
+export async function duplicateEstimate(id: string, newClientName: string, userId: string): Promise<string> {
   const original = await getEstimate(id)
   if (!original) throw new Error('Estimate not found')
-  const { id: _id, createdAt: _ca, updatedAt: _ua, signatureName: _sn, signatureDate: _sd, signatureDataUrl: _sdu, ...rest } = original
+  const { id: _id, createdAt: _ca, updatedAt: _ua, signatureName: _sn, signatureDate: _sd, signatureDataUrl: _sdu, userId: _uid, ...rest } = original
+  // Remove undefined values — Firestore rejects them
+  const clean = Object.fromEntries(Object.entries(rest).filter(([, v]) => v !== undefined))
   const ref = await addDoc(collection(db, COLLECTION), {
-    ...rest,
+    ...clean,
+    userId,
     clientName: newClientName,
     status: 'draft',
     salesTaxRate: null,

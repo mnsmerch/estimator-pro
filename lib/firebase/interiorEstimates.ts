@@ -144,19 +144,19 @@ export async function deleteInteriorEstimate(id: string): Promise<void> {
   await deleteDoc(doc(db, COLLECTION, id))
 }
 
-export async function duplicateInteriorEstimate(id: string, newClientName: string): Promise<string> {
+export async function duplicateInteriorEstimate(id: string, newClientName: string, userId: string): Promise<string> {
   const original = await getInteriorEstimate(id)
   if (!original) throw new Error('Estimate not found')
   const ref = await addDoc(collection(db, COLLECTION), {
     clientName:       newClientName,
     address:          original.address,
-    clientPhone:      original.clientPhone,
-    clientEmail:      original.clientEmail,
+    clientPhone:      original.clientPhone      ?? '',
+    clientEmail:      original.clientEmail      ?? '',
     salesTaxRate:     null,
     options:          original.options,
     photoUrls:        original.photoUrls,
     scope:            original.scope,
-    userId:           original.userId,
+    userId,
     status:           'draft',
     signatureName:    '',
     signatureDataUrl: '',

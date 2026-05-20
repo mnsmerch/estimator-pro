@@ -145,9 +145,9 @@ export default function EstimatesPage() {
     setDuplicating(true)
     try {
       let newId: string
-      if (dupItem.kind === 'interior') newId = await duplicateInteriorEstimate(dupItem.id, dupName)
-      else if (dupItem.kind === 'cabinet') newId = await duplicateCabinetEstimate(dupItem.id, dupName)
-      else newId = await duplicateEstimate(dupItem.id, dupName)
+      if (dupItem.kind === 'interior') newId = await duplicateInteriorEstimate(dupItem.id, dupName, user.uid)
+      else if (dupItem.kind === 'cabinet') newId = await duplicateCabinetEstimate(dupItem.id, dupName, user.uid)
+      else newId = await duplicateEstimate(dupItem.id, dupName, user.uid)
       setEstimates(prev => [{
         id:         newId,
         clientName: dupName,
