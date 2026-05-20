@@ -321,6 +321,13 @@ function StructureTable({ addon, onChange, appMap, groupedApps, paintProducts, r
                     </td>
                     <td />
                   </tr>
+                  <tr>
+                    <td colSpan={3} className="pt-1 pr-3 text-right font-medium text-gray-500">Paint Gallons</td>
+                    <td className="pt-1 pl-2 text-right font-medium text-gray-900 tabular-nums">
+                      {paintGallons > 0 ? parseFloat(paintGallons.toFixed(2)).toString() + ' gal' : '—'}
+                    </td>
+                    <td />
+                  </tr>
                   {rows2.map(({ label, value, bold, accent }) => (
                     <tr key={label}>
                       <td colSpan={3} className="pt-1 pr-3 text-right font-medium text-gray-500">{label}</td>
