@@ -184,9 +184,11 @@ interface StructureTableProps {
   groupedApps:    { label: string; options: ApplicationItem[] }[]
   paintProducts:  PaintProduct[]
   setupFraction?: number  // extra hours added as a fraction of the raw total (e.g. 1/20 for deck)
+  wage:           number
+  burden:         number
 }
 
-function StructureTable({ addon, onChange, appMap, groupedApps, paintProducts, setupFraction = 0 }: StructureTableProps) {
+function StructureTable({ addon, onChange, appMap, groupedApps, paintProducts, setupFraction = 0, wage, burden }: StructureTableProps) {
   function updateRow(id: string, field: keyof StructureRow, value: string | number) {
     onChange({ ...addon, rows: addon.rows.map(r => r.id === id ? { ...r, [field]: value } : r) })
   }
@@ -277,20 +279,32 @@ function StructureTable({ addon, onChange, appMap, groupedApps, paintProducts, s
             })}
           </tbody>
           <tfoot>
-            <tr className="border-t border-gray-200">
-              <td colSpan={3} className="pt-3 pr-3 text-right font-medium text-gray-500">Total Hours</td>
-              <td className="pt-3 pl-2 text-right font-bold text-gray-900 tabular-nums">
-                {(() => {
-                  const raw = addon.rows.reduce((s, r) => {
-                    const app = appMap.get(r.applicationKey)
-                    return s + (app && r.amount > 0 ? r.amount * app.converter : 0)
-                  }, 0)
-                  const total = raw + raw * setupFraction
-                  return setupFraction > 0 ? fmtHrsTenths(total) : fmtHrs(total)
-                })()}
-              </td>
-              <td />
-            </tr>
+            {(() => {
+              const raw = addon.rows.reduce((s, r) => {
+                const app = appMap.get(r.applicationKey)
+                return s + (app && r.amount > 0 ? r.amount * app.converter : 0)
+              }, 0)
+              const totalHours = raw + raw * setupFraction
+              const labor = totalHours * wage * burden
+              return (
+                <>
+                  <tr className="border-t border-gray-200">
+                    <td colSpan={3} className="pt-3 pr-3 text-right font-medium text-gray-500">Total Hours</td>
+                    <td className="pt-3 pl-2 text-right font-bold text-gray-900 tabular-nums">
+                      {setupFraction > 0 ? fmtHrsTenths(totalHours) : fmtHrs(totalHours)}
+                    </td>
+                    <td />
+                  </tr>
+                  <tr>
+                    <td colSpan={3} className="pt-1 pr-3 text-right font-medium text-gray-500">Labor</td>
+                    <td className="pt-1 pl-2 text-right font-bold text-brand-700 tabular-nums">
+                      {fmt(labor)}
+                    </td>
+                    <td />
+                  </tr>
+                </>
+              )
+            })()}
           </tfoot>
         </table>
       </div>
@@ -1139,6 +1153,8 @@ export default function EstimateForm({ estimateId, initialData }: EstimateFormPr
                 groupedApps={groupedApps}
                 paintProducts={paintProducts}
                 setupFraction={1 / 20}
+                wage={rules.wage}
+                burden={rules.payrollBurden}
               />
             </div>
           )}
@@ -1152,6 +1168,8 @@ export default function EstimateForm({ estimateId, initialData }: EstimateFormPr
                 appMap={appMap}
                 groupedApps={groupedApps}
                 paintProducts={paintProducts}
+                wage={rules.wage}
+                burden={rules.payrollBurden}
               />
             </div>
           )}
@@ -1165,6 +1183,8 @@ export default function EstimateForm({ estimateId, initialData }: EstimateFormPr
                 appMap={appMap}
                 groupedApps={groupedApps}
                 paintProducts={paintProducts}
+                wage={rules.wage}
+                burden={rules.payrollBurden}
               />
             </div>
           )}
@@ -1178,6 +1198,8 @@ export default function EstimateForm({ estimateId, initialData }: EstimateFormPr
                 appMap={appMap}
                 groupedApps={groupedApps}
                 paintProducts={paintProducts}
+                wage={rules.wage}
+                burden={rules.payrollBurden}
               />
             </div>
           )}
