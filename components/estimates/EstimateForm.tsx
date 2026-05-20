@@ -285,7 +285,8 @@ function StructureTable({ addon, onChange, appMap, groupedApps, paintProducts, s
                     const app = appMap.get(r.applicationKey)
                     return s + (app && r.amount > 0 ? r.amount * app.converter : 0)
                   }, 0)
-                  return fmtHrs(raw + raw * setupFraction)
+                  const total = raw + raw * setupFraction
+                  return setupFraction > 0 ? fmtHrsTenths(total) : fmtHrs(total)
                 })()}
               </td>
               <td />
