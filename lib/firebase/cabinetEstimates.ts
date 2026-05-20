@@ -11,7 +11,7 @@ const COLLECTION = 'cabinetEstimates'
 export interface CabinetEstimateRecord extends CabinetEstimateDraft {
   id:                string
   userId:            string
-  status:            'draft' | 'sent' | 'approved'
+  status:            'draft' | 'pending' | 'sent' | 'approved'
   createdAt:         string
   updatedAt:         string
   signatureName?:    string
@@ -62,7 +62,7 @@ export async function createCabinetEstimate(data: CabinetEstimateDraft, userId: 
   return ref.id
 }
 
-export async function updateCabinetEstimate(id: string, data: Partial<CabinetEstimateDraft>): Promise<void> {
+export async function updateCabinetEstimate(id: string, data: Partial<CabinetEstimateDraft> & { status?: string }): Promise<void> {
   await updateDoc(doc(db, COLLECTION, id), {
     ...data,
     updatedAt: serverTimestamp(),
@@ -134,4 +134,34 @@ export async function listCabinetEstimates(userId: string): Promise<CabinetEstim
 
 export async function deleteCabinetEstimate(id: string): Promise<void> {
   await deleteDoc(doc(db, COLLECTION, id))
+}
+
+export async function duplicateCabinetEstimate(id: string, newClientName: string): Promise<string> {
+  const original = await getCabinetEstimate(id)
+  if (!original) throw new Error('Estimate not found')
+  const ref = await addDoc(collection(db, COLLECTION), {
+    clientName:       newClientName,
+    address:          original.address,
+    clientPhone:      original.clientPhone     ?? '',
+    clientEmail:      original.clientEmail     ?? '',
+    salesTaxRate:     null,
+    doors:            original.doors,
+    drawers:          original.drawers,
+    panelsDoorSize:   original.panelsDoorSize,
+    largePanels:      original.largePanels,
+    twoTone:          original.twoTone,
+    patchHoles:       original.patchHoles,
+    aquaCoat:         original.aquaCoat,
+    scope:            original.scope,
+    photoUrls:        original.photoUrls,
+    notes:            original.notes           ?? '',
+    userId:           original.userId,
+    status:           'draft',
+    signatureName:    '',
+    signatureDataUrl: '',
+    signatureDate:    '',
+    createdAt:        serverTimestamp(),
+    updatedAt:        serverTimestamp(),
+  })
+  return ref.id
 }

@@ -71,6 +71,21 @@ export async function deleteEstimate(id: string): Promise<void> {
   await deleteDoc(doc(db, COLLECTION, id))
 }
 
+export async function duplicateEstimate(id: string, newClientName: string): Promise<string> {
+  const original = await getEstimate(id)
+  if (!original) throw new Error('Estimate not found')
+  const { id: _id, createdAt: _ca, updatedAt: _ua, signatureName: _sn, signatureDate: _sd, signatureDataUrl: _sdu, ...rest } = original
+  const ref = await addDoc(collection(db, COLLECTION), {
+    ...rest,
+    clientName: newClientName,
+    status: 'draft',
+    salesTaxRate: null,
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  })
+  return ref.id
+}
+
 export async function listEstimates(userId: string): Promise<EstimateData[]> {
   const q = query(
     collection(db, COLLECTION),

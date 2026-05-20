@@ -436,7 +436,7 @@ export default function EstimateForm({ estimateId, initialData }: EstimateFormPr
     if (!user) return
     const payload = {
       userId: user.uid,
-      status: (initialData?.status ?? 'draft') as 'draft' | 'sent',
+      status: (initialData?.status ?? 'draft') as import('@/types/estimate').EstimateStatus,
       clientName, clientAddress, clientPhone, clientEmail,
       clientFolderId, clientContactId,
       rows,
@@ -511,7 +511,9 @@ export default function EstimateForm({ estimateId, initialData }: EstimateFormPr
                   try {
                     const taxRate = (includeTax && clientAddress) ? await lookupSalesTax(clientAddress) : null
                     await saveQuiet(taxRate)
-                    if (initialData?.status === 'approved') {
+                    if (initialData?.status === 'draft' || !initialData?.status) {
+                      await updateEstimate(estimateId, { status: 'pending' })
+                    } else if (initialData?.status === 'approved') {
                       await resetSignatureForChangeOrder(estimateId)
                     }
                     if (win) win.location.href = `/p/${estimateId}`

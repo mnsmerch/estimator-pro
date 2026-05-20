@@ -19,6 +19,7 @@ type GeneratedItem = {
 
 const STATUS_COLOR: Record<string, string> = {
   draft:    'bg-gray-100 text-gray-600',
+  pending:  'bg-yellow-50 text-yellow-700',
   sent:     'bg-brand-50 text-brand-700',
   approved: 'bg-green-50 text-green-700',
   rejected: 'bg-red-50 text-red-600',
@@ -26,6 +27,7 @@ const STATUS_COLOR: Record<string, string> = {
 
 const STATUS_LABEL: Record<string, string> = {
   draft:    'Draft',
+  pending:  'Pending',
   sent:     'Sent',
   approved: 'Signed',
   rejected: 'Rejected',
@@ -37,11 +39,21 @@ const KIND_COLOR: Record<string, string> = {
   cabinet:  'bg-amber-100 text-amber-700',
 }
 
+type FilterKey = 'all' | 'pending' | 'sent' | 'approved'
+
+const FILTERS: { key: FilterKey; label: string }[] = [
+  { key: 'all',      label: 'All'     },
+  { key: 'pending',  label: 'Pending' },
+  { key: 'sent',     label: 'Sent'    },
+  { key: 'approved', label: 'Signed'  },
+]
+
 export default function GeneratedEstimatesPage() {
   const { user, role } = useAuth()
   const [items,   setItems]   = useState<GeneratedItem[]>([])
   const [loading, setLoading] = useState(true)
   const [copied,  setCopied]  = useState<string | null>(null)
+  const [filter,  setFilter]  = useState<FilterKey>('all')
 
   useEffect(() => {
     if (!user) return
@@ -97,11 +109,13 @@ export default function GeneratedEstimatesPage() {
           }))
         }
 
-        const all = [...ext, ...int, ...cab].sort((a, b) => {
-          const ta = a.createdAt ? new Date(a.createdAt as string).getTime() : 0
-          const tb = b.createdAt ? new Date(b.createdAt as string).getTime() : 0
-          return tb - ta
-        })
+        const all = [...ext, ...int, ...cab]
+          .filter(e => e.status === 'pending' || e.status === 'sent' || e.status === 'approved')
+          .sort((a, b) => {
+            const ta = a.createdAt ? new Date(a.createdAt as string).getTime() : 0
+            const tb = b.createdAt ? new Date(b.createdAt as string).getTime() : 0
+            return tb - ta
+          })
         setItems(all)
       } catch {
         // ignore
@@ -132,17 +146,36 @@ export default function GeneratedEstimatesPage() {
           <p className="text-sm text-gray-500 mt-1">All estimates with their shareable proposal links</p>
         </div>
 
+        {/* Filter pills */}
+        <div className="flex items-center gap-2 mb-6">
+          {FILTERS.map(f => (
+            <button
+              key={f.key}
+              onClick={() => setFilter(f.key)}
+              className={`px-4 py-1.5 rounded-full text-sm font-medium transition-colors ${
+                filter === f.key
+                  ? 'bg-brand-600 text-white'
+                  : 'bg-gray-100 text-gray-600 hover:bg-brand-50 hover:text-brand-700'
+              }`}
+            >
+              {f.label}
+            </button>
+          ))}
+        </div>
+
         {loading ? (
           <div className="flex justify-center py-20">
             <div className="w-6 h-6 border-2 border-brand-600 border-t-transparent rounded-full animate-spin" />
           </div>
-        ) : items.length === 0 ? (
-          <div className="bg-white rounded-xl border border-gray-200 p-12 text-center">
-            <p className="text-gray-500">No estimates yet.</p>
-          </div>
         ) : (
           <div className="bg-white rounded-xl border border-gray-200 divide-y divide-gray-100">
-            {items.map(item => (
+            {items.filter(i => filter === 'all' || i.status === filter).length === 0 ? (
+              <div className="p-12 text-center">
+                <p className="text-gray-500">
+                  No <span className="font-medium">{FILTERS.find(f => f.key === filter)?.label.toLowerCase()}</span> estimates.
+                </p>
+              </div>
+            ) : items.filter(i => filter === 'all' || i.status === filter).map(item => (
               <a
                 key={item.id}
                 href={item.proposalUrl}

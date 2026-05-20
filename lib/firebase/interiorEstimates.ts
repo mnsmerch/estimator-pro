@@ -11,7 +11,7 @@ const COLLECTION = 'interiorEstimates'
 export interface InteriorEstimateRecord extends InteriorEstimateDraft {
   id:                string
   userId:            string
-  status:            'draft' | 'sent' | 'approved'
+  status:            'draft' | 'pending' | 'sent' | 'approved'
   createdAt:         string
   updatedAt:         string
   signatureName?:    string
@@ -32,7 +32,7 @@ export async function createInteriorEstimate(data: InteriorEstimateDraft, userId
   return ref.id
 }
 
-export async function updateInteriorEstimate(id: string, data: Partial<InteriorEstimateDraft>): Promise<void> {
+export async function updateInteriorEstimate(id: string, data: Partial<InteriorEstimateDraft> & { status?: string }): Promise<void> {
   await updateDoc(doc(db, COLLECTION, id), {
     ...data,
     updatedAt: serverTimestamp(),
@@ -142,4 +142,29 @@ export async function listInteriorEstimates(userId: string): Promise<InteriorEst
 
 export async function deleteInteriorEstimate(id: string): Promise<void> {
   await deleteDoc(doc(db, COLLECTION, id))
+}
+
+export async function duplicateInteriorEstimate(id: string, newClientName: string): Promise<string> {
+  const original = await getInteriorEstimate(id)
+  if (!original) throw new Error('Estimate not found')
+  const ref = await addDoc(collection(db, COLLECTION), {
+    clientName:       newClientName,
+    address:          original.address,
+    clientPhone:      original.clientPhone,
+    clientEmail:      original.clientEmail,
+    salesTaxRate:     null,
+    options:          original.options,
+    photoUrls:        original.photoUrls,
+    scope:            original.scope,
+    userId:           original.userId,
+    status:           'draft',
+    signatureName:    '',
+    signatureDataUrl: '',
+    signatureDate:    '',
+    clientFolderId:   original.clientFolderId   ?? '',
+    clientContactId:  original.clientContactId  ?? '',
+    createdAt:        serverTimestamp(),
+    updatedAt:        serverTimestamp(),
+  })
+  return ref.id
 }

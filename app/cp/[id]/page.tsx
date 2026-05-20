@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useEffect, use, useRef, useCallback } from 'react'
-import { acceptCabinetEstimate } from '@/lib/firebase/cabinetEstimates'
 import { DEFAULT_COMPANY } from '@/lib/defaultSettings'
 import type { CabinetEstimateRecord } from '@/lib/firebase/cabinetEstimates'
 import type { CompanySettings } from '@/types/settings'
@@ -83,11 +82,25 @@ export default function CabinetProposalPage({ params }: { params: Promise<{ id: 
     if (!sigName.trim() || !agreed || !sigDataUrl || !estimate) return
     setSigning(true)
     try {
-      await acceptCabinetEstimate(id, sigName.trim(), sigDataUrl)
+      const acceptRes = await fetch('/api/accept-estimate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          estimateId:       id,
+          estimateType:     'cabinet',
+          signatureName:    sigName.trim(),
+          signatureDataUrl: sigDataUrl,
+        }),
+      })
+      if (!acceptRes.ok) {
+        const json = await acceptRes.json() as { error?: string }
+        throw new Error(json.error ?? `Failed to save signature (${acceptRes.status})`)
+      }
       setSigned(true)
       setEstimate(prev => prev ? { ...prev, status: 'approved', signatureName: sigName.trim() } : prev)
     } catch (err) {
       console.error('Failed to accept estimate:', err)
+      alert('Failed to save signature. Please try again.')
     } finally {
       setSigning(false)
     }
@@ -435,6 +448,8 @@ export default function CabinetProposalPage({ params }: { params: Promise<{ id: 
                           clientContactId: '',
                           clientFolderId:  '',
                           estimateUrl,
+                          estimateId:      id,
+                          estimateType:    'cabinet',
                         }),
                       })
                       const json = await res.json() as { success?: boolean; error?: string }

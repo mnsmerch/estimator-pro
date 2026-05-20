@@ -891,6 +891,8 @@ export default function ProposalPage({ params }: { params: Promise<{ id: string 
                           clientContactId: estimate.clientContactId ?? '',
                           clientFolderId:  estimate.clientFolderId  ?? '',
                           estimateUrl,
+                          estimateId:      id,
+                          estimateType:    'exterior',
                         }),
                       })
                       const json = await res.json() as { success?: boolean; error?: string }

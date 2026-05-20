@@ -658,7 +658,9 @@ export default function InteriorEstimateForm({
                         const updatedDraft = { ...draft, salesTaxRate: taxRate }
                         setDraft(updatedDraft)
                         await updateInteriorEstimate(estimateId, updatedDraft)
-                        if (initialRecord?.status === 'approved') {
+                        if (initialRecord?.status === 'draft' || !initialRecord?.status) {
+                          await updateInteriorEstimate(estimateId, { status: 'pending' })
+                        } else if (initialRecord?.status === 'approved') {
                           await resetSignatureForInteriorChangeOrder(estimateId)
                         }
                       }
@@ -1553,7 +1555,9 @@ export default function InteriorEstimateForm({
                     const updatedDraft = { ...draft, salesTaxRate: taxRate }
                     setDraft(updatedDraft)
                     await updateInteriorEstimate(estimateId, updatedDraft)
-                    if (initialRecord?.status === 'approved') {
+                    if (initialRecord?.status === 'draft' || !initialRecord?.status) {
+                      await updateInteriorEstimate(estimateId, { status: 'pending' })
+                    } else if (initialRecord?.status === 'approved') {
                       await resetSignatureForInteriorChangeOrder(estimateId)
                     }
                   }

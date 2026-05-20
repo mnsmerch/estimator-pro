@@ -1,7 +1,7 @@
 'use client'
 
 import { createContext, useContext, useEffect, useState } from 'react'
-import { User, onAuthStateChanged } from 'firebase/auth'
+import { User, onAuthStateChanged, signOut } from 'firebase/auth'
 import { auth } from '@/lib/firebase/auth'
 import { getUserRole, type UserRole } from '@/lib/firebase/users'
 
@@ -20,6 +20,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      if (firebaseUser) {
+        const expiresAt = Number(localStorage.getItem('loginAt'))
+        if (expiresAt && Date.now() > expiresAt) {
+          localStorage.removeItem('loginAt')
+          await signOut(auth)
+          return
+        }
+      }
       setUser(firebaseUser)
       if (firebaseUser) {
         try {

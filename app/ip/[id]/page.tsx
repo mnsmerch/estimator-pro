@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useEffect, useMemo, use, useRef, useCallback } from 'react'
-import { acceptInteriorEstimate } from '@/lib/firebase/interiorEstimates'
 import {
   calculatePainterOverview,
   calculateCostBreakdown,
@@ -190,8 +189,21 @@ export default function InteriorProposalPage({ params }: { params: Promise<{ id:
     if (!sigName.trim() || !agreed || !sigDataUrl || !estimate) return
     setSigning(true)
     try {
-      // 1. Save signature to Firestore
-      await acceptInteriorEstimate(id, sigName.trim(), sigDataUrl)
+      // 1. Save signature + set status via server-side Admin SDK (bypasses Firestore rules for unauthenticated clients)
+      const acceptRes = await fetch('/api/accept-estimate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          estimateId:       id,
+          estimateType:     'interior',
+          signatureName:    sigName.trim(),
+          signatureDataUrl: sigDataUrl,
+        }),
+      })
+      if (!acceptRes.ok) {
+        const json = await acceptRes.json() as { error?: string }
+        throw new Error(json.error ?? `Failed to save signature (${acceptRes.status})`)
+      }
       setSigned(true)
       setEstimate(prev => prev ? { ...prev, status: 'approved', signatureName: sigName.trim() } : prev)
 
@@ -682,6 +694,8 @@ export default function InteriorProposalPage({ params }: { params: Promise<{ id:
                           clientContactId: estimate.clientContactId ?? '',
                           clientFolderId:  estimate.clientFolderId  ?? '',
                           estimateUrl,
+                          estimateId:      id,
+                          estimateType:    'interior',
                         }),
                       })
                       const json = await res.json() as { success?: boolean; error?: string }

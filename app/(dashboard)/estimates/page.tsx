@@ -4,9 +4,9 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/context/AuthContext'
 import AppHeader from '@/components/AppHeader'
-import { listEstimates, deleteEstimate } from '@/lib/firebase/estimates'
-import { listInteriorEstimates, deleteInteriorEstimate } from '@/lib/firebase/interiorEstimates'
-import { listCabinetEstimates, deleteCabinetEstimate } from '@/lib/firebase/cabinetEstimates'
+import { listEstimates, deleteEstimate, duplicateEstimate } from '@/lib/firebase/estimates'
+import { listInteriorEstimates, deleteInteriorEstimate, duplicateInteriorEstimate } from '@/lib/firebase/interiorEstimates'
+import { listCabinetEstimates, deleteCabinetEstimate, duplicateCabinetEstimate } from '@/lib/firebase/cabinetEstimates'
 import type { EstimateData } from '@/types/estimate'
 
 type ListItem = {
@@ -20,17 +20,19 @@ type ListItem = {
 
 // ─── constants ───────────────────────────────────────────────────────────────
 
-type FilterKey = 'all' | 'draft' | 'sent' | 'approved'
+type FilterKey = 'all' | 'draft' | 'pending' | 'sent' | 'approved'
 
 const FILTERS: { key: FilterKey; label: string }[] = [
-  { key: 'all',      label: 'All'    },
-  { key: 'draft',    label: 'Draft'  },
-  { key: 'sent',     label: 'Sent'   },
-  { key: 'approved', label: 'Signed' },
+  { key: 'all',      label: 'All'     },
+  { key: 'draft',    label: 'Draft'   },
+  { key: 'pending',  label: 'Pending' },
+  { key: 'sent',     label: 'Sent'    },
+  { key: 'approved', label: 'Signed'  },
 ]
 
 const STATUS_LABEL: Record<string, string> = {
   draft:    'Draft',
+  pending:  'Pending',
   sent:     'Sent',
   approved: 'Signed',
   rejected: 'Rejected',
@@ -38,6 +40,7 @@ const STATUS_LABEL: Record<string, string> = {
 
 const STATUS_COLOR: Record<string, string> = {
   draft:    'bg-gray-100 text-gray-600',
+  pending:  'bg-yellow-50 text-yellow-700',
   sent:     'bg-brand-50 text-brand-700',
   approved: 'bg-green-50 text-green-700',
   rejected: 'bg-red-50 text-red-600',
@@ -55,6 +58,9 @@ export default function EstimatesPage() {
   const [search, setSearch]         = useState('')
   const [modalOpen, setModalOpen]   = useState(false)
   const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [dupItem, setDupItem]       = useState<ListItem | null>(null)
+  const [dupName, setDupName]       = useState('')
+  const [duplicating, setDuplicating] = useState(false)
 
   useEffect(() => {
     if (!user) return
@@ -126,6 +132,38 @@ export default function EstimatesPage() {
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
   }, [modalOpen])
+
+  function openDuplicateModal(e: React.MouseEvent, item: ListItem) {
+    e.preventDefault()
+    e.stopPropagation()
+    setDupItem(item)
+    setDupName(`${item.clientName || 'Unnamed Client'} (1)`)
+  }
+
+  async function handleDuplicate() {
+    if (!dupItem || !user) return
+    setDuplicating(true)
+    try {
+      let newId: string
+      if (dupItem.kind === 'interior') newId = await duplicateInteriorEstimate(dupItem.id, dupName)
+      else if (dupItem.kind === 'cabinet') newId = await duplicateCabinetEstimate(dupItem.id, dupName)
+      else newId = await duplicateEstimate(dupItem.id, dupName)
+      setEstimates(prev => [{
+        id:         newId,
+        clientName: dupName,
+        address:    dupItem.address,
+        status:     'draft',
+        createdAt:  new Date().toISOString(),
+        kind:       dupItem.kind,
+      }, ...prev])
+      setDupItem(null)
+    } catch (err) {
+      console.error('Duplicate failed:', err)
+      alert('Failed to duplicate estimate. Please try again.')
+    } finally {
+      setDuplicating(false)
+    }
+  }
 
   async function handleDelete(e: React.MouseEvent, item: ListItem) {
     e.preventDefault()
@@ -281,6 +319,16 @@ export default function EstimatesPage() {
                       {est.createdAt ? new Date(est.createdAt as string).toLocaleDateString() : ''}
                     </span>
                     <button
+                      onClick={e => openDuplicateModal(e, est)}
+                      className="p-1.5 rounded-md text-gray-300 hover:text-brand-600 hover:bg-brand-50 opacity-0 group-hover:opacity-100 transition-all"
+                      aria-label="Duplicate estimate"
+                      title="Duplicate"
+                    >
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 17.25v3.375c0 .621-.504 1.125-1.125 1.125h-9.75a1.125 1.125 0 0 1-1.125-1.125V7.875c0-.621.504-1.125 1.125-1.125H6.75a9.06 9.06 0 0 1 1.5.124m7.5 10.376h3.375c.621 0 1.125-.504 1.125-1.125V11.25c0-4.46-3.243-8.161-7.5-8.876a9.06 9.06 0 0 0-1.5-.124H9.375c-.621 0-1.125.504-1.125 1.125v3.5m7.5 10.375H9.375a1.125 1.125 0 0 1-1.125-1.125v-9.25m12 6.625v-1.875a3.375 3.375 0 0 0-3.375-3.375h-1.5a1.125 1.125 0 0 1-1.125-1.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H9.75" />
+                      </svg>
+                    </button>
+                    <button
                       onClick={e => handleDelete(e, est)}
                       disabled={deletingId === est.id}
                       className="p-1.5 rounded-md text-gray-300 hover:text-red-500 hover:bg-red-50 opacity-0 group-hover:opacity-100 transition-all disabled:opacity-50"
@@ -304,6 +352,50 @@ export default function EstimatesPage() {
           </div>
         )}
       </main>
+
+      {/* ── Duplicate modal ─────────────────────────────────────────────────── */}
+      {dupItem && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" aria-modal="true" role="dialog">
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setDupItem(null)} />
+          <div className="relative bg-white rounded-2xl shadow-xl w-full max-w-sm p-6 z-10">
+            <button
+              onClick={() => setDupItem(null)}
+              className="absolute top-4 right-4 p-1 text-gray-400 hover:text-gray-600 rounded-md hover:bg-gray-100"
+              aria-label="Close"
+            >
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+            <h2 className="text-lg font-bold text-gray-900 mb-0.5">Duplicate Estimate</h2>
+            <p className="text-sm text-gray-500 mb-5">A new draft will be created with the same data.</p>
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">Estimate name</label>
+            <input
+              type="text"
+              value={dupName}
+              onChange={e => setDupName(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter' && dupName.trim()) handleDuplicate() }}
+              className="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 mb-5"
+              autoFocus
+            />
+            <div className="flex gap-3">
+              <button
+                onClick={handleDuplicate}
+                disabled={duplicating || !dupName.trim()}
+                className="flex-1 px-4 py-2 bg-brand-600 text-white text-sm font-medium rounded-lg hover:bg-brand-700 disabled:opacity-50 transition-colors"
+              >
+                {duplicating ? 'Duplicating…' : 'Duplicate'}
+              </button>
+              <button
+                onClick={() => setDupItem(null)}
+                className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-50 transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── New Estimate modal ───────────────────────────────────────────────── */}
       {modalOpen && (

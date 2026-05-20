@@ -1,4 +1,4 @@
-export type EstimateStatus = 'draft' | 'sent' | 'approved' | 'rejected'
+export type EstimateStatus = 'draft' | 'pending' | 'sent' | 'approved' | 'rejected'
 
 export interface EstimateRow {
   id: string

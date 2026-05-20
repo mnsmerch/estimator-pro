@@ -155,7 +155,9 @@ export default function CabinetEstimateForm({
       const updatedDraft = { ...draft, salesTaxRate: taxRate }
       setDraft(updatedDraft)
       await updateCabinetEstimate(estimateId, updatedDraft)
-      if (initialRecord?.status === 'approved') {
+      if (initialRecord?.status === 'draft' || !initialRecord?.status) {
+        await updateCabinetEstimate(estimateId, { status: 'pending' })
+      } else if (initialRecord?.status === 'approved') {
         await resetSignatureForCabinetChangeOrder(estimateId)
       }
       window.open(`/cp/${estimateId}?t=${Date.now()}`, '_blank')
