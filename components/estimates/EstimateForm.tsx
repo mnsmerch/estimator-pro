@@ -10,7 +10,7 @@ import { buildApplicationList, CATEGORY_ORDER } from '@/lib/applicationList'
 import type { ApplicationItem } from '@/lib/applicationList'
 import { calcEstimate, calcMarkup, calcPaintCost } from '@/lib/estimateEngine'
 import { SCOPE_DEFAULTS, getDefaultScopeForBrand } from '@/types/estimate'
-import type { ScopeFields } from '@/types/estimate'
+import type { ScopeFields, JobType } from '@/types/estimate'
 import {
   DEFAULT_BUSINESS_RULES,
   DEFAULT_PRODUCTION_CONSTANTS,
@@ -519,6 +519,8 @@ export default function EstimateForm({ estimateId, initialData }: EstimateFormPr
 
   const currentScope = scopeByBrand[selectedBrand] ?? getDefaultScopeForBrand(selectedBrand)
 
+  const [jobType, setJobType] = useState<JobType>(() => initialData?.jobType ?? 'exterior')
+
   const [includeTax, setIncludeTax] = useState(initialData?.taxExcluded !== true)
 
   const [saving, setSaving] = useState(false)
@@ -699,6 +701,7 @@ export default function EstimateForm({ estimateId, initialData }: EstimateFormPr
       totalColors:  currentScope.totalColors,
       totalCoats:   currentScope.totalCoats,
       photoUrls,
+      jobType,
       taxExcluded:  !includeTax,
       salesTaxRate: includeTax ? (initialData?.salesTaxRate ?? null) : null,
     }
@@ -833,6 +836,30 @@ export default function EstimateForm({ estimateId, initialData }: EstimateFormPr
           {isEdit ? `Edit — ${initialData?.clientName || 'Estimate'}` : 'New Estimate'}
         </h1>
 
+        {/* ── Job Type ──────────────────────────────────────────────────── */}
+        <div className="bg-white rounded-xl border border-gray-200 p-4 sm:p-5">
+          <p className="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-3">Job Type</p>
+          <div className="flex flex-wrap gap-2">
+            {([
+              { value: 'exterior',   label: 'Exterior Only' },
+              { value: 'structures', label: 'Structures Only' },
+              { value: 'both',       label: 'Exterior + Structures' },
+            ] as { value: JobType; label: string }[]).map(opt => (
+              <button
+                key={opt.value}
+                onClick={() => setJobType(opt.value)}
+                className={`px-4 py-2 rounded-lg text-sm font-semibold border transition-colors ${
+                  jobType === opt.value
+                    ? 'bg-brand-600 text-white border-brand-600'
+                    : 'bg-white text-gray-700 border-gray-300 hover:border-brand-400 hover:text-brand-600'
+                }`}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
         {/* ── Client Info ───────────────────────────────────────────────── */}
         <section className="bg-white rounded-xl border border-gray-200 p-4 sm:p-6">
           <h2 className="text-base font-semibold text-gray-900 mb-4">Client Information</h2>
@@ -863,7 +890,7 @@ export default function EstimateForm({ estimateId, initialData }: EstimateFormPr
         </section>
 
         {/* ── Measurements ──────────────────────────────────────────────── */}
-        <section className="bg-white rounded-xl border border-gray-200 p-4 sm:p-6">
+        {jobType !== 'structures' && <section className="bg-white rounded-xl border border-gray-200 p-4 sm:p-6">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-base font-semibold text-gray-900">Measurements</h2>
             <button onClick={addRow} className="flex items-center gap-1.5 text-sm font-medium text-brand-600 hover:text-brand-800">
@@ -994,22 +1021,24 @@ export default function EstimateForm({ estimateId, initialData }: EstimateFormPr
               )
             })}
           </div>
-        </section>
+        </section>}
 
         {/* ── Add Ons ───────────────────────────────────────────────────── */}
         <section className="bg-white rounded-xl border border-gray-200 p-4 sm:p-6">
           <h2 className="text-base font-semibold text-gray-900 mb-4">Add Ons</h2>
           <div className="flex flex-wrap gap-2 mb-2">
-            <button
-              onClick={() => setWoodOpen(o => !o)}
-              className={`px-4 py-2 rounded-lg text-sm font-semibold border transition-colors ${
-                woodOpen
-                  ? 'bg-brand-600 text-white border-brand-600'
-                  : 'bg-white text-gray-700 border-gray-300 hover:border-brand-400 hover:text-brand-600'
-              }`}
-            >
-              Wood Replacement
-            </button>
+            {jobType !== 'structures' && (
+              <button
+                onClick={() => setWoodOpen(o => !o)}
+                className={`px-4 py-2 rounded-lg text-sm font-semibold border transition-colors ${
+                  woodOpen
+                    ? 'bg-brand-600 text-white border-brand-600'
+                    : 'bg-white text-gray-700 border-gray-300 hover:border-brand-400 hover:text-brand-600'
+                }`}
+              >
+                Wood Replacement
+              </button>
+            )}
             <button
               onClick={() => setCustomOpen(o => !o)}
               className={`px-4 py-2 rounded-lg text-sm font-semibold border transition-colors ${
@@ -1020,37 +1049,41 @@ export default function EstimateForm({ estimateId, initialData }: EstimateFormPr
             >
               Custom Item
             </button>
-            {/* Deck toggle */}
-            <button
-              onClick={() => setDeckAddons(ads => ads.map(a => ({ ...a, enabled: !ads[0].enabled })))}
-              className={`px-4 py-2 rounded-lg text-sm font-semibold border transition-colors ${
-                deckAddons[0]?.enabled
-                  ? 'bg-brand-600 text-white border-brand-600'
-                  : 'bg-white text-gray-700 border-gray-300 hover:border-brand-400 hover:text-brand-600'
-              }`}
-            >
-              Deck
-            </button>
-            {(['Pergola', 'Fence', 'Shed'] as const).map(name => {
-              const key = name.toLowerCase() as 'pergola' | 'fence' | 'shed'
-              const addonMap = { pergola: pergolaAddon, fence: fenceAddon, shed: shedAddon }
-              const setterMap = { pergola: setPergolaAddon, fence: setFenceAddon, shed: setShedAddon }
-              const addon = addonMap[key]
-              const setter = setterMap[key]
-              return (
+            {/* Structure toggles — shown for structures or both */}
+            {jobType !== 'exterior' && (
+              <>
                 <button
-                  key={name}
-                  onClick={() => setter(a => ({ ...a, enabled: !a.enabled }))}
+                  onClick={() => setDeckAddons(ads => ads.map(a => ({ ...a, enabled: !ads[0].enabled })))}
                   className={`px-4 py-2 rounded-lg text-sm font-semibold border transition-colors ${
-                    addon.enabled
+                    deckAddons[0]?.enabled
                       ? 'bg-brand-600 text-white border-brand-600'
                       : 'bg-white text-gray-700 border-gray-300 hover:border-brand-400 hover:text-brand-600'
                   }`}
                 >
-                  {name}
+                  Deck
                 </button>
-              )
-            })}
+                {(['Pergola', 'Fence', 'Shed'] as const).map(name => {
+                  const key = name.toLowerCase() as 'pergola' | 'fence' | 'shed'
+                  const addonMap = { pergola: pergolaAddon, fence: fenceAddon, shed: shedAddon }
+                  const setterMap = { pergola: setPergolaAddon, fence: setFenceAddon, shed: setShedAddon }
+                  const addon = addonMap[key]
+                  const setter = setterMap[key]
+                  return (
+                    <button
+                      key={name}
+                      onClick={() => setter(a => ({ ...a, enabled: !a.enabled }))}
+                      className={`px-4 py-2 rounded-lg text-sm font-semibold border transition-colors ${
+                        addon.enabled
+                          ? 'bg-brand-600 text-white border-brand-600'
+                          : 'bg-white text-gray-700 border-gray-300 hover:border-brand-400 hover:text-brand-600'
+                      }`}
+                    >
+                      {name}
+                    </button>
+                  )
+                })}
+              </>
+            )}
           </div>
 
           {woodOpen && (
@@ -1442,7 +1475,7 @@ export default function EstimateForm({ estimateId, initialData }: EstimateFormPr
         </section>
 
         {/* ── Paint Selection ───────────────────────────────────────────── */}
-        <section className="bg-white rounded-xl border border-gray-200 p-4 sm:p-6">
+        {jobType !== 'structures' && <section className="bg-white rounded-xl border border-gray-200 p-4 sm:p-6">
           <h2 className="text-base font-semibold text-gray-900 mb-4">Paint Selection</h2>
           <div className="flex flex-wrap gap-2 mb-6">
             {PAINT_BRANDS.map(brand => (
@@ -1494,10 +1527,10 @@ export default function EstimateForm({ estimateId, initialData }: EstimateFormPr
             </table>
           </div>
           </div>
-        </section>
+        </section>}
 
         {/* ── Summary ───────────────────────────────────────────────────── */}
-        <section className="bg-white rounded-xl border border-gray-200 p-4 sm:p-6">
+        {jobType !== 'structures' && <section className="bg-white rounded-xl border border-gray-200 p-4 sm:p-6">
           <h2 className="text-base font-semibold text-gray-900 mb-4">Estimate Summary</h2>
           {totals ? (
             <div className="grid grid-cols-1 gap-6 sm:grid-cols-3">
@@ -1555,7 +1588,7 @@ export default function EstimateForm({ estimateId, initialData }: EstimateFormPr
           ) : (
             <p className="text-sm text-gray-400">Add measurement rows above to see the estimate.</p>
           )}
-        </section>
+        </section>}
 
         {/* ── Scope of Work ─────────────────────────────────────────────── */}
         <section className="bg-white rounded-xl border border-gray-200 p-4 sm:p-6">

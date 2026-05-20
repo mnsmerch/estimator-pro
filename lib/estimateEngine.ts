@@ -1,6 +1,6 @@
 import type { ApplicationItem } from './applicationList'
 import type { BusinessRules, ProductionConstants, PaintProduct } from '@/types/settings'
-import type { EstimateRow } from '@/types/estimate'
+import type { EstimateRow, StructureAddon } from '@/types/estimate'
 
 export interface RowResult {
   rowId: string
@@ -293,4 +293,42 @@ export function calcEstimate(
     subtotal,
     tenPercentOff,
   }
+}
+
+/** Compute the customer-facing subtotal for a single structure add-on. Returns 0 if not enabled. */
+export function calcStructureAddonSubtotal(
+  addon: StructureAddon,
+  setupFraction: number,
+  appMap: Map<string, ApplicationItem>,
+  rules: BusinessRules,
+  constants: ProductionConstants,
+  paintProducts: PaintProduct[],
+): number {
+  if (!addon.enabled) return 0
+
+  const raw = addon.rows.reduce((s, r) => {
+    const app = appMap.get(r.applicationKey)
+    return s + (app && r.amount > 0 ? r.amount * app.converter : 0)
+  }, 0)
+  const totalHours = raw + raw * setupFraction
+
+  const labor    = totalHours * rules.wage * rules.payrollBurden
+  const sundries = totalHours * constants.sundriesPerHour
+
+  const paintProduct = paintProducts.find(p => p.id === addon.paintProductId)
+  const stainSqft = addon.rows.reduce((s, r) => {
+    const app = appMap.get(r.applicationKey)
+    return app?.categoryKey === 'staining' && r.amount > 0
+      ? s + r.amount * (app.surfaceAreaFactor || 1)
+      : s
+  }, 0)
+  const paintGallons = paintProduct && paintProduct.coverage > 0
+    ? (stainSqft * constants.stainCoverage) / paintProduct.coverage
+    : 0
+  const paintCost = paintProduct ? calcPaintCost(paintGallons, paintProduct) : 0
+
+  const landm    = labor + paintCost + sundries
+  const markup   = calcMarkup(rules)
+  const rawSub   = markup > 0 ? (landm / markup) / (1 - rules.salesDiscount) : 0
+  return rules.salesTax === 0 ? Math.round(rawSub) : rawSub
 }

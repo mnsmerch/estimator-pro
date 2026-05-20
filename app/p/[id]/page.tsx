@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo, use, useRef, useCallback } from 'react'
 import { buildApplicationList } from '@/lib/applicationList'
-import { calcEstimate, calcMarkup } from '@/lib/estimateEngine'
+import { calcEstimate, calcMarkup, calcStructureAddonSubtotal } from '@/lib/estimateEngine'
 import {
   DEFAULT_BUSINESS_RULES,
   DEFAULT_PRODUCTION_CONSTANTS,
@@ -161,8 +161,33 @@ export default function ProposalPage({ params }: { params: Promise<{ id: string 
   const woodTotal   = includeWood   ? woodTotalRaw   : 0
   const customTotal = includeCustom ? customTotalRaw : 0
 
-  const paintingSubtotal  = totals?.subtotal ?? 0
-  const combinedSubtotal  = paintingSubtotal + woodTotal + customTotal
+  const jobType = estimate?.jobType ?? 'exterior'
+
+  // Structure subtotals (deck, pergola, fence, shed)
+  const deckSubtotal = useMemo(() => {
+    if (!estimate?.deckAddons?.length) return 0
+    return estimate.deckAddons.reduce((s, addon) =>
+      s + calcStructureAddonSubtotal(addon, 1 / 20, appMap, rules, constants, paintProducts), 0)
+  }, [estimate, appMap, rules, constants, paintProducts])
+
+  const pergolaSubtotal = useMemo(() =>
+    estimate?.pergolaAddon ? calcStructureAddonSubtotal(estimate.pergolaAddon, 0, appMap, rules, constants, paintProducts) : 0,
+    [estimate, appMap, rules, constants, paintProducts])
+
+  const fenceSubtotal = useMemo(() =>
+    estimate?.fenceAddon ? calcStructureAddonSubtotal(estimate.fenceAddon, 0, appMap, rules, constants, paintProducts) : 0,
+    [estimate, appMap, rules, constants, paintProducts])
+
+  const shedSubtotal = useMemo(() =>
+    estimate?.shedAddon ? calcStructureAddonSubtotal(estimate.shedAddon, 0, appMap, rules, constants, paintProducts) : 0,
+    [estimate, appMap, rules, constants, paintProducts])
+
+  const structuresSubtotal = deckSubtotal + pergolaSubtotal + fenceSubtotal + shedSubtotal
+  const hasStructures = structuresSubtotal > 0
+
+  const paintingSubtotal  = jobType !== 'structures' ? (totals?.subtotal ?? 0) : 0
+  const structTotal       = jobType !== 'exterior'   ? structuresSubtotal       : 0
+  const combinedSubtotal  = paintingSubtotal + structTotal + woodTotal + customTotal
   const discountAmount    = applyDiscount ? combinedSubtotal * 0.10 : 0
   const discounted        = combinedSubtotal - discountAmount
   const taxRate           = estimate?.salesTaxRate ?? null
@@ -533,7 +558,7 @@ export default function ProposalPage({ params }: { params: Promise<{ id: string 
         )}
 
         {/* ── Paint options + add-ons ────────────────────────────────────── */}
-        <div className="bg-white rounded-2xl border border-gray-200 p-6">
+        {jobType !== 'structures' && <div className="bg-white rounded-2xl border border-gray-200 p-6">
           <h3 className="text-base font-bold text-gray-900 mb-1">Choose Your Paint</h3>
           <p className="text-sm text-gray-400 mb-4">Select a paint tier to see how it affects your price.</p>
           <div className="flex flex-wrap gap-2">
@@ -593,10 +618,10 @@ export default function ProposalPage({ params }: { params: Promise<{ id: string 
               </div>
             </div>
           )}
-        </div>
+        </div>}
 
         {/* ── Discount toggle ────────────────────────────────────────────── */}
-        {totals && (
+        {(totals || hasStructures) && (
           <div className={`rounded-2xl border-2 p-5 transition-colors ${
             applyDiscount ? 'bg-green-50 border-green-400' : 'bg-white border-gray-200'
           }`}>
@@ -632,7 +657,7 @@ export default function ProposalPage({ params }: { params: Promise<{ id: string 
         )}
 
         {/* ── Pricing summary ────────────────────────────────────────────── */}
-        {totals && (
+        {(totals || hasStructures) && (
           <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
             <div className="bg-gray-800 text-white text-center text-xs font-bold py-2.5 tracking-widest uppercase">
               Your Estimate
@@ -641,7 +666,21 @@ export default function ProposalPage({ params }: { params: Promise<{ id: string 
 
               {/* Line items */}
               <div className="space-y-2.5">
-                <PriceLine label={`Exterior Painting — ${PAINT_BRANDS.find(b => b.key === selectedBrand)?.label}`} value={fmtD(paintingSubtotal)} />
+                {jobType !== 'structures' && paintingSubtotal > 0 && (
+                  <PriceLine label={`Exterior Painting — ${PAINT_BRANDS.find(b => b.key === selectedBrand)?.label}`} value={fmtD(paintingSubtotal)} />
+                )}
+                {jobType !== 'exterior' && deckSubtotal > 0 && (
+                  <PriceLine label="Deck" value={fmtD(deckSubtotal)} />
+                )}
+                {jobType !== 'exterior' && pergolaSubtotal > 0 && (
+                  <PriceLine label="Pergola" value={fmtD(pergolaSubtotal)} />
+                )}
+                {jobType !== 'exterior' && fenceSubtotal > 0 && (
+                  <PriceLine label="Fence" value={fmtD(fenceSubtotal)} />
+                )}
+                {jobType !== 'exterior' && shedSubtotal > 0 && (
+                  <PriceLine label="Shed" value={fmtD(shedSubtotal)} />
+                )}
                 {includeWood && woodTotal > 0 && <PriceLine label="Wood Replacement" value={fmtD(woodTotal)} />}
                 {includeCustom && (estimate.customItems ?? []).filter(i => i.description && i.price > 0).map(item => (
                   <PriceLine key={item.id} label={item.description} value={fmtD(item.price)} />
@@ -693,7 +732,7 @@ export default function ProposalPage({ params }: { params: Promise<{ id: string 
         )}
 
         {/* ── Terms & Conditions ─────────────────────────────────────────── */}
-        <TermsAndConditions companyName={company.name} warrantyYears={['duration','emerald','emeraldRR'].includes(selectedBrand) ? 5 : 3} />
+        <TermsAndConditions companyName={company.name} warrantyYears={jobType !== 'structures' && ['duration','emerald','emeraldRR'].includes(selectedBrand) ? 5 : 3} />
 
         {/* ── Accept / Signature ─────────────────────────────────────────── */}
         <div className="bg-white rounded-2xl border border-gray-200 p-6">

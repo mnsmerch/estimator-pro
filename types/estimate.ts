@@ -1,4 +1,5 @@
 export type EstimateStatus = 'draft' | 'pending' | 'sent' | 'approved' | 'rejected'
+export type JobType = 'exterior' | 'structures' | 'both'
 
 export interface EstimateRow {
   id: string
@@ -102,6 +103,8 @@ export interface EstimateData {
   signatureName?: string
   signatureDate?: string
   signatureDataUrl?: string
+  // Job type
+  jobType?: JobType
   // Timestamps
   createdAt?: Date
   updatedAt?: Date
