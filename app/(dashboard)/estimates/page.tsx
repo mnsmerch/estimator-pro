@@ -159,7 +159,7 @@ export default function EstimatesPage() {
       setDupItem(null)
     } catch (err) {
       console.error('Duplicate failed:', err)
-      alert('Failed to duplicate estimate. Please try again.')
+      alert(`Duplicate failed: ${err instanceof Error ? err.message : String(err)}`)
     } finally {
       setDuplicating(false)
     }
