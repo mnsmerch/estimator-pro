@@ -66,7 +66,8 @@ export interface EstimateData {
   customItems?: CustomItem[]
   customItemsOpen?: boolean
   // Structure add-ons
-  deckAddon?:    StructureAddon
+  deckAddon?:    StructureAddon   // legacy — superseded by deckAddons
+  deckAddons?:   StructureAddon[]
   pergolaAddon?: StructureAddon
   fenceAddon?:   StructureAddon
   shedAddon?:    StructureAddon

@@ -447,7 +447,11 @@ export default function EstimateForm({ estimateId, initialData }: EstimateFormPr
   const [customOpen, setCustomOpen] = useState(initialData?.customItemsOpen ?? false)
 
   // Structure add-ons
-  const [deckAddon,    setDeckAddon]    = useState<StructureAddon>(() => initialData?.deckAddon    ?? makeStructureAddon(DECK_DEFAULTS))
+  const [deckAddons, setDeckAddons] = useState<StructureAddon[]>(() => {
+    if (initialData?.deckAddons?.length) return initialData.deckAddons
+    if (initialData?.deckAddon) return [initialData.deckAddon]
+    return [makeStructureAddon(DECK_DEFAULTS)]
+  })
   const [pergolaAddon, setPergolaAddon] = useState<StructureAddon>(() => initialData?.pergolaAddon ?? makeStructureAddon(PERGOLA_DEFAULTS))
   const [fenceAddon,   setFenceAddon]   = useState<StructureAddon>(() => initialData?.fenceAddon   ?? makeStructureAddon(FENCE_DEFAULTS))
   const [shedAddon,    setShedAddon]    = useState<StructureAddon>(() => initialData?.shedAddon    ?? makeStructureAddon(SHED_DEFAULTS))
@@ -664,7 +668,7 @@ export default function EstimateForm({ estimateId, initialData }: EstimateFormPr
       woodReplacementOpen: woodOpen,
       customItems,
       customItemsOpen: customOpen,
-      deckAddon,
+      deckAddons,
       pergolaAddon,
       fenceAddon,
       shedAddon,
@@ -719,7 +723,7 @@ export default function EstimateForm({ estimateId, initialData }: EstimateFormPr
       woodReplacementOpen: woodOpen,
       customItems,
       customItemsOpen: customOpen,
-      deckAddon,
+      deckAddons,
       pergolaAddon,
       fenceAddon,
       shedAddon,
@@ -1009,10 +1013,21 @@ export default function EstimateForm({ estimateId, initialData }: EstimateFormPr
             >
               Custom Item
             </button>
-            {(['Deck', 'Pergola', 'Fence', 'Shed'] as const).map(name => {
-              const key = name.toLowerCase() as 'deck' | 'pergola' | 'fence' | 'shed'
-              const addonMap = { deck: deckAddon, pergola: pergolaAddon, fence: fenceAddon, shed: shedAddon }
-              const setterMap = { deck: setDeckAddon, pergola: setPergolaAddon, fence: setFenceAddon, shed: setShedAddon }
+            {/* Deck toggle */}
+            <button
+              onClick={() => setDeckAddons(ads => ads.map(a => ({ ...a, enabled: !ads[0].enabled })))}
+              className={`px-4 py-2 rounded-lg text-sm font-semibold border transition-colors ${
+                deckAddons[0]?.enabled
+                  ? 'bg-brand-600 text-white border-brand-600'
+                  : 'bg-white text-gray-700 border-gray-300 hover:border-brand-400 hover:text-brand-600'
+              }`}
+            >
+              Deck
+            </button>
+            {(['Pergola', 'Fence', 'Shed'] as const).map(name => {
+              const key = name.toLowerCase() as 'pergola' | 'fence' | 'shed'
+              const addonMap = { pergola: pergolaAddon, fence: fenceAddon, shed: shedAddon }
+              const setterMap = { pergola: setPergolaAddon, fence: setFenceAddon, shed: setShedAddon }
               const addon = addonMap[key]
               const setter = setterMap[key]
               return (
@@ -1171,19 +1186,44 @@ export default function EstimateForm({ estimateId, initialData }: EstimateFormPr
             </div>
           )}
 
-          {deckAddon.enabled && (
+          {deckAddons[0]?.enabled && (
             <div className="mt-4 border-t border-gray-100 pt-4">
-              <h3 className="text-sm font-semibold text-gray-700 mb-2">Deck</h3>
-              <StructureTable
-                addon={deckAddon}
-                onChange={setDeckAddon}
-                appMap={appMap}
-                groupedApps={groupedApps}
-                paintProducts={paintProducts}
-                setupFraction={1 / 20}
-                rules={rules}
-                constants={constants}
-              />
+              {deckAddons.map((addon, idx) => (
+                <div key={idx} className={idx > 0 ? 'mt-6 border-t border-gray-100 pt-4' : ''}>
+                  <div className="flex items-center justify-between mb-2">
+                    <h3 className="text-sm font-semibold text-gray-700">
+                      {deckAddons.length > 1 ? `Deck ${idx + 1}` : 'Deck'}
+                    </h3>
+                    {deckAddons.length > 1 && (
+                      <button
+                        onClick={() => setDeckAddons(ads => ads.filter((_, i) => i !== idx))}
+                        className="text-sm text-red-500 hover:text-red-700"
+                      >
+                        Remove
+                      </button>
+                    )}
+                  </div>
+                  <StructureTable
+                    addon={addon}
+                    onChange={a => setDeckAddons(ads => ads.map((x, i) => i === idx ? a : x))}
+                    appMap={appMap}
+                    groupedApps={groupedApps}
+                    paintProducts={paintProducts}
+                    setupFraction={1 / 20}
+                    rules={rules}
+                    constants={constants}
+                  />
+                </div>
+              ))}
+              <button
+                onClick={() => setDeckAddons(ads => [...ads, makeStructureAddon(DECK_DEFAULTS)])}
+                className="mt-4 flex items-center gap-1.5 text-sm font-medium text-brand-600 hover:text-brand-800"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                </svg>
+                Add Another Deck
+              </button>
             </div>
           )}
 
