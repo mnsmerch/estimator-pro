@@ -4,9 +4,9 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/context/AuthContext'
 import AppHeader from '@/components/AppHeader'
-import { listEstimates, deleteEstimate, duplicateEstimate } from '@/lib/firebase/estimates'
-import { listInteriorEstimates, deleteInteriorEstimate, duplicateInteriorEstimate } from '@/lib/firebase/interiorEstimates'
-import { listCabinetEstimates, deleteCabinetEstimate, duplicateCabinetEstimate } from '@/lib/firebase/cabinetEstimates'
+import { listEstimates, deleteEstimate } from '@/lib/firebase/estimates'
+import { listInteriorEstimates, deleteInteriorEstimate } from '@/lib/firebase/interiorEstimates'
+import { listCabinetEstimates, deleteCabinetEstimate } from '@/lib/firebase/cabinetEstimates'
 import type { EstimateData } from '@/types/estimate'
 
 type ListItem = {
@@ -144,12 +144,16 @@ export default function EstimatesPage() {
     if (!dupItem || !user) return
     setDuplicating(true)
     try {
-      let newId: string
-      if (dupItem.kind === 'interior') newId = await duplicateInteriorEstimate(dupItem.id, dupName, user.uid)
-      else if (dupItem.kind === 'cabinet') newId = await duplicateCabinetEstimate(dupItem.id, dupName, user.uid)
-      else newId = await duplicateEstimate(dupItem.id, dupName, user.uid)
+      const token = await user.getIdToken()
+      const res = await fetch('/api/duplicate-estimate', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body:    JSON.stringify({ estimateId: dupItem.id, estimateType: dupItem.kind, newClientName: dupName }),
+      })
+      const json = await res.json() as { newId?: string; error?: string }
+      if (!res.ok || !json.newId) throw new Error(json.error ?? 'Failed to duplicate')
       setEstimates(prev => [{
-        id:         newId,
+        id:         json.newId!,
         clientName: dupName,
         address:    dupItem.address,
         status:     'draft',
