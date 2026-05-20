@@ -183,12 +183,12 @@ interface StructureTableProps {
   appMap:         Map<string, ApplicationItem>
   groupedApps:    { label: string; options: ApplicationItem[] }[]
   paintProducts:  PaintProduct[]
-  setupFraction?: number  // extra hours added as a fraction of the raw total (e.g. 1/20 for deck)
-  wage:           number
-  burden:         number
+  rules:          BusinessRules
+  constants:      ProductionConstants
+  setupFraction?: number
 }
 
-function StructureTable({ addon, onChange, appMap, groupedApps, paintProducts, setupFraction = 0, wage, burden }: StructureTableProps) {
+function StructureTable({ addon, onChange, appMap, groupedApps, paintProducts, rules, constants, setupFraction = 0 }: StructureTableProps) {
   function updateRow(id: string, field: keyof StructureRow, value: string | number) {
     onChange({ ...addon, rows: addon.rows.map(r => r.id === id ? { ...r, [field]: value } : r) })
   }
@@ -285,7 +285,33 @@ function StructureTable({ addon, onChange, appMap, groupedApps, paintProducts, s
                 return s + (app && r.amount > 0 ? r.amount * app.converter : 0)
               }, 0)
               const totalHours = raw + raw * setupFraction
-              const labor = totalHours * wage * burden
+
+              const labor    = totalHours * rules.wage * rules.payrollBurden
+              const sundries = totalHours * constants.sundriesPerHour
+
+              // Paint: stain sqft from staining rows ÷ product coverage
+              const paintProduct = paintProducts.find(p => p.id === addon.paintProductId)
+              const stainSqft = addon.rows.reduce((s, r) => {
+                const app = appMap.get(r.applicationKey)
+                return app?.categoryKey === 'staining' && r.amount > 0
+                  ? s + r.amount * (app.surfaceAreaFactor || 1)
+                  : s
+              }, 0)
+              const paintGallons = paintProduct && paintProduct.coverage > 0 ? stainSqft / paintProduct.coverage : 0
+              const paintCost    = paintProduct ? calcPaintCost(paintGallons, paintProduct) : 0
+
+              const landm   = labor + paintCost + sundries
+              const markup  = calcMarkup(rules)
+              const raw2    = markup > 0 ? (landm / markup) / (1 - rules.salesDiscount) : 0
+              const subtotal = rules.salesTax === 0 ? Math.round(raw2) : raw2
+
+              const rows2 = [
+                { label: 'Labor',       value: labor,    },
+                { label: 'Paint',       value: paintCost },
+                { label: 'Sundries',    value: sundries  },
+                { label: 'Labor & Mat', value: landm,    bold: true },
+                { label: 'Subtotal',    value: subtotal, bold: true, accent: true },
+              ]
               return (
                 <>
                   <tr className="border-t border-gray-200">
@@ -295,13 +321,15 @@ function StructureTable({ addon, onChange, appMap, groupedApps, paintProducts, s
                     </td>
                     <td />
                   </tr>
-                  <tr>
-                    <td colSpan={3} className="pt-1 pr-3 text-right font-medium text-gray-500">Labor</td>
-                    <td className="pt-1 pl-2 text-right font-bold text-brand-700 tabular-nums">
-                      {fmt(labor)}
-                    </td>
-                    <td />
-                  </tr>
+                  {rows2.map(({ label, value, bold, accent }) => (
+                    <tr key={label}>
+                      <td colSpan={3} className="pt-1 pr-3 text-right font-medium text-gray-500">{label}</td>
+                      <td className={`pt-1 pl-2 text-right tabular-nums ${bold ? 'font-bold' : 'font-medium'} ${accent ? 'text-brand-700' : 'text-gray-900'}`}>
+                        {fmtCents(value)}
+                      </td>
+                      <td />
+                    </tr>
+                  ))}
                 </>
               )
             })()}
@@ -1153,8 +1181,8 @@ export default function EstimateForm({ estimateId, initialData }: EstimateFormPr
                 groupedApps={groupedApps}
                 paintProducts={paintProducts}
                 setupFraction={1 / 20}
-                wage={rules.wage}
-                burden={rules.payrollBurden}
+                rules={rules}
+                constants={constants}
               />
             </div>
           )}
@@ -1168,8 +1196,8 @@ export default function EstimateForm({ estimateId, initialData }: EstimateFormPr
                 appMap={appMap}
                 groupedApps={groupedApps}
                 paintProducts={paintProducts}
-                wage={rules.wage}
-                burden={rules.payrollBurden}
+                rules={rules}
+                constants={constants}
               />
             </div>
           )}
@@ -1183,8 +1211,8 @@ export default function EstimateForm({ estimateId, initialData }: EstimateFormPr
                 appMap={appMap}
                 groupedApps={groupedApps}
                 paintProducts={paintProducts}
-                wage={rules.wage}
-                burden={rules.payrollBurden}
+                rules={rules}
+                constants={constants}
               />
             </div>
           )}
@@ -1198,8 +1226,8 @@ export default function EstimateForm({ estimateId, initialData }: EstimateFormPr
                 appMap={appMap}
                 groupedApps={groupedApps}
                 paintProducts={paintProducts}
-                wage={rules.wage}
-                burden={rules.payrollBurden}
+                rules={rules}
+                constants={constants}
               />
             </div>
           )}
