@@ -91,7 +91,6 @@ const DECK_DEFAULTS: string[] = [
   'prepWork.lightSand',
   'staining.deckSolidStain',
   'staining.stainRailings',
-  'staining.stainRailings',
   'staining.stairsSolidStain',
   'prepWork.manualPrepHours',
 ]
