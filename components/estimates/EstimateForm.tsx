@@ -7,6 +7,7 @@ import { getSettingsDoc } from '@/lib/firebase/settings'
 import { createEstimate, updateEstimate, resetSignatureForChangeOrder } from '@/lib/firebase/estimates'
 import { uploadPhoto, deletePhoto } from '@/lib/firebase/storage'
 import { buildApplicationList, CATEGORY_ORDER } from '@/lib/applicationList'
+import type { ApplicationItem } from '@/lib/applicationList'
 import { calcEstimate, calcMarkup, calcPaintCost } from '@/lib/estimateEngine'
 import { SCOPE_DEFAULTS, getDefaultScopeForBrand } from '@/types/estimate'
 import type { ScopeFields } from '@/types/estimate'
@@ -17,7 +18,7 @@ import {
   DEFAULT_PAINT_PRODUCTS,
 } from '@/lib/defaultSettings'
 import type { BusinessRules, ProductionConstants, PaintProduct, ProductionRates } from '@/types/settings'
-import type { EstimateData, EstimateRow, WoodReplacementRow, CustomItem } from '@/types/estimate'
+import type { EstimateData, EstimateRow, WoodReplacementRow, CustomItem, StructureRow, StructureAddon } from '@/types/estimate'
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
 
@@ -85,6 +86,51 @@ const WOOD_ITEMS: { key: string; label: string }[] = [
   { key: 'hardieBoard',         label: 'Hardie Board (SqFt)' },
 ]
 
+const DECK_DEFAULTS: string[] = [
+  'prepWork.powerWash',
+  'prepWork.lightSand',
+  'staining.deckSolidStain',
+  'staining.stainRailings',
+  'staining.stainRailings',
+  'staining.stairsSolidStain',
+  'prepWork.manualPrepHours',
+]
+
+const PERGOLA_DEFAULTS: string[] = [
+  'prepWork.powerWash',
+  'prepWork.lightSand',
+  'bodyApplication.sidingBrush',
+  'staining.stainTrim',
+  'staining.stainPosts',
+  'prepWork.manualPrepHours',
+]
+
+const FENCE_DEFAULTS: string[] = [
+  'prepWork.powerWash',
+  'prepWork.lightSand',
+  'staining.fenceFlatSpray',
+  'staining.fenceBeamsSpray',
+  'staining.stainPosts',
+  'prepWork.manualPrepHours',
+]
+
+const SHED_DEFAULTS: string[] = [
+  'prepWork.powerWash',
+  'prepWork.lightSand',
+  'bodyApplication.sidingSpray',
+  'fascia.fascia1Story',
+  'railings.railings1Color',
+  'prepWork.manualPrepHours',
+]
+
+function newStructureRow(applicationKey = ''): StructureRow {
+  return { id: crypto.randomUUID(), applicationKey, amount: 0 }
+}
+
+function makeStructureAddon(defaultKeys: string[]): StructureAddon {
+  return { enabled: false, rows: defaultKeys.map(k => newStructureRow(k)), paintProductId: '' }
+}
+
 const DEFAULT_ROW_KEYS = [
   'bodyApplication.sidingSpray',
   'eaves.eavesBodyColor',
@@ -128,6 +174,179 @@ function fmtHrs(n: number) {
 // Prep and Cleanup hours rounded to tenths (e.g. 0.3666... → 0.4)
 function fmtHrsTenths(n: number) {
   return n.toFixed(1)
+}
+
+// ─── Structure Table subcomponent ─────────────────────────────────────────────
+
+interface StructureTableProps {
+  addon:         StructureAddon
+  onChange:      (a: StructureAddon) => void
+  appMap:        Map<string, ApplicationItem>
+  groupedApps:   { label: string; options: ApplicationItem[] }[]
+  paintProducts: PaintProduct[]
+}
+
+function StructureTable({ addon, onChange, appMap, groupedApps, paintProducts }: StructureTableProps) {
+  function updateRow(id: string, field: keyof StructureRow, value: string | number) {
+    onChange({ ...addon, rows: addon.rows.map(r => r.id === id ? { ...r, [field]: value } : r) })
+  }
+  function addRow() {
+    onChange({ ...addon, rows: [...addon.rows, newStructureRow()] })
+  }
+  function removeRow(id: string) {
+    onChange({ ...addon, rows: addon.rows.filter(r => r.id !== id) })
+  }
+
+  return (
+    <div className="mt-4">
+      <div className="flex flex-wrap items-center gap-3 mb-3">
+        <span className="text-sm font-medium text-gray-700">Paint Product:</span>
+        <select
+          value={addon.paintProductId}
+          onChange={e => onChange({ ...addon, paintProductId: e.target.value })}
+          className="rounded-lg border border-gray-300 bg-white px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 min-w-[200px]"
+        >
+          <option value="">— Select Product —</option>
+          {paintProducts.map(p => (
+            <option key={p.id} value={p.id}>{p.name}</option>
+          ))}
+        </select>
+      </div>
+      <div className="hidden sm:block overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b border-gray-200">
+              <th className="text-left font-medium text-gray-500 pb-2 pr-3 min-w-[220px]">Application</th>
+              <th className="text-right font-medium text-gray-500 pb-2 px-2 w-28">Amount</th>
+              <th className="text-left font-medium text-gray-500 pb-2 px-2 w-16">Type</th>
+              <th className="text-right font-medium text-gray-500 pb-2 pl-2 w-24">Hours</th>
+              <th className="w-8" />
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-100">
+            {addon.rows.map(row => {
+              const app = appMap.get(row.applicationKey)
+              const hours = app && row.amount > 0 ? row.amount * app.converter : 0
+              return (
+                <tr key={row.id} className="group">
+                  <td className="py-1.5 pr-3">
+                    <select
+                      value={row.applicationKey}
+                      onChange={e => updateRow(row.id, 'applicationKey', e.target.value)}
+                      className="w-full rounded-lg border border-gray-300 bg-white px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+                    >
+                      <option value="">— Select —</option>
+                      {groupedApps.map(group => (
+                        <optgroup key={group.label} label={group.label}>
+                          {group.options.map(opt => (
+                            <option key={opt.uniqueKey} value={opt.uniqueKey}>{opt.label} ({opt.unitLabel})</option>
+                          ))}
+                        </optgroup>
+                      ))}
+                    </select>
+                  </td>
+                  <td className="py-1.5 px-2">
+                    <input
+                      type="number" min={0}
+                      value={row.amount || ''}
+                      onChange={e => updateRow(row.id, 'amount', parseFloat(e.target.value) || 0)}
+                      className="w-full text-right rounded-lg border border-gray-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+                    />
+                  </td>
+                  <td className="py-1.5 px-2 text-sm text-gray-500">
+                    {app?.unitLabel ?? '—'}
+                  </td>
+                  <td className="py-1.5 pl-2 text-right font-medium text-gray-700 tabular-nums">
+                    {hours > 0 ? fmtHrs(hours) : '—'}
+                  </td>
+                  <td className="py-1.5 pl-1">
+                    {addon.rows.length > 1 && (
+                      <button
+                        onClick={() => removeRow(row.id)}
+                        className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-red-500 transition-opacity"
+                        title="Remove row"
+                      >
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
+                        </svg>
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              )
+            })}
+          </tbody>
+          <tfoot>
+            <tr className="border-t border-gray-200">
+              <td colSpan={3} className="pt-3 pr-3 text-right font-medium text-gray-500">Total Hours</td>
+              <td className="pt-3 pl-2 text-right font-bold text-gray-900 tabular-nums">
+                {fmtHrs(addon.rows.reduce((s, r) => {
+                  const app = appMap.get(r.applicationKey)
+                  return s + (app && r.amount > 0 ? r.amount * app.converter : 0)
+                }, 0))}
+              </td>
+              <td />
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+      {/* Mobile */}
+      <div className="sm:hidden space-y-3">
+        {addon.rows.map(row => {
+          const app = appMap.get(row.applicationKey)
+          const hours = app && row.amount > 0 ? row.amount * app.converter : 0
+          return (
+            <div key={row.id} className="border border-gray-200 rounded-xl p-3 space-y-2.5 bg-gray-50">
+              <select
+                value={row.applicationKey}
+                onChange={e => updateRow(row.id, 'applicationKey', e.target.value)}
+                className="w-full rounded-lg border border-gray-300 bg-white px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+              >
+                <option value="">— Select —</option>
+                {groupedApps.map(group => (
+                  <optgroup key={group.label} label={group.label}>
+                    {group.options.map(opt => (
+                      <option key={opt.uniqueKey} value={opt.uniqueKey}>{opt.label} ({opt.unitLabel})</option>
+                    ))}
+                  </optgroup>
+                ))}
+              </select>
+              <div className="flex gap-2 items-end">
+                <div className="flex-1">
+                  <label className="block text-xs font-medium text-gray-500 mb-1">Amount ({app?.unitLabel ?? '—'})</label>
+                  <input
+                    type="number" min={0}
+                    value={row.amount || ''}
+                    onChange={e => updateRow(row.id, 'amount', parseFloat(e.target.value) || 0)}
+                    className="w-full text-right rounded-lg border border-gray-300 bg-white px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+                  />
+                </div>
+                <div className="text-xs text-gray-500 pb-2">
+                  Hrs: <span className="font-medium text-gray-700">{hours > 0 ? fmtHrs(hours) : '—'}</span>
+                </div>
+                {addon.rows.length > 1 && (
+                  <button onClick={() => removeRow(row.id)} className="text-red-400 hover:text-red-600 p-1 pb-2">
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                )}
+              </div>
+            </div>
+          )
+        })}
+      </div>
+      <button
+        onClick={addRow}
+        className="mt-3 flex items-center gap-1.5 text-sm font-medium text-brand-600 hover:text-brand-800"
+      >
+        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+        </svg>
+        Add Row
+      </button>
+    </div>
+  )
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -180,6 +399,12 @@ export default function EstimateForm({ estimateId, initialData }: EstimateFormPr
       : [newCustomItem()]
   )
   const [customOpen, setCustomOpen] = useState(initialData?.customItemsOpen ?? false)
+
+  // Structure add-ons
+  const [deckAddon,    setDeckAddon]    = useState<StructureAddon>(() => initialData?.deckAddon    ?? makeStructureAddon(DECK_DEFAULTS))
+  const [pergolaAddon, setPergolaAddon] = useState<StructureAddon>(() => initialData?.pergolaAddon ?? makeStructureAddon(PERGOLA_DEFAULTS))
+  const [fenceAddon,   setFenceAddon]   = useState<StructureAddon>(() => initialData?.fenceAddon   ?? makeStructureAddon(FENCE_DEFAULTS))
+  const [shedAddon,    setShedAddon]    = useState<StructureAddon>(() => initialData?.shedAddon    ?? makeStructureAddon(SHED_DEFAULTS))
 
   // Paint
   const [selectedBrand,        setSelectedBrand]        = useState(initialData?.selectedBrand        ?? 'superPaint')
@@ -393,6 +618,10 @@ export default function EstimateForm({ estimateId, initialData }: EstimateFormPr
       woodReplacementOpen: woodOpen,
       customItems,
       customItemsOpen: customOpen,
+      deckAddon,
+      pergolaAddon,
+      fenceAddon,
+      shedAddon,
       selectedBrand,
       selectedBodyPaint:   bodyPaintId,
       selectedTrimPaint:   trimPaintId,
@@ -444,6 +673,10 @@ export default function EstimateForm({ estimateId, initialData }: EstimateFormPr
       woodReplacementOpen: woodOpen,
       customItems,
       customItemsOpen: customOpen,
+      deckAddon,
+      pergolaAddon,
+      fenceAddon,
+      shedAddon,
       selectedBrand,
       selectedBodyPaint:   bodyPaintId,
       selectedTrimPaint:   trimPaintId,
@@ -709,7 +942,7 @@ export default function EstimateForm({ estimateId, initialData }: EstimateFormPr
         {/* ── Add Ons ───────────────────────────────────────────────────── */}
         <section className="bg-white rounded-xl border border-gray-200 p-4 sm:p-6">
           <h2 className="text-base font-semibold text-gray-900 mb-4">Add Ons</h2>
-          <div className="flex gap-2 mb-2">
+          <div className="flex flex-wrap gap-2 mb-2">
             <button
               onClick={() => setWoodOpen(o => !o)}
               className={`px-4 py-2 rounded-lg text-sm font-semibold border transition-colors ${
@@ -730,6 +963,26 @@ export default function EstimateForm({ estimateId, initialData }: EstimateFormPr
             >
               Custom Item
             </button>
+            {(['Deck', 'Pergola', 'Fence', 'Shed'] as const).map(name => {
+              const key = name.toLowerCase() as 'deck' | 'pergola' | 'fence' | 'shed'
+              const addonMap = { deck: deckAddon, pergola: pergolaAddon, fence: fenceAddon, shed: shedAddon }
+              const setterMap = { deck: setDeckAddon, pergola: setPergolaAddon, fence: setFenceAddon, shed: setShedAddon }
+              const addon = addonMap[key]
+              const setter = setterMap[key]
+              return (
+                <button
+                  key={name}
+                  onClick={() => setter(a => ({ ...a, enabled: !a.enabled }))}
+                  className={`px-4 py-2 rounded-lg text-sm font-semibold border transition-colors ${
+                    addon.enabled
+                      ? 'bg-brand-600 text-white border-brand-600'
+                      : 'bg-white text-gray-700 border-gray-300 hover:border-brand-400 hover:text-brand-600'
+                  }`}
+                >
+                  {name}
+                </button>
+              )
+            })}
           </div>
 
           {woodOpen && (
@@ -869,6 +1122,58 @@ export default function EstimateForm({ estimateId, initialData }: EstimateFormPr
                 </svg>
                 Add Row
               </button>
+            </div>
+          )}
+
+          {deckAddon.enabled && (
+            <div className="mt-4 border-t border-gray-100 pt-4">
+              <h3 className="text-sm font-semibold text-gray-700 mb-2">Deck</h3>
+              <StructureTable
+                addon={deckAddon}
+                onChange={setDeckAddon}
+                appMap={appMap}
+                groupedApps={groupedApps}
+                paintProducts={paintProducts}
+              />
+            </div>
+          )}
+
+          {pergolaAddon.enabled && (
+            <div className="mt-4 border-t border-gray-100 pt-4">
+              <h3 className="text-sm font-semibold text-gray-700 mb-2">Pergola</h3>
+              <StructureTable
+                addon={pergolaAddon}
+                onChange={setPergolaAddon}
+                appMap={appMap}
+                groupedApps={groupedApps}
+                paintProducts={paintProducts}
+              />
+            </div>
+          )}
+
+          {fenceAddon.enabled && (
+            <div className="mt-4 border-t border-gray-100 pt-4">
+              <h3 className="text-sm font-semibold text-gray-700 mb-2">Fence</h3>
+              <StructureTable
+                addon={fenceAddon}
+                onChange={setFenceAddon}
+                appMap={appMap}
+                groupedApps={groupedApps}
+                paintProducts={paintProducts}
+              />
+            </div>
+          )}
+
+          {shedAddon.enabled && (
+            <div className="mt-4 border-t border-gray-100 pt-4">
+              <h3 className="text-sm font-semibold text-gray-700 mb-2">Shed</h3>
+              <StructureTable
+                addon={shedAddon}
+                onChange={setShedAddon}
+                appMap={appMap}
+                groupedApps={groupedApps}
+                paintProducts={paintProducts}
+              />
             </div>
           )}
 

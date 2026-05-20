@@ -24,6 +24,18 @@ export interface CustomItem {
   price: number
 }
 
+export interface StructureRow {
+  id: string
+  applicationKey: string
+  amount: number
+}
+
+export interface StructureAddon {
+  enabled:        boolean
+  rows:           StructureRow[]
+  paintProductId: string
+}
+
 export interface ScopeFields {
   scopeProject: string
   scopePrepWork: string
@@ -53,6 +65,11 @@ export interface EstimateData {
   woodReplacementOpen?: boolean
   customItems?: CustomItem[]
   customItemsOpen?: boolean
+  // Structure add-ons
+  deckAddon?:    StructureAddon
+  pergolaAddon?: StructureAddon
+  fenceAddon?:   StructureAddon
+  shedAddon?:    StructureAddon
   // Paint selections
   selectedBrand: string
   selectedBodyPaint: string
