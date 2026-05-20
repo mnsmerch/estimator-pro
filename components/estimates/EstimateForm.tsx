@@ -178,14 +178,15 @@ function fmtHrsTenths(n: number) {
 // ─── Structure Table subcomponent ─────────────────────────────────────────────
 
 interface StructureTableProps {
-  addon:         StructureAddon
-  onChange:      (a: StructureAddon) => void
-  appMap:        Map<string, ApplicationItem>
-  groupedApps:   { label: string; options: ApplicationItem[] }[]
-  paintProducts: PaintProduct[]
+  addon:          StructureAddon
+  onChange:       (a: StructureAddon) => void
+  appMap:         Map<string, ApplicationItem>
+  groupedApps:    { label: string; options: ApplicationItem[] }[]
+  paintProducts:  PaintProduct[]
+  setupFraction?: number  // extra hours added as a fraction of the raw total (e.g. 1/20 for deck)
 }
 
-function StructureTable({ addon, onChange, appMap, groupedApps, paintProducts }: StructureTableProps) {
+function StructureTable({ addon, onChange, appMap, groupedApps, paintProducts, setupFraction = 0 }: StructureTableProps) {
   function updateRow(id: string, field: keyof StructureRow, value: string | number) {
     onChange({ ...addon, rows: addon.rows.map(r => r.id === id ? { ...r, [field]: value } : r) })
   }
@@ -279,10 +280,13 @@ function StructureTable({ addon, onChange, appMap, groupedApps, paintProducts }:
             <tr className="border-t border-gray-200">
               <td colSpan={3} className="pt-3 pr-3 text-right font-medium text-gray-500">Total Hours</td>
               <td className="pt-3 pl-2 text-right font-bold text-gray-900 tabular-nums">
-                {fmtHrs(addon.rows.reduce((s, r) => {
-                  const app = appMap.get(r.applicationKey)
-                  return s + (app && r.amount > 0 ? r.amount * app.converter : 0)
-                }, 0))}
+                {(() => {
+                  const raw = addon.rows.reduce((s, r) => {
+                    const app = appMap.get(r.applicationKey)
+                    return s + (app && r.amount > 0 ? r.amount * app.converter : 0)
+                  }, 0)
+                  return fmtHrs(raw + raw * setupFraction)
+                })()}
               </td>
               <td />
             </tr>
@@ -1133,6 +1137,7 @@ export default function EstimateForm({ estimateId, initialData }: EstimateFormPr
                 appMap={appMap}
                 groupedApps={groupedApps}
                 paintProducts={paintProducts}
+                setupFraction={1 / 20}
               />
             </div>
           )}
