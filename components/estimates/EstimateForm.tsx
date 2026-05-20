@@ -297,7 +297,7 @@ function StructureTable({ addon, onChange, appMap, groupedApps, paintProducts, r
                   ? s + r.amount * (app.surfaceAreaFactor || 1)
                   : s
               }, 0)
-              const paintGallons = paintProduct && paintProduct.coverage > 0 ? stainSqft / paintProduct.coverage : 0
+              const paintGallons = paintProduct && paintProduct.coverage > 0 ? (stainSqft * constants.stainCoverage) / paintProduct.coverage : 0
               const paintCost    = paintProduct ? calcPaintCost(paintGallons, paintProduct) : 0
 
               const landm   = labor + paintCost + sundries
@@ -324,7 +324,7 @@ function StructureTable({ addon, onChange, appMap, groupedApps, paintProducts, r
                   <tr>
                     <td colSpan={3} className="pt-1 pr-3 text-right font-medium text-gray-500">Paint Gallons</td>
                     <td className="pt-1 pl-2 text-right font-medium text-gray-900 tabular-nums">
-                      {paintGallons > 0 ? parseFloat(paintGallons.toFixed(2)).toString() + ' gal' : '—'}
+                      {paintGallons > 0 ? Math.ceil(paintGallons) + ' gal' : '—'}
                     </td>
                     <td />
                   </tr>
