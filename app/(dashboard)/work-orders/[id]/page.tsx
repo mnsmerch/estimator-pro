@@ -42,6 +42,7 @@ export default function WorkOrderDetailPage({ params }: { params: Promise<{ id: 
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [company, setCompany] = useState<CompanySettings>(DEFAULT_COMPANY)
   const [photoUrls, setPhotoUrls] = useState<string[]>([])
+  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null)
   const [fullPrice, setFullPrice] = useState('')
   const [discountAmount, setDiscountAmount] = useState('')
 
@@ -66,6 +67,18 @@ export default function WorkOrderDetailPage({ params }: { params: Promise<{ id: 
   useEffect(() => {
     getSettingsDoc<CompanySettings>('company', DEFAULT_COMPANY).then(setCompany).catch(() => {})
   }, [])
+
+  // Keyboard navigation for the photo lightbox
+  useEffect(() => {
+    if (lightboxIndex === null) return
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape')          setLightboxIndex(null)
+      else if (e.key === 'ArrowRight') setLightboxIndex(i => i === null ? i : (i + 1) % photoUrls.length)
+      else if (e.key === 'ArrowLeft')  setLightboxIndex(i => i === null ? i : (i - 1 + photoUrls.length) % photoUrls.length)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [lightboxIndex, photoUrls.length])
 
   useEffect(() => {
     if (!user) return
@@ -472,7 +485,7 @@ export default function WorkOrderDetailPage({ params }: { params: Promise<{ id: 
                   src={url}
                   alt={`Photo ${i + 1}`}
                   className="aspect-square object-cover rounded-lg cursor-pointer hover:opacity-90 transition-opacity"
-                  onClick={() => window.open(url, '_blank')}
+                  onClick={() => setLightboxIndex(i)}
                 />
               ))}
             </div>
@@ -516,6 +529,66 @@ export default function WorkOrderDetailPage({ params }: { params: Promise<{ id: 
           </button>
         </div>
       </main>
+
+      {/* Photo lightbox */}
+      {lightboxIndex !== null && photoUrls[lightboxIndex] && (
+        <div
+          className="fixed inset-0 z-50 bg-black/85 flex items-center justify-center p-4 sm:p-8"
+          onClick={() => setLightboxIndex(null)}
+        >
+          {/* Close */}
+          <button
+            onClick={() => setLightboxIndex(null)}
+            aria-label="Close"
+            className="absolute top-4 right-4 w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-colors"
+          >
+            <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
+            </svg>
+          </button>
+
+          {/* Previous */}
+          {photoUrls.length > 1 && (
+            <button
+              onClick={e => { e.stopPropagation(); setLightboxIndex(i => i === null ? i : (i - 1 + photoUrls.length) % photoUrls.length) }}
+              aria-label="Previous photo"
+              className="absolute left-2 sm:left-4 w-11 h-11 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-colors"
+            >
+              <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5" />
+              </svg>
+            </button>
+          )}
+
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={photoUrls[lightboxIndex]}
+            alt={`Photo ${lightboxIndex + 1}`}
+            className="max-w-full max-h-[90vh] object-contain rounded-lg shadow-2xl"
+            onClick={e => e.stopPropagation()}
+          />
+
+          {/* Next */}
+          {photoUrls.length > 1 && (
+            <button
+              onClick={e => { e.stopPropagation(); setLightboxIndex(i => i === null ? i : (i + 1) % photoUrls.length) }}
+              aria-label="Next photo"
+              className="absolute right-2 sm:right-4 w-11 h-11 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-colors"
+            >
+              <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
+              </svg>
+            </button>
+          )}
+
+          {/* Counter */}
+          {photoUrls.length > 1 && (
+            <div className="absolute bottom-5 left-1/2 -translate-x-1/2 text-white text-sm font-medium bg-white/10 rounded-full px-3 py-1 tabular-nums">
+              {lightboxIndex + 1} / {photoUrls.length}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   )
 }
