@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect } from 'react'
+import React, { useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/context/AuthContext'
 import {
@@ -9,6 +9,8 @@ import {
 } from '@/lib/firebase/cabinetEstimates'
 import type { CabinetEstimateRecord } from '@/lib/firebase/cabinetEstimates'
 import { uploadPhoto, deletePhoto } from '@/lib/firebase/storage'
+import { useAutoSave } from '@/lib/useAutoSave'
+import AutoSaveIndicator from '@/components/AutoSaveIndicator'
 import AppHeader from '@/components/AppHeader'
 import {
   calculateCabinet, CABINET_SCOPE_DEFAULTS, CABINET_PRICING, sumCabinetCustomItems,
@@ -129,6 +131,23 @@ export default function CabinetEstimateForm({
   const bd = calculateCabinet(draft)
   const customTotal = sumCabinetCustomItems(draft.customItems)
   const grandTotal  = bd.total + customTotal
+
+  // ── Auto-save ────────────────────────────────────────────────────────────
+  const creatingRef = useRef(false)
+  const autoSaveStatus = useAutoSave({
+    signature: JSON.stringify(draft),
+    enabled:   !!user && draft.clientName.trim() !== '' && !saving,
+    onSave: async () => {
+      if (!user) return
+      if (estimateId) {
+        await updateCabinetEstimate(estimateId, draft)
+      } else if (!creatingRef.current) {
+        creatingRef.current = true
+        const id = await createCabinetEstimate(draft, user.uid)
+        router.replace(`/estimates/cabinet/${id}/edit`)
+      }
+    },
+  })
 
   // ── Save draft ───────────────────────────────────────────────────────────
   async function handleSave() {
@@ -277,9 +296,12 @@ export default function CabinetEstimateForm({
         {/* ── Page title + generate button ──────────────────────────────── */}
         <div className="flex items-center justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">
-              {isEditing ? 'Edit Cabinet Estimate' : 'New Cabinet Estimate'}
-            </h1>
+            <div className="flex items-center gap-3 flex-wrap">
+              <h1 className="text-2xl font-bold text-gray-900">
+                {isEditing ? 'Edit Cabinet Estimate' : 'New Cabinet Estimate'}
+              </h1>
+              <AutoSaveIndicator status={autoSaveStatus} />
+            </div>
             {isEditing && (
               <p className="text-sm text-gray-500 mt-0.5">
                 <a href="/estimates" className="hover:text-brand-600">← Back to Estimates</a>

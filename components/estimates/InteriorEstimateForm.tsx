@@ -1,12 +1,14 @@
 'use client'
 
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/context/AuthContext'
 import { getSettingsDoc } from '@/lib/firebase/settings'
 import { DEFAULT_INTERIOR_PAINT_PRODUCTS } from '@/lib/defaultSettings'
 import { createInteriorEstimate, updateInteriorEstimate, resetSignatureForInteriorChangeOrder } from '@/lib/firebase/interiorEstimates'
 import { uploadPhoto, deletePhoto } from '@/lib/firebase/storage'
+import { useAutoSave } from '@/lib/useAutoSave'
+import AutoSaveIndicator from '@/components/AutoSaveIndicator'
 import AppHeader from '@/components/AppHeader'
 import { calculateWallCalc, calculateCeilingCalc, calculateBaseboardCalc, calculateDoorCalc, calculateDoorFrameCalc, calculateWindowCalc, calculateMiscCalc, calculateOtherCalc, calculatePainterOverview, calculateCostBreakdown, calculateCombiningSavings, sumCombinedGallons } from '@/lib/interiorCalculations'
 import { DEFAULT_INTERIOR_RATES, DEFAULT_INTERIOR_RULES, DEFAULT_INTERIOR_CONSTANTS } from '@/lib/defaultSettings'
@@ -365,6 +367,24 @@ export default function InteriorEstimateForm({
   }
   const customTotal = customItems.reduce((s, i) => s + (i.price || 0), 0)
 
+  // ── Auto-save ────────────────────────────────────────────────────────────────
+  const creatingRef = useRef(false)
+  const autoSaveStatus = useAutoSave({
+    signature: JSON.stringify({ ...draft, customItems }),
+    enabled:   !!user && draft.clientName.trim() !== '' && !saving,
+    onSave: async () => {
+      if (!user) return
+      const payload = { ...draft, customItems }
+      if (estimateId) {
+        await updateInteriorEstimate(estimateId, payload)
+      } else if (!creatingRef.current) {
+        creatingRef.current = true
+        const newId = await createInteriorEstimate(payload, user.uid)
+        router.replace(`/estimates/interior/${newId}/edit`)
+      }
+    },
+  })
+
   useEffect(() => {
     getSettingsDoc<{ items: InteriorPaintProduct[] }>('interiorPaintProducts', { items: DEFAULT_INTERIOR_PAINT_PRODUCTS })
       .then(d => setProducts(d.items))
@@ -663,9 +683,12 @@ export default function InteriorEstimateForm({
         {/* Page title + client info */}
         <div>
           <div className="flex items-center justify-between mb-4 gap-3">
-            <h1 className="text-xl sm:text-2xl font-bold text-gray-900">
-              {isEditing ? 'Edit Interior Estimate' : 'New Interior Estimate'}
-            </h1>
+            <div className="flex items-center gap-3 flex-wrap">
+              <h1 className="text-xl sm:text-2xl font-bold text-gray-900">
+                {isEditing ? 'Edit Interior Estimate' : 'New Interior Estimate'}
+              </h1>
+              <AutoSaveIndicator status={autoSaveStatus} />
+            </div>
             {isEditing && estimateId && (
               <div className="flex items-center gap-2 shrink-0">
                 {initialRecord?.status === 'approved' && (

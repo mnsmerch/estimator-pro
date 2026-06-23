@@ -6,6 +6,8 @@ import { useAuth } from '@/context/AuthContext'
 import { getSettingsDoc } from '@/lib/firebase/settings'
 import { createEstimate, updateEstimate, resetSignatureForChangeOrder } from '@/lib/firebase/estimates'
 import { uploadPhoto, deletePhoto } from '@/lib/firebase/storage'
+import { useAutoSave } from '@/lib/useAutoSave'
+import AutoSaveIndicator from '@/components/AutoSaveIndicator'
 import { buildApplicationList, CATEGORY_ORDER } from '@/lib/applicationList'
 import type { ApplicationItem } from '@/lib/applicationList'
 import { calcEstimate, calcMarkup, calcPaintCost, surfaceAreaFactor, calcStructureAddonSubtotal } from '@/lib/estimateEngine'
@@ -788,14 +790,13 @@ export default function EstimateForm({ estimateId, initialData }: EstimateFormPr
   ]
   const hasStructureValidationError = structuresMissingPaint.length > 0
 
-  async function handleSave(status: 'draft' | 'sent') {
-    if (!user) return
-    setSaving(true)
-    setSaveError(false)
-    const payload = {
-      userId: user.uid,
-      // Preserve 'approved' status — never downgrade a signed estimate back to draft
-      status: (initialData?.status === 'approved' ? 'approved' : status) as import('@/types/estimate').EstimateStatus,
+  // Shared payload for both the manual Save buttons and auto-save, so the two
+  // paths can never drift. `finalStatus` is the status to persist (callers
+  // decide whether to preserve 'approved', keep the current status, etc.).
+  function buildEstimatePayload(finalStatus: import('@/types/estimate').EstimateStatus) {
+    return {
+      userId: user?.uid ?? '',
+      status: finalStatus,
       clientName, clientAddress, clientPhone, clientEmail,
       clientFolderId, clientContactId,
       rows,
@@ -832,6 +833,14 @@ export default function EstimateForm({ estimateId, initialData }: EstimateFormPr
       taxExcluded:  !includeTax,
       salesTaxRate: includeTax ? (initialData?.salesTaxRate ?? null) : null,
     }
+  }
+
+  async function handleSave(status: 'draft' | 'sent') {
+    if (!user) return
+    setSaving(true)
+    setSaveError(false)
+    // Preserve 'approved' status — never downgrade a signed estimate back to draft
+    const payload = buildEstimatePayload(initialData?.status === 'approved' ? 'approved' : status)
     try {
       if (isEdit && estimateId) {
         await updateEstimate(estimateId, payload)
@@ -904,6 +913,30 @@ export default function EstimateForm({ estimateId, initialData }: EstimateFormPr
     }
   }
 
+  // ── Auto-save ────────────────────────────────────────────────────────────────
+  // Preserve whatever status the estimate already has — auto-save must never
+  // change it (e.g. downgrade a 'sent'/'approved' estimate to 'draft').
+  const autoSavePayload = buildEstimatePayload(initialData?.status ?? 'draft')
+  const creatingRef = useRef(false)
+  const autoSaveStatus = useAutoSave({
+    signature: user ? JSON.stringify(autoSavePayload) : '',
+    enabled:   !!user && clientName.trim() !== '' && !saving && !loadingSettings,
+    onSave: async () => {
+      if (!user) return
+      if (isEdit && estimateId) {
+        // Auto-save updates content only — never touch the lifecycle status,
+        // so a silent save can't downgrade a sent/approved estimate to draft.
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        const { status: _status, ...content } = autoSavePayload
+        await updateEstimate(estimateId, content)
+      } else if (!creatingRef.current) {
+        creatingRef.current = true
+        const id = await createEstimate(autoSavePayload)
+        router.replace(`/estimates/${id}/edit`)
+      }
+    },
+  })
+
   if (loadingSettings) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -924,6 +957,7 @@ export default function EstimateForm({ estimateId, initialData }: EstimateFormPr
         </a>
         <div className="flex items-center gap-3">
           <a href="/estimates" className="hidden" />
+          <AutoSaveIndicator status={autoSaveStatus} />
           {saveError && <span className="text-sm text-red-600">Error saving. Try again.</span>}
           {isEdit && estimateId && (
             <>
