@@ -15,11 +15,16 @@ export default function EditCabinetEstimatePage({ params }: { params: Promise<{ 
 
   useEffect(() => {
     if (!user) return
-    getCabinetEstimate(id).then(est => {
-      if (!est) setNotFound(true)
-      else setData(est)
-      setLoading(false)
-    })
+    getCabinetEstimate(id)
+      .then(est => {
+        if (!est) setNotFound(true)
+        else setData(est)
+      })
+      .catch(err => {
+        console.error('Failed to load cabinet estimate:', err)
+        setNotFound(true)
+      })
+      .finally(() => setLoading(false))
   }, [id, user])
 
   if (loading) {

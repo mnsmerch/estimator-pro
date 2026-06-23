@@ -11,7 +11,7 @@ import type { CabinetEstimateRecord } from '@/lib/firebase/cabinetEstimates'
 import { uploadPhoto, deletePhoto } from '@/lib/firebase/storage'
 import AppHeader from '@/components/AppHeader'
 import {
-  calculateCabinet, CABINET_SCOPE_DEFAULTS, CABINET_PRICING,
+  calculateCabinet, CABINET_SCOPE_DEFAULTS, CABINET_PRICING, sumCabinetCustomItems,
 } from '@/types/cabinetEstimate'
 import type { CabinetEstimateDraft, LargePanelEntry } from '@/types/cabinetEstimate'
 
@@ -69,6 +69,7 @@ function newDraft(): CabinetEstimateDraft {
     twoTone: false, patchHoles: false, aquaCoat: false,
     scope: { ...CABINET_SCOPE_DEFAULTS },
     photoUrls: [], notes: '',
+    customItems: [],
   }
 }
 
@@ -89,6 +90,7 @@ function recordToDraft(r: CabinetEstimateRecord): CabinetEstimateDraft {
     scope:         r.scope         ?? { ...CABINET_SCOPE_DEFAULTS },
     photoUrls:     r.photoUrls     ?? [],
     notes:         r.notes         ?? '',
+    customItems:   r.customItems   ?? [],
   }
 }
 
@@ -125,6 +127,8 @@ export default function CabinetEstimateForm({
 
   // ── Computed breakdown ───────────────────────────────────────────────────
   const bd = calculateCabinet(draft)
+  const customTotal = sumCabinetCustomItems(draft.customItems)
+  const grandTotal  = bd.total + customTotal
 
   // ── Save draft ───────────────────────────────────────────────────────────
   async function handleSave() {
@@ -182,8 +186,22 @@ export default function CabinetEstimateForm({
   }
 
   async function handlePhotoDelete(url: string) {
-    await deletePhoto(url)
-    setDraft(prev => ({ ...prev, photoUrls: prev.photoUrls.filter(u => u !== url) }))
+    const idx = draft.photoUrls.indexOf(url)
+    setDraft(prev => ({
+      ...prev,
+      photoUrls:  prev.photoUrls.filter(u => u !== url),
+      photoNotes: (prev.photoNotes ?? []).filter((_, i) => i !== idx),
+    }))
+    try { await deletePhoto(url) } catch { /* non-blocking */ }
+  }
+
+  function setPhotoNote(index: number, note: string) {
+    setDraft(prev => {
+      const notes = [...(prev.photoNotes ?? [])]
+      while (notes.length < prev.photoUrls.length) notes.push('')
+      notes[index] = note
+      return { ...prev, photoNotes: notes }
+    })
   }
 
   // ── Large panel helpers ──────────────────────────────────────────────────
@@ -200,6 +218,25 @@ export default function CabinetEstimateForm({
 
   function removeLargePanel(id: string) {
     setDraft(prev => ({ ...prev, largePanels: prev.largePanels.filter(p => p.id !== id) }))
+  }
+
+  // ── Custom add-on helpers ──────────────────────────────────────────────────
+  function addCustomItem() {
+    setDraft(prev => ({
+      ...prev,
+      customItems: [...(prev.customItems ?? []), { id: crypto.randomUUID(), description: '', price: 0 }],
+    }))
+  }
+
+  function updateCustomItem(id: string, field: 'description' | 'price', value: string | number) {
+    setDraft(prev => ({
+      ...prev,
+      customItems: (prev.customItems ?? []).map(i => i.id === id ? { ...i, [field]: value } : i),
+    }))
+  }
+
+  function removeCustomItem(id: string) {
+    setDraft(prev => ({ ...prev, customItems: (prev.customItems ?? []).filter(i => i.id !== id) }))
   }
 
   // ── Input helpers ────────────────────────────────────────────────────────
@@ -448,8 +485,78 @@ export default function CabinetEstimateForm({
           </div>
         </div>
 
+        {/* ── Custom add-ons ────────────────────────────────────────────── */}
+        <div className={sectionCard}>
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-base font-semibold text-gray-900">Custom Add-ons</h2>
+              <p className="text-xs text-gray-500 mt-0.5">Add any extra line item with your own price</p>
+            </div>
+            <button
+              onClick={addCustomItem}
+              className="flex items-center gap-1.5 text-sm font-medium text-brand-600 hover:text-brand-700 transition-colors"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+              </svg>
+              Add Item
+            </button>
+          </div>
+
+          {(draft.customItems?.length ?? 0) === 0 ? (
+            <p className="text-sm text-gray-400 text-center py-5 border-2 border-dashed border-gray-100 rounded-xl">
+              No custom items yet — click &ldquo;Add Item&rdquo; to add one
+            </p>
+          ) : (
+            <div className="space-y-3">
+              {(draft.customItems ?? []).map((item, idx) => (
+                <div key={item.id} className="flex gap-3 items-start">
+                  <span className="text-xs font-medium text-gray-400 mt-2.5 w-5 shrink-0">{idx + 1}</span>
+                  <div className="flex-1">
+                    <input
+                      type="text"
+                      value={item.description}
+                      onChange={e => updateCustomItem(item.id, 'description', e.target.value)}
+                      placeholder="Describe the add-on…"
+                      className={inputCls}
+                    />
+                  </div>
+                  <div className="w-32 shrink-0">
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">$</span>
+                      <input
+                        type="number" min="0" step="0.01"
+                        value={item.price || ''}
+                        onChange={e => updateCustomItem(item.id, 'price', parseFloat(e.target.value) || 0)}
+                        placeholder="0.00"
+                        className={`${inputCls} pl-7`}
+                      />
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => removeCustomItem(item.id)}
+                    className="mt-1.5 p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors shrink-0"
+                    title="Remove item"
+                  >
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+              ))}
+              {customTotal > 0 && (
+                <div className="flex justify-end pt-2 border-t border-gray-100">
+                  <span className="text-sm font-semibold text-gray-700">
+                    Custom Total: <span className="text-brand-700">{fmtDec(customTotal)}</span>
+                  </span>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
         {/* ── Live pricing summary ──────────────────────────────────────── */}
-        {bd.total > 0 && (
+        {(bd.total > 0 || customTotal > 0) && (
           <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
             <div className="bg-gray-800 text-white text-center text-xs font-bold py-2.5 tracking-widest uppercase">
               Estimate Summary
@@ -491,22 +598,31 @@ export default function CabinetEstimateForm({
                   <span className="font-medium">{fmtD(bd.aquaCoatTotal)}</span>
                 </div>
               )}
+              {(draft.customItems ?? [])
+                .filter(i => i.description?.trim() && i.price > 0)
+                .map(item => (
+                  <div key={item.id} className="flex justify-between text-sm">
+                    <span className="text-gray-600">{item.description}</span>
+                    <span className="font-medium">{fmtD(item.price)}</span>
+                  </div>
+                ))}
               <div className="border-t border-gray-100 pt-3 mt-1">
-                {bd.minimumApplied ? (
+                {bd.minimumApplied && (
                   <>
                     <div className="flex justify-between text-sm text-gray-400 line-through mb-1">
                       <span>Calculated subtotal</span>
                       <span>{fmtD(bd.subtotal)}</span>
                     </div>
-                    <div className="flex justify-between text-sm text-amber-700">
+                    <div className={`flex justify-between text-sm text-amber-700 ${customTotal > 0 ? 'mb-2' : ''}`}>
                       <span className="font-medium">Minimum applies</span>
-                      <span className="font-bold">{fmtD(bd.total)}</span>
+                      <span className={customTotal > 0 ? 'font-medium' : 'font-bold'}>{fmtD(bd.total)}</span>
                     </div>
                   </>
-                ) : (
+                )}
+                {(!bd.minimumApplied || customTotal > 0) && (
                   <div className="flex justify-between">
                     <span className="font-bold text-gray-900">Total</span>
-                    <span className="font-bold text-gray-900 text-lg">{fmtD(bd.total)}</span>
+                    <span className="font-bold text-gray-900 text-lg">{fmtD(grandTotal)}</span>
                   </div>
                 )}
               </div>
@@ -600,19 +716,28 @@ export default function CabinetEstimateForm({
             <div>
               <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
                 {draft.photoUrls.map((url, idx) => (
-                  <div key={url} className="relative group aspect-square">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={url} alt={`Photo ${idx + 1}`}
-                      className="w-full h-full object-cover rounded-xl cursor-pointer hover:opacity-90 transition-opacity"
-                      onClick={() => setLightboxIndex(idx)}
+                  <div key={url} className="flex flex-col rounded-xl overflow-hidden border border-gray-200 bg-gray-100">
+                    <div className="relative aspect-square">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={url} alt={`Photo ${idx + 1}`}
+                        className="w-full h-full object-cover cursor-pointer hover:opacity-90 transition-opacity"
+                        onClick={() => setLightboxIndex(idx)}
+                      />
+                      <button
+                        onClick={() => handlePhotoDelete(url)}
+                        className="absolute top-1 right-1 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center text-xs font-bold"
+                      >
+                        ×
+                      </button>
+                    </div>
+                    <input
+                      type="text"
+                      value={draft.photoNotes?.[idx] ?? ''}
+                      onChange={e => setPhotoNote(idx, e.target.value)}
+                      placeholder="Add a note…"
+                      className="w-full px-2 py-1.5 text-xs text-gray-700 placeholder-gray-400 bg-white border-t border-gray-200 focus:outline-none focus:ring-1 focus:ring-brand-400"
                     />
-                    <button
-                      onClick={() => handlePhotoDelete(url)}
-                      className="absolute top-1 right-1 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity text-xs font-bold"
-                    >
-                      ×
-                    </button>
                   </div>
                 ))}
               </div>

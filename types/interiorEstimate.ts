@@ -127,6 +127,12 @@ export const INTERIOR_SCOPE_DEFAULTS: InteriorScopeFields = {
   totalCoats:  '',
 }
 
+export interface InteriorCustomItem {
+  id:          string
+  description: string
+  price:       number
+}
+
 export interface InteriorEstimateDraft {
   clientName:    string
   address:       string
@@ -135,7 +141,9 @@ export interface InteriorEstimateDraft {
   salesTaxRate?: number | null
   options:       RoomOption[]
   photoUrls:     string[]
+  photoNotes?:   string[]   // index-matched notes for each photo
   scope:         InteriorScopeFields
+  customItems?:  InteriorCustomItem[]
 }
 
 export interface OptionOverview {

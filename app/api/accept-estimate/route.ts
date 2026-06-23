@@ -10,6 +10,8 @@ const COLLECTIONS: Record<string, string> = {
 
 const GHL_WEBHOOK = 'https://services.leadconnectorhq.com/invoices/'
 const LOCATION_ID = 'KmTuAFWyGn4ijrs1sIzJ'
+// Notification webhook fired whenever an estimate is signed
+const SIGNED_WEBHOOK = 'https://services.leadconnectorhq.com/hooks/KmTuAFWyGn4ijrs1sIzJ/webhook-trigger/b8cc789f-69eb-4773-9f89-a7ac6be61580'
 
 async function getGhlToken(): Promise<string> {
   const { initializeApp, cert, getApps } = await import('firebase-admin/app')
@@ -58,6 +60,7 @@ export async function POST(req: Request) {
       itemLabel,
       taxRate,
       taxCity,
+      estimateNumber,
       company,
     } = await req.json() as {
       estimateId:     string
@@ -73,8 +76,9 @@ export async function POST(req: Request) {
       depositPercent?: number
       grandTotal?:    number
       itemLabel?:     string
-      taxRate?:       number | null
-      taxCity?:       string
+      taxRate?:        number | null
+      taxCity?:        string
+      estimateNumber?: number | null
       company?: {
         name: string; phone: string; email: string
         website: string; streetAddress: string; cityStateZip: string
@@ -83,19 +87,46 @@ export async function POST(req: Request) {
 
     const collection = COLLECTIONS[estimateType] ?? 'estimates'
 
-    // 1. Save signature + approve atomically server-side
+    // 1. Save signature + approve + store pricing so attach-contact can use it later
     await adminDb.collection(collection).doc(estimateId).update({
       status:           'approved',
       signatureName,
       signatureDate:    new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }),
       ...(signatureDataUrl ? { signatureDataUrl } : {}),
+      // Store pricing at signing time so webhook callbacks can create invoices later
+      ...(grandTotal   != null ? { signedGrandTotal:    grandTotal }   : {}),
+      ...(depositAmount != null ? { signedDepositAmount: depositAmount } : {}),
+      ...(balanceDue   != null ? { signedBalanceDue:    balanceDue }   : {}),
+      ...(depositPercent != null ? { signedDepositPercent: depositPercent } : {}),
+      ...(taxRate      != null ? { signedTaxRate:       taxRate }      : {}),
+      ...(taxCity               ? { signedTaxCity:      taxCity }      : {}),
       updatedAt:        FieldValue.serverTimestamp(),
     })
+
+    // 1b. Fire "estimate signed" notification webhook (non-blocking)
+    try {
+      const estSnap = await adminDb.collection(collection).doc(estimateId).get()
+      const est     = (estSnap.data() ?? {}) as Record<string, unknown>
+      await fetch(SIGNED_WEBHOOK, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contactName:    contactName ?? est.clientName ?? '',
+          estimateNumber: est.estimateNumber ?? '',
+          phone:          contactPhone ?? est.clientPhone ?? '',
+          email:          contactEmail ?? est.clientEmail ?? '',
+          estimateType,
+          estimateId,
+        }),
+      })
+    } catch (whErr) {
+      console.error('[accept-estimate] signed webhook failed:', whErr)
+    }
 
     // 2. Create GHL invoices if contact info provided
     let depositInvoiceUrl: string | null = null
 
-    if (contactId && depositAmount != null && balanceDue != null && grandTotal != null && company) {
+    if (contactId && grandTotal && grandTotal > 0 && depositAmount != null && balanceDue != null && company) {
       try {
         const token      = await getGhlToken()
         const issueDate  = new Date().toISOString().slice(0, 10)
@@ -122,9 +153,12 @@ export async function POST(req: Request) {
           description: '',
         }] : []
 
+        const estNumStr = estimateNumber ? String(estimateNumber) : null
         const buildBody = (name: string, desc: string, amount: number, dueDate?: string, withFee?: boolean) => ({
           altId: LOCATION_ID, altType: 'location',
-          name, title: 'INVOICE', currency: 'USD', liveMode: true,
+          name: estNumStr ? `#${estNumStr} — ${name}` : name,
+          title: 'INVOICE', currency: 'USD', liveMode: true,
+          ...(estNumStr ? { invoiceNumber: estNumStr } : {}),
           issueDate, ...(dueDate ? { dueDate } : {}),
           businessDetails: {
             logoUrl: 'https://assets.cdn.filesafe.space/KmTuAFWyGn4ijrs1sIzJ/media/682e521b6595bee932068728.png',
@@ -154,13 +188,28 @@ export async function POST(req: Request) {
           body: JSON.stringify({ altId: LOCATION_ID, altType: 'location', action: 'sms_and_email', liveMode: true, sentFrom: { fromName: company.name, fromEmail: company.email } }),
         })
 
-        // Create balance invoice (draft)
-        await fetch(GHL_WEBHOOK, { method: 'POST', headers, body: JSON.stringify(buildBody(`Balance Due — ${contactName}`, `Balance due on completion for project totaling ${totalStr}`, preTaxBal)) })
+        // Create balance invoice (draft) and store its ID for future change orders
+        const balRes  = await fetch(GHL_WEBHOOK, { method: 'POST', headers, body: JSON.stringify(buildBody(`Balance Due — ${contactName}`, `Balance due on completion for project totaling ${totalStr}`, preTaxBal)) })
+        const balJson = await balRes.json() as Record<string, unknown>
+        const balInv  = (balJson.invoice ?? balJson) as Record<string, unknown>
+        const balId   = (balInv._id ?? balInv.id ?? '') as string
+
+        // Save invoice IDs so the paid-webhook + change orders can match them later
+        await adminDb.collection(collection).doc(estimateId).update({
+          ...(depId ? { depositInvoiceId: depId } : {}),
+          ...(balId ? { balanceInvoiceId: balId } : {}),
+          invoiceCreated: true,
+        })
 
         console.log('[accept-estimate] Invoices created for', estimateId, contactId)
       } catch (invoiceErr) {
         // Log but don't fail the whole accept — signature is already saved
         console.error('[accept-estimate] Invoice creation failed:', invoiceErr)
+        return NextResponse.json({
+          success: true,
+          depositInvoiceUrl: null,
+          invoiceError: invoiceErr instanceof Error ? invoiceErr.message : String(invoiceErr),
+        })
       }
     }
 

@@ -19,7 +19,7 @@ import type {
   DoorEntry, DoorFrameEntry, WindowEntry, OtherEntry,
   MiscLinearFeetEntry, MiscSquareFeetEntry, MiscHourlyEntry,
   PaintSelections, InteriorEstimateDraft, OptionOverview,
-  InteriorScopeFields,
+  InteriorScopeFields, InteriorCustomItem,
 } from '@/types/interiorEstimate'
 import { INTERIOR_SCOPE_DEFAULTS } from '@/types/interiorEstimate'
 import type { InteriorPaintProduct } from '@/types/interiorSettings'
@@ -259,8 +259,9 @@ function recordToDraft(r: InteriorEstimateRecord): InteriorEstimateDraft {
     clientEmail:  r.clientEmail  ?? '',
     salesTaxRate: r.salesTaxRate ?? null,
     options:      r.options,
-    photoUrls:    r.photoUrls ?? [],
-    scope:        r.scope     ?? { ...INTERIOR_SCOPE_DEFAULTS },
+    photoUrls:    r.photoUrls   ?? [],
+    scope:        r.scope       ?? { ...INTERIOR_SCOPE_DEFAULTS },
+    customItems:  (r as InteriorEstimateRecord & { customItems?: InteriorCustomItem[] }).customItems ?? [],
   }
 }
 
@@ -348,6 +349,21 @@ export default function InteriorEstimateForm({
   const [taxLookupFailed, setTaxLookupFailed] = useState(false)
   const [uploadingPhotos, setUploadingPhotos] = useState(false)
   const [uploadError, setUploadError]         = useState<string | null>(null)
+
+  // Custom items
+  const [customItems, setCustomItems] = useState<InteriorCustomItem[]>(
+    () => (initialRecord as (InteriorEstimateRecord & { customItems?: InteriorCustomItem[] }) | undefined)?.customItems ?? []
+  )
+  function addCustomItem() {
+    setCustomItems(prev => [...prev, { id: crypto.randomUUID(), description: '', price: 0 }])
+  }
+  function updateCustomItem(id: string, field: 'description' | 'price', value: string | number) {
+    setCustomItems(prev => prev.map(i => i.id === id ? { ...i, [field]: value } : i))
+  }
+  function removeCustomItem(id: string) {
+    setCustomItems(prev => prev.filter(i => i.id !== id))
+  }
+  const customTotal = customItems.reduce((s, i) => s + (i.price || 0), 0)
 
   useEffect(() => {
     getSettingsDoc<{ items: InteriorPaintProduct[] }>('interiorPaintProducts', { items: DEFAULT_INTERIOR_PAINT_PRODUCTS })
@@ -557,8 +573,22 @@ export default function InteriorEstimateForm({
   }
 
   async function handleRemovePhoto(url: string) {
-    setDraft(prev => ({ ...prev, photoUrls: prev.photoUrls.filter(u => u !== url) }))
-    await deletePhoto(url)
+    const idx = draft.photoUrls.indexOf(url)
+    setDraft(prev => ({
+      ...prev,
+      photoUrls:  prev.photoUrls.filter(u => u !== url),
+      photoNotes: (prev.photoNotes ?? []).filter((_, i) => i !== idx),
+    }))
+    try { await deletePhoto(url) } catch { /* non-blocking */ }
+  }
+
+  function setPhotoNote(index: number, note: string) {
+    setDraft(prev => {
+      const notes = [...(prev.photoNotes ?? [])]
+      while (notes.length < prev.photoUrls.length) notes.push('')
+      notes[index] = note
+      return { ...prev, photoNotes: notes }
+    })
   }
 
   // ── Save ─────────────────────────────────────────────────────────────────────
@@ -566,13 +596,14 @@ export default function InteriorEstimateForm({
   async function handleSave() {
     if (!draft.clientName.trim() || !user) return
     setSaving(true)
+    const payload = { ...draft, customItems }
     try {
       if (estimateId) {
-        await updateInteriorEstimate(estimateId, draft)
+        await updateInteriorEstimate(estimateId, payload)
         setSaved(true)
         setTimeout(() => setSaved(false), 2000)
       } else {
-        const newId = await createInteriorEstimate(draft, user.uid)
+        const newId = await createInteriorEstimate(payload, user.uid)
         router.push(`/estimates/interior/${newId}/edit`)
       }
     } catch {
@@ -655,7 +686,7 @@ export default function InteriorEstimateForm({
                       if (estimateId) {
                         const taxRate = draft.address ? await lookupSalesTax(draft.address) : null
                         if (draft.address && taxRate === null) setTaxLookupFailed(true)
-                        const updatedDraft = { ...draft, salesTaxRate: taxRate }
+                        const updatedDraft = { ...draft, salesTaxRate: taxRate, customItems }
                         setDraft(updatedDraft)
                         await updateInteriorEstimate(estimateId, updatedDraft)
                         if (initialRecord?.status === 'draft' || !initialRecord?.status) {
@@ -1000,6 +1031,76 @@ export default function InteriorEstimateForm({
               </div>
             </div>
 
+            {/* ── Custom Items ─────────────────────────────────────────────── */}
+            <div className="bg-white rounded-xl border border-gray-200 p-4">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <p className="text-sm font-semibold text-gray-900">Custom Items</p>
+                  <p className="text-xs text-gray-400 mt-0.5">Add any additional line items not covered above</p>
+                </div>
+                <button
+                  onClick={addCustomItem}
+                  className="flex items-center gap-1.5 text-sm font-medium text-brand-600 hover:text-brand-800 transition-colors"
+                >
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                  </svg>
+                  Add Item
+                </button>
+              </div>
+
+              {customItems.length === 0 ? (
+                <p className="text-sm text-gray-400 text-center py-5 border-2 border-dashed border-gray-100 rounded-xl">
+                  No custom items yet — click &ldquo;Add Item&rdquo; to add one
+                </p>
+              ) : (
+                <div className="space-y-3">
+                  {customItems.map((item, idx) => (
+                    <div key={item.id} className="flex gap-3 items-start">
+                      <span className="text-xs font-medium text-gray-400 mt-2.5 w-5 shrink-0">{idx + 1}</span>
+                      <div className="flex-1">
+                        <input
+                          type="text"
+                          value={item.description}
+                          onChange={e => updateCustomItem(item.id, 'description', e.target.value)}
+                          placeholder="Describe the scope of work…"
+                          className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+                        />
+                      </div>
+                      <div className="w-32 shrink-0">
+                        <div className="relative">
+                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">$</span>
+                          <input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            value={item.price || ''}
+                            onChange={e => updateCustomItem(item.id, 'price', parseFloat(e.target.value) || 0)}
+                            placeholder="0.00"
+                            className="w-full border border-gray-300 rounded-lg pl-7 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+                          />
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => removeCustomItem(item.id)}
+                        className="mt-1.5 p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors shrink-0"
+                        title="Remove item"
+                      >
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
+                        </svg>
+                      </button>
+                    </div>
+                  ))}
+                  <div className="flex justify-end pt-2 border-t border-gray-100">
+                    <span className="text-sm font-semibold text-gray-700">
+                      Custom Total: <span className="text-brand-700">${customTotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                    </span>
+                  </div>
+                </div>
+              )}
+            </div>
+
             {/* ── Photos ───────────────────────────────────────────────────── */}
             <SectionHeader label="Photos" />
 
@@ -1044,17 +1145,26 @@ export default function InteriorEstimateForm({
               ) : (
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                   {draft.photoUrls.map((url, idx) => (
-                    <div key={url} className="relative group aspect-square rounded-lg overflow-hidden bg-gray-100">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={url} alt={`Photo ${idx + 1}`} className="w-full h-full object-cover" />
-                      <button
-                        onClick={() => handleRemovePhoto(url)}
-                        className="absolute top-1.5 right-1.5 opacity-0 group-hover:opacity-100 bg-black/60 hover:bg-red-600 text-white rounded-full w-6 h-6 flex items-center justify-center transition-all"
-                      >
-                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
-                        </svg>
-                      </button>
+                    <div key={url} className="flex flex-col rounded-lg overflow-hidden border border-gray-200 bg-gray-100">
+                      <div className="relative aspect-square">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={url} alt={`Photo ${idx + 1}`} className="w-full h-full object-cover" />
+                        <button
+                          onClick={() => handleRemovePhoto(url)}
+                          className="absolute top-1.5 right-1.5 bg-black/60 hover:bg-red-600 text-white rounded-full w-6 h-6 flex items-center justify-center transition-all"
+                        >
+                          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
+                          </svg>
+                        </button>
+                      </div>
+                      <input
+                        type="text"
+                        value={draft.photoNotes?.[idx] ?? ''}
+                        onChange={e => setPhotoNote(idx, e.target.value)}
+                        placeholder="Add a note…"
+                        className="w-full px-2 py-1.5 text-xs text-gray-700 placeholder-gray-400 bg-white border-t border-gray-200 focus:outline-none focus:ring-1 focus:ring-brand-400"
+                      />
                     </div>
                   ))}
                   {draft.photoUrls.length < 20 && (

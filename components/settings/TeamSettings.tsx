@@ -152,6 +152,8 @@ export default function TeamSettings() {
                   className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-brand-500"
                 >
                   <option value="admin">Admin</option>
+                  <option value="estimator">Estimator</option>
+                  <option value="pm">Production Manager</option>
                   <option value="user">User</option>
                 </select>
 
@@ -231,8 +233,10 @@ export default function TeamSettings() {
                 value={role} onChange={e => setRole(e.target.value as UserRole)}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-brand-500"
               >
-                <option value="user">User — no access to Settings</option>
-                <option value="admin">Admin — full access</option>
+                <option value="estimator">Estimator — all estimates, no Settings</option>
+                <option value="pm">Production Manager — work orders &amp; generated estimates only</option>
+                <option value="admin">Admin — full access including Settings</option>
+                <option value="user">User — own estimates only</option>
               </select>
             </div>
           </div>

@@ -1,4 +1,4 @@
-export type EstimateStatus = 'draft' | 'pending' | 'sent' | 'approved' | 'rejected'
+export type EstimateStatus = 'draft' | 'pending' | 'sent' | 'approved' | 'rejected' | 'declined'
 export type JobType = 'exterior' | 'structures' | 'both'
 
 export interface EstimateRow {
@@ -23,6 +23,12 @@ export interface CustomItem {
   id: string
   description: string
   price: number
+}
+
+export interface ChangeOrderItem {
+  id:          string
+  description: string
+  price:       number   // positive = add, negative = credit/removal
 }
 
 export interface StructureRow {
@@ -52,6 +58,7 @@ export interface EstimateData {
   id?: string
   userId: string
   status: EstimateStatus
+  estimateNumber?: number
   // Client
   clientName: string
   clientAddress: string
@@ -95,7 +102,8 @@ export interface EstimateData {
   totalColors: string
   totalCoats: string
   // Photos
-  photoUrls: string[]
+  photoUrls:  string[]
+  photoNotes?: string[]   // index-matched notes for each photo
   // Tax
   salesTaxRate?: number | null  // e.g. 0.101 — looked up from WA DOR at time of generation; null = explicitly excluded
   taxExcluded?:  boolean  // when true, tax is intentionally not applied
@@ -103,8 +111,47 @@ export interface EstimateData {
   signatureName?: string
   signatureDate?: string
   signatureDataUrl?: string
+  // Invoice IDs for GHL updates
+  depositInvoiceId?: string
+  balanceInvoiceId?: string
+  invoiceCreated?: boolean
+  depositInvoiceUrl?: string
+  balanceInvoiceUrl?: string
+  // Payment tracking (set by GHL invoice-paid webhook)
+  depositPaid?: boolean
+  depositPaidMethod?: string   // 'check' | 'cash' | 'card' | 'bank_transfer' | etc.
+  depositPaidAmount?: number
+  depositPaidAt?: string       // ISO date
+  balancePaid?: boolean
+  balancePaidMethod?: string
+  balancePaidAmount?: number
+  balancePaidAt?: string
+  // Change orders
+  changeOrders?: ChangeOrderItem[]
+  changeOrderDate?: string
+  changeOrderNotes?: string
+  isModified?: boolean
   // Job type
   jobType?: JobType
+  // Cached grand total for list display (updated whenever estimate is viewed)
+  cachedGrandTotal?:    number
+  // Signed pricing (stored at acceptance time)
+  signedGrandTotal?:    number
+  signedDepositAmount?: number
+  signedBalanceDue?:    number
+  signedDepositPercent?: number
+  signedTaxRate?:       number
+  signedTaxCity?:       string
+  // Frozen pricing basis captured at quote time (settings snapshot).
+  // When present, the proposal + dashboard recompute against this instead of
+  // live settings, so the customer's quote/signed price can never drift.
+  pricingSnapshot?: {
+    rules:         unknown
+    constants:     unknown
+    rates:         unknown
+    paintProducts: unknown
+    snapshottedAt: string
+  }
   // Timestamps
   createdAt?: Date
   updatedAt?: Date

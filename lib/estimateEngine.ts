@@ -73,7 +73,7 @@ export function calcPaintCost(gallons: number, product: PaintProduct): number {
 // Converts the measurement unit (LnFt / Units) into SqFt for paint gallon calc.
 // Body Application items are already in SqFt so factor = 1.
 
-function surfaceAreaFactor(app: ApplicationItem, constants: ProductionConstants): number {
+export function surfaceAreaFactor(app: ApplicationItem, constants: ProductionConstants): number {
   switch (app.categoryKey) {
     case 'bodyApplication':
       return 1
@@ -304,7 +304,7 @@ export function calcStructureAddonSubtotal(
   constants: ProductionConstants,
   paintProducts: PaintProduct[],
 ): number {
-  if (!addon.enabled) return 0
+  if (!addon.enabled || !addon.rows?.length) return 0
 
   const raw = addon.rows.reduce((s, r) => {
     const app = appMap.get(r.applicationKey)
@@ -316,14 +316,25 @@ export function calcStructureAddonSubtotal(
   const sundries = totalHours * constants.sundriesPerHour
 
   const paintProduct = paintProducts.find(p => p.id === addon.paintProductId)
-  const stainSqft = addon.rows.reduce((s, r) => {
+
+  // Accumulate sqft by application method so each uses the right coverage multiplier
+  let spraySqft = 0, brushRollSqft = 0, stainSqft = 0
+  for (const r of addon.rows) {
+    if (r.amount <= 0) continue
     const app = appMap.get(r.applicationKey)
-    return app?.categoryKey === 'staining' && r.amount > 0
-      ? s + r.amount * (app.surfaceAreaFactor || 1)
-      : s
-  }, 0)
+    if (!app) continue
+    const factor = surfaceAreaFactor(app, constants)
+    if (factor <= 0) continue   // prepWork / woodReplacement — no paint
+    const sqft = r.amount * factor
+    if (app.categoryKey === 'staining')         stainSqft     += sqft
+    else if (app.categoryKey === 'bodyApplication') spraySqft += sqft
+    else                                         brushRollSqft += sqft
+  }
+
   const paintGallons = paintProduct && paintProduct.coverage > 0
-    ? (stainSqft * constants.stainCoverage) / paintProduct.coverage
+    ? (spraySqft * constants.paintCoverageSpray
+       + brushRollSqft * constants.paintCoverageBrushRoll
+       + stainSqft * constants.stainCoverage) / paintProduct.coverage
     : 0
   const paintCost = paintProduct ? calcPaintCost(paintGallons, paintProduct) : 0
 
@@ -331,4 +342,74 @@ export function calcStructureAddonSubtotal(
   const markup   = calcMarkup(rules)
   const rawSub   = markup > 0 ? (landm / markup) / (1 - rules.salesDiscount) : 0
   return rules.salesTax === 0 ? Math.round(rawSub) : rawSub
+}
+
+/** Returns labor/material details for a structure add-on for work order reporting. */
+export function calcStructureAddonDetails(
+  addon: StructureAddon,
+  setupFraction: number,
+  appMap: Map<string, ApplicationItem>,
+  rules: BusinessRules,
+  constants: ProductionConstants,
+  paintProducts: PaintProduct[],
+): { hours: number; landm: number; paintCost: number; sundries: number } {
+  const zero = { hours: 0, landm: 0, paintCost: 0, sundries: 0 }
+  if (!addon.enabled || !addon.rows?.length) return zero
+
+  const raw = addon.rows.reduce((s, r) => {
+    const app = appMap.get(r.applicationKey)
+    return s + (app && r.amount > 0 ? r.amount * app.converter : 0)
+  }, 0)
+  const hours    = raw + raw * setupFraction
+  const labor    = hours * rules.wage * rules.payrollBurden
+  const sundries = hours * constants.sundriesPerHour
+
+  const paintProduct = paintProducts.find(p => p.id === addon.paintProductId)
+  let spraySqft = 0, brushRollSqft = 0, stainSqft = 0
+  for (const r of addon.rows) {
+    if (r.amount <= 0) continue
+    const app = appMap.get(r.applicationKey)
+    if (!app) continue
+    const factor = surfaceAreaFactor(app, constants)
+    if (factor <= 0) continue
+    const sqft = r.amount * factor
+    if (app.categoryKey === 'staining')            stainSqft     += sqft
+    else if (app.categoryKey === 'bodyApplication') spraySqft     += sqft
+    else                                            brushRollSqft += sqft
+  }
+  const gallons = paintProduct && paintProduct.coverage > 0
+    ? (spraySqft * constants.paintCoverageSpray + brushRollSqft * constants.paintCoverageBrushRoll + stainSqft * constants.stainCoverage) / paintProduct.coverage
+    : 0
+  const paintCost = paintProduct ? calcPaintCost(gallons, paintProduct) : 0
+  const landm = labor + paintCost + sundries
+  return { hours, landm, paintCost, sundries }
+}
+
+/** Returns paint gallons for a structure add-on (0 if not enabled or no product). */
+export function calcStructureAddonGallons(
+  addon: StructureAddon,
+  appMap: Map<string, ApplicationItem>,
+  constants: ProductionConstants,
+  paintProducts: PaintProduct[],
+): number {
+  if (!addon.enabled || !addon.rows?.length) return 0
+  const paintProduct = paintProducts.find(p => p.id === addon.paintProductId)
+  if (!paintProduct || paintProduct.coverage <= 0) return 0
+
+  let spraySqft = 0, brushRollSqft = 0, stainSqft = 0
+  for (const r of addon.rows) {
+    if (r.amount <= 0) continue
+    const app = appMap.get(r.applicationKey)
+    if (!app) continue
+    const factor = surfaceAreaFactor(app, constants)
+    if (factor <= 0) continue
+    const sqft = r.amount * factor
+    if (app.categoryKey === 'staining')            stainSqft     += sqft
+    else if (app.categoryKey === 'bodyApplication') spraySqft     += sqft
+    else                                            brushRollSqft += sqft
+  }
+
+  return (spraySqft * constants.paintCoverageSpray
+    + brushRollSqft * constants.paintCoverageBrushRoll
+    + stainSqft * constants.stainCoverage) / paintProduct.coverage
 }

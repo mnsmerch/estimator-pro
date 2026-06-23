@@ -1,13 +1,14 @@
 import { NextResponse } from 'next/server'
 import { adminDb, adminAuth } from '@/lib/firebase/admin'
 
-async function isAdmin(authHeader: string | null): Promise<boolean> {
+async function isAdminOrEstimator(authHeader: string | null): Promise<boolean> {
   if (!authHeader?.startsWith('Bearer ')) return false
   try {
     const token = authHeader.slice(7)
     const decoded = await adminAuth.verifyIdToken(token)
     const snap = await adminDb.collection('users').doc(decoded.uid).get()
-    return snap.exists && snap.data()?.role === 'admin'
+    const role = snap.data()?.role
+    return snap.exists && (role === 'admin' || role === 'estimator' || role === 'pm')
   } catch {
     return false
   }
@@ -27,7 +28,7 @@ function serializeDoc(data: Record<string, any>): Record<string, unknown> {
 }
 
 export async function GET(req: Request) {
-  if (!await isAdmin(req.headers.get('authorization'))) {
+  if (!await isAdminOrEstimator(req.headers.get('authorization'))) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 

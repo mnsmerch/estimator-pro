@@ -4,6 +4,9 @@ import { useState, useEffect, use } from 'react'
 import { useAuth } from '@/context/AuthContext'
 import AppHeader from '@/components/AppHeader'
 import { getWorkOrder, updateWorkOrder } from '@/lib/firebase/workOrders'
+import { getSettingsDoc } from '@/lib/firebase/settings'
+import { DEFAULT_COMPANY } from '@/lib/defaultSettings'
+import type { CompanySettings } from '@/types/settings'
 import type { WorkOrderData } from '@/types/workOrder'
 
 type WorkOrder = WorkOrderData & { id: string }
@@ -34,10 +37,20 @@ export default function WorkOrderDetailPage({ params }: { params: Promise<{ id: 
   const [notFound,  setNotFound]  = useState(false)
   const [saving,    setSaving]    = useState(false)
   const [saved,     setSaved]     = useState(false)
+  const [submitting, setSubmitting] = useState(false)
+  const [submitDone, setSubmitDone] = useState(false)
+  const [submitError, setSubmitError] = useState<string | null>(null)
+  const [company, setCompany] = useState<CompanySettings>(DEFAULT_COMPANY)
+  const [photoUrls, setPhotoUrls] = useState<string[]>([])
+  const [fullPrice, setFullPrice] = useState('')
+  const [discountAmount, setDiscountAmount] = useState('')
 
   // Form fields
+  const [totalHours,          setTotalHours]          = useState('')
+  const [materialsPrice,      setMaterialsPrice]      = useState('')
   const [jobNumber,           setJobNumber]           = useState('')
   const [crmLink,             setCrmLink]             = useState('')
+  const [projectTotal,        setProjectTotal]        = useState('')
   const [painterPay,          setPayinterPay]         = useState('')
   const [colorChange,         setColorChange]         = useState('')
   const [numberOfColors,      setNumberOfColors]      = useState('')
@@ -51,14 +64,21 @@ export default function WorkOrderDetailPage({ params }: { params: Promise<{ id: 
   const [status,              setStatus]              = useState<WorkOrderData['status']>('new')
 
   useEffect(() => {
+    getSettingsDoc<CompanySettings>('company', DEFAULT_COMPANY).then(setCompany).catch(() => {})
+  }, [])
+
+  useEffect(() => {
     if (!user) return
     getWorkOrder(id).then(wo => {
-      if (!wo) {
-        setNotFound(true)
-        setLoading(false)
-        return
-      }
+      if (!wo) { setNotFound(true); setLoading(false); return }
+      const w = wo as WorkOrder & { totalHours?: string; materialsPrice?: string; projectTotal?: string; fullPrice?: string; discountAmount?: string; photoUrls?: string[] }
       setWorkOrder(wo)
+      setTotalHours(w.totalHours ?? '')
+      setMaterialsPrice(w.materialsPrice ?? '')
+      setProjectTotal(w.projectTotal ?? '')
+      setFullPrice(w.fullPrice ?? '')
+      setDiscountAmount(w.discountAmount ?? '')
+      setPhotoUrls(w.photoUrls ?? [])
       setJobNumber(wo.jobNumber)
       setCrmLink(wo.crmLink)
       setPayinterPay(wo.painterPay)
@@ -73,32 +93,26 @@ export default function WorkOrderDetailPage({ params }: { params: Promise<{ id: 
       setExclusionsAndNotes(wo.exclusionsAndNotes)
       setStatus(wo.status)
       setLoading(false)
-    }).catch(() => {
-      setNotFound(true)
-      setLoading(false)
-    })
+    }).catch(() => { setNotFound(true); setLoading(false) })
   }, [id, user])
+
+  function currentPayload() {
+    return {
+      totalHours, materialsPrice, projectTotal,
+      jobNumber, crmLink, painterPay,
+      colorChange, numberOfColors, jobType,
+      budgetHours, materialsBudget,
+      paintsAndGallons, colorIds,
+      scopeOfWork, exclusionsAndNotes, status,
+    }
+  }
 
   async function handleSave() {
     if (!workOrder) return
     setSaving(true)
     setSaved(false)
     try {
-      await updateWorkOrder(workOrder.id, {
-        jobNumber,
-        crmLink,
-        painterPay,
-        colorChange,
-        numberOfColors,
-        jobType,
-        budgetHours,
-        materialsBudget,
-        paintsAndGallons,
-        colorIds,
-        scopeOfWork,
-        exclusionsAndNotes,
-        status,
-      })
+      await updateWorkOrder(workOrder.id, currentPayload())
       setSaved(true)
       setTimeout(() => setSaved(false), 3000)
     } catch (err) {
@@ -106,6 +120,44 @@ export default function WorkOrderDetailPage({ params }: { params: Promise<{ id: 
       alert('Failed to save. Please try again.')
     } finally {
       setSaving(false)
+    }
+  }
+
+  async function handleSubmit() {
+    if (!workOrder) return
+    setSubmitting(true)
+    setSubmitError(null)
+    try {
+      // Save latest edits first
+      await updateWorkOrder(workOrder.id, currentPayload())
+
+      const res = await fetch('/api/work-orders/submit', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({
+          workOrderId:  workOrder.id,
+          clientName:   workOrder.clientName,
+          clientAddress: workOrder.clientAddress,
+          clientEmail:  workOrder.clientEmail,
+          clientPhone:  workOrder.clientPhone,
+          createdAt:    workOrder.createdAt,
+          ...currentPayload(),
+          companyName:    company.name,
+          companyPhone:   company.phone,
+          companyEmail:   company.email,
+          companyAddress: `${company.streetAddress}, ${company.cityStateZip}`,
+          companyLicense: company.licenseNumber ?? '',
+          photoUrls,
+        }),
+      })
+      const json = await res.json() as { success?: boolean; error?: string; pdfUrl?: string }
+      if (!res.ok || json.error) throw new Error(json.error ?? 'Submit failed')
+      setStatus('completed')
+      setSubmitDone(true)
+    } catch (err) {
+      setSubmitError(err instanceof Error ? err.message : 'Submit failed')
+    } finally {
+      setSubmitting(false)
     }
   }
 
@@ -160,27 +212,28 @@ export default function WorkOrderDetailPage({ params }: { params: Promise<{ id: 
               {workOrder.clientName || 'Unnamed Client'}
             </h1>
           </div>
-          <button
-            onClick={handleSave}
-            disabled={saving}
-            className="flex items-center gap-2 px-5 py-2.5 bg-brand-600 text-white text-sm font-semibold rounded-lg hover:bg-brand-700 active:bg-brand-800 disabled:opacity-60 transition-colors shrink-0"
-          >
-            {saving ? (
-              <>
-                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                Saving…
-              </>
-            ) : saved ? (
-              <>
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
-                </svg>
-                Saved
-              </>
-            ) : (
-              'Save'
-            )}
-          </button>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={handleSave}
+              disabled={saving || submitting}
+              className="flex items-center gap-2 px-4 py-2.5 border border-gray-300 bg-white text-gray-700 text-sm font-semibold rounded-lg hover:bg-gray-50 disabled:opacity-60 transition-colors shrink-0"
+            >
+              {saving ? <><div className="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />Saving…</> : saved ? <>✓ Saved</> : 'Save'}
+            </button>
+            <button
+              onClick={handleSubmit}
+              disabled={submitting || saving || submitDone}
+              className="flex items-center gap-2 px-5 py-2.5 bg-green-600 text-white text-sm font-semibold rounded-lg hover:bg-green-700 disabled:opacity-60 transition-colors shrink-0"
+            >
+              {submitting ? (
+                <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />Submitting…</>
+              ) : submitDone ? (
+                <><svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg>Submitted!</>
+              ) : (
+                <><svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 12 3.269 3.125A59.769 59.769 0 0 1 21.485 12 59.768 59.768 0 0 1 3.27 20.875L5.999 12Zm0 0h7.5" /></svg>Submit Work Order</>
+              )}
+            </button>
+          </div>
         </div>
 
         {/* Customer Info */}
@@ -231,12 +284,60 @@ export default function WorkOrderDetailPage({ params }: { params: Promise<{ id: 
           </div>
         </SectionCard>
 
+        {/* Submit error */}
+        {submitError && (
+          <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-sm text-red-700">
+            Submit failed: {submitError}
+          </div>
+        )}
+
         {/* Project Details */}
         <SectionCard title="Project Details">
           <div className="space-y-4">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {/* Price breakdown for PM */}
+            {fullPrice ? (
+              <div className="bg-gray-50 border border-gray-200 rounded-xl px-5 py-4 space-y-2">
+                <p className="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-3">Pricing Breakdown</p>
+                <div className="flex justify-between text-sm text-gray-600">
+                  <span>Full Price (before discount)</span>
+                  <span className="font-medium text-gray-900">${parseFloat(fullPrice).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                </div>
+                {discountAmount && (
+                  <div className="flex justify-between text-sm text-green-700">
+                    <span>Discount (10% — Sign Today)</span>
+                    <span className="font-medium">− ${parseFloat(discountAmount).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                  </div>
+                )}
+                {discountAmount && (
+                  <div className="flex justify-between text-sm text-gray-700 border-t border-gray-200 pt-2">
+                    <span className="font-semibold">Net Price (after discount)</span>
+                    <span className="font-semibold">${(parseFloat(fullPrice) - parseFloat(discountAmount)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                  </div>
+                )}
+                <div className="flex justify-between text-sm border-t border-gray-200 pt-2">
+                  <span className="font-bold text-brand-700">Total with Tax (what client pays)</span>
+                  <span className="font-bold text-brand-700">{projectTotal ? `$${parseFloat(projectTotal).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—'}</span>
+                </div>
+              </div>
+            ) : (
+              <div className="bg-brand-50 border border-brand-200 rounded-xl px-5 py-4 flex items-center justify-between">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wider text-brand-500 mb-0.5">Total Project Price</p>
+                  <p className="text-2xl font-bold text-brand-700">
+                    {projectTotal ? `$${parseFloat(projectTotal).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—'}
+                  </p>
+                </div>
+                <div className="w-10 h-10 bg-brand-100 rounded-full flex items-center justify-center">
+                  <svg className="w-5 h-5 text-brand-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v12m-3-2.818.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+                  </svg>
+                </div>
+              </div>
+            )}
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div>
-                <FieldLabel>Painter Pay</FieldLabel>
+                <FieldLabel>Painter Pay (L&amp;M)</FieldLabel>
                 <div className="relative">
                   <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-400">$</span>
                   <input
@@ -248,6 +349,31 @@ export default function WorkOrderDetailPage({ params }: { params: Promise<{ id: 
                   />
                 </div>
               </div>
+              <div>
+                <FieldLabel>Total Hours</FieldLabel>
+                <input
+                  type="text"
+                  value={totalHours}
+                  onChange={e => setTotalHours(e.target.value)}
+                  placeholder="0.00"
+                  className={inputCls}
+                />
+              </div>
+              <div>
+                <FieldLabel>Materials Price (Paint + Sundries)</FieldLabel>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-400">$</span>
+                  <input
+                    type="text"
+                    value={materialsPrice}
+                    onChange={e => setMaterialsPrice(e.target.value)}
+                    placeholder="0.00"
+                    className={`${inputCls} pl-7`}
+                  />
+                </div>
+              </div>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <FieldLabel>Color Change</FieldLabel>
                 <select
@@ -261,8 +387,6 @@ export default function WorkOrderDetailPage({ params }: { params: Promise<{ id: 
                   <option value="Change - Need">Change - Need</option>
                 </select>
               </div>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <FieldLabel># of Colors</FieldLabel>
                 <input
@@ -288,32 +412,6 @@ export default function WorkOrderDetailPage({ params }: { params: Promise<{ id: 
                   <option value="Commercial Interior">Commercial Interior</option>
                   <option value="Cabinet">Cabinet</option>
                 </select>
-              </div>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <FieldLabel>Budget Hours</FieldLabel>
-                <input
-                  type="number"
-                  min="0"
-                  value={budgetHours}
-                  onChange={e => setBudgetHours(e.target.value)}
-                  placeholder="0"
-                  className={inputCls}
-                />
-              </div>
-              <div>
-                <FieldLabel>Materials Budget</FieldLabel>
-                <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-400">$</span>
-                  <input
-                    type="text"
-                    value={materialsBudget}
-                    onChange={e => setMaterialsBudget(e.target.value)}
-                    placeholder="0.00"
-                    className={`${inputCls} pl-7`}
-                  />
-                </div>
               </div>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -363,6 +461,24 @@ export default function WorkOrderDetailPage({ params }: { params: Promise<{ id: 
           />
         </SectionCard>
 
+        {/* Photos */}
+        {photoUrls.length > 0 && (
+          <SectionCard title={`Project Photos (${photoUrls.length})`}>
+            <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
+              {photoUrls.map((url, i) => (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  key={i}
+                  src={url}
+                  alt={`Photo ${i + 1}`}
+                  className="aspect-square object-cover rounded-lg cursor-pointer hover:opacity-90 transition-opacity"
+                  onClick={() => window.open(url, '_blank')}
+                />
+              ))}
+            </div>
+          </SectionCard>
+        )}
+
         {/* Status */}
         <SectionCard title="Status">
           <select
@@ -376,27 +492,26 @@ export default function WorkOrderDetailPage({ params }: { params: Promise<{ id: 
           </select>
         </SectionCard>
 
-        {/* Bottom save button */}
-        <div className="flex justify-end pb-6">
+        {/* Bottom buttons */}
+        <div className="flex items-center justify-end gap-3 pb-6">
           <button
             onClick={handleSave}
-            disabled={saving}
-            className="flex items-center gap-2 px-5 py-2.5 bg-brand-600 text-white text-sm font-semibold rounded-lg hover:bg-brand-700 active:bg-brand-800 disabled:opacity-60 transition-colors"
+            disabled={saving || submitting}
+            className="flex items-center gap-2 px-4 py-2.5 border border-gray-300 bg-white text-gray-700 text-sm font-semibold rounded-lg hover:bg-gray-50 disabled:opacity-60 transition-colors"
           >
-            {saving ? (
-              <>
-                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                Saving…
-              </>
-            ) : saved ? (
-              <>
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
-                </svg>
-                Saved
-              </>
+            {saving ? <><div className="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />Saving…</> : saved ? '✓ Saved' : 'Save'}
+          </button>
+          <button
+            onClick={handleSubmit}
+            disabled={submitting || saving || submitDone}
+            className="flex items-center gap-2 px-5 py-2.5 bg-green-600 text-white text-sm font-semibold rounded-lg hover:bg-green-700 disabled:opacity-60 transition-colors"
+          >
+            {submitting ? (
+              <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />Submitting…</>
+            ) : submitDone ? (
+              <>✓ Submitted!</>
             ) : (
-              'Save'
+              <><svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 12 3.269 3.125A59.769 59.769 0 0 1 21.485 12 59.768 59.768 0 0 1 3.27 20.875L5.999 12Zm0 0h7.5" /></svg>Submit Work Order</>
             )}
           </button>
         </div>

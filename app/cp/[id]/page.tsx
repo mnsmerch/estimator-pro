@@ -4,7 +4,7 @@ import { useState, useEffect, use, useRef, useCallback } from 'react'
 import { DEFAULT_COMPANY } from '@/lib/defaultSettings'
 import type { CabinetEstimateRecord } from '@/lib/firebase/cabinetEstimates'
 import type { CompanySettings } from '@/types/settings'
-import { calculateCabinet, CABINET_PRICING } from '@/types/cabinetEstimate'
+import { calculateCabinet, CABINET_PRICING, sumCabinetCustomItems } from '@/types/cabinetEstimate'
 
 function fmtD(n: number) {
   return n.toLocaleString('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 2 })
@@ -36,9 +36,13 @@ export default function CabinetProposalPage({ params }: { params: Promise<{ id: 
   const [agreed,     setAgreed]     = useState(false)
   const [signing,    setSigning]    = useState(false)
   const [signed,     setSigned]     = useState(false)
-  const [sending,    setSending]    = useState(false)
-  const [sendDone,   setSendDone]   = useState(false)
-  const [sendError,  setSendError]  = useState<string | null>(null)
+  const [sending,          setSending]          = useState(false)
+  const [sendDone,         setSendDone]         = useState(false)
+  const [sendError,        setSendError]        = useState<string | null>(null)
+  const [invoiceStatus,    setInvoiceStatus]    = useState<'idle'|'creating'|'done'|'error'>('idle')
+  const [depositInvoiceUrl,setDepositInvoiceUrl]= useState<string | null>(null)
+  const [retryInvoice,     setRetryInvoice]     = useState(false)
+  const [retryInvoiceError,setRetryInvoiceError]= useState<string | null>(null)
 
   useEffect(() => {
     async function load() {
@@ -68,7 +72,9 @@ export default function CabinetProposalPage({ params }: { params: Promise<{ id: 
 
   // ── Pricing ────────────────────────────────────────────────────────────────
   const bd = estimate ? calculateCabinet(estimate) : null
-  const subtotal       = bd?.total ?? 0
+  const customItems    = estimate?.customItems?.filter(i => i.description?.trim() && i.price > 0) ?? []
+  const customTotal    = sumCabinetCustomItems(estimate?.customItems)
+  const subtotal       = (bd?.total ?? 0) + customTotal
   const discountAmount = applyDiscount ? Math.round(subtotal * 0.10 * 100) / 100 : 0
   const discounted     = subtotal - discountAmount
   const taxRate        = estimate?.salesTaxRate ?? null
@@ -78,26 +84,122 @@ export default function CabinetProposalPage({ params }: { params: Promise<{ id: 
   const depositAmount  = Math.round(totalWithTax * depositPercent * 100) / 100
   const balanceDue     = Math.round((totalWithTax - depositAmount) * 100) / 100
 
+  const isManualEstimate = !!estimate && !estimate.clientContactId
+  const missingFields    = isManualEstimate ? [
+    !estimate!.clientName?.trim()  && 'Name',
+    !estimate!.address?.trim()     && 'Address',
+    !estimate!.clientEmail?.trim() && 'Email',
+    !estimate!.clientPhone?.trim() && 'Phone',
+  ].filter(Boolean) as string[] : []
+  const canInteract = !isManualEstimate || missingFields.length === 0
+
+  // Poll for invoice status when signed but no invoice yet
+  useEffect(() => {
+    if (!signed || invoiceStatus !== 'idle') return
+    let stopped = false; let attempts = 0
+    async function poll() {
+      if (stopped || attempts >= 60) return; attempts++
+      try {
+        const res  = await fetch(`/api/cabinet-proposal/${id}`)
+        const json = await res.json() as { estimate?: { invoiceCreated?: boolean; depositInvoiceUrl?: string } }
+        if (json.estimate?.invoiceCreated) {
+          setInvoiceStatus('done')
+          if (json.estimate.depositInvoiceUrl) setDepositInvoiceUrl(json.estimate.depositInvoiceUrl)
+          stopped = true; return
+        }
+      } catch { /* keep polling */ }
+      if (!stopped) setTimeout(poll, 5000)
+    }
+    const t = setTimeout(poll, 3000)
+    return () => { stopped = true; clearTimeout(t) }
+  }, [signed, invoiceStatus, id])
+
   async function handleSign() {
     if (!sigName.trim() || !agreed || !sigDataUrl || !estimate) return
     setSigning(true)
     try {
       const acceptRes = await fetch('/api/accept-estimate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           estimateId:       id,
           estimateType:     'cabinet',
           signatureName:    sigName.trim(),
           signatureDataUrl: sigDataUrl,
+          depositAmount,
+          balanceDue,
+          depositPercent,
+          grandTotal:       totalWithTax,
+          taxRate:          taxRate ?? null,
+          taxCity:          parseCityFromAddress(estimate.address ?? ''),
+          estimateNumber:   estimate.estimateNumber ?? null,
+          ...(estimate.clientContactId ? {
+            contactId:    estimate.clientContactId,
+            contactName:  estimate.clientName,
+            contactEmail: estimate.clientEmail,
+            contactPhone: estimate.clientPhone,
+            itemLabel:    `${applyDiscount ? '10% off ' : ''}Cabinet Painting`,
+            company: {
+              name: company.name, phone: company.phone, email: company.email,
+              website: company.website, streetAddress: company.streetAddress, cityStateZip: company.cityStateZip,
+            },
+          } : {}),
         }),
       })
       if (!acceptRes.ok) {
         const json = await acceptRes.json() as { error?: string }
-        throw new Error(json.error ?? `Failed to save signature (${acceptRes.status})`)
+        throw new Error(json.error ?? `Failed (${acceptRes.status})`)
       }
+      const acceptJson = await acceptRes.json() as { depositInvoiceUrl?: string }
       setSigned(true)
       setEstimate(prev => prev ? { ...prev, status: 'approved', signatureName: sigName.trim() } : prev)
+
+      if (estimate.clientContactId) {
+        if (acceptJson.depositInvoiceUrl) { setInvoiceStatus('done'); setDepositInvoiceUrl(acceptJson.depositInvoiceUrl) }
+        else setInvoiceStatus('done')
+      }
+
+      // Work order
+      try {
+        await fetch('/api/work-orders/create', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            estimateId:      id,
+            estimateType:    'cabinet',
+            clientName:      estimate.clientName,
+            clientAddress:   estimate.address ?? '',
+            clientEmail:     estimate.clientEmail,
+            clientPhone:     estimate.clientPhone,
+            clientContactId: estimate.clientContactId ?? '',
+            scopeOfWork:     estimate.scope?.projectDescription ?? '',
+            jobType:         'Cabinet',
+            projectTotal:    totalWithTax > 0 ? totalWithTax.toFixed(2) : '',
+          }),
+        })
+      } catch { /* non-blocking */ }
+
+      // Manual estimate: fire accept webhook
+      if (isManualEstimate) {
+        try {
+          await fetch('https://services.leadconnectorhq.com/hooks/KmTuAFWyGn4ijrs1sIzJ/webhook-trigger/5590c13c-51a2-4ccf-9446-45f85557c79c', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              estimateId:     id,
+              callbackUrl:    `${window.location.origin}/api/webhook/attach-contact`,
+              clientName:     estimate.clientName,
+              clientEmail:    estimate.clientEmail,
+              clientPhone:    estimate.clientPhone,
+              clientAddress1: (estimate.address ?? '').split(',')[0]?.trim() ?? '',
+              estimateType:   'cabinet',
+              estimateUrl:    `${window.location.origin}/cp/${id}`,
+              grandTotal:     Math.round(totalWithTax * 100) / 100,
+              depositAmount:  Math.round(depositAmount * 100) / 100,
+              balanceDue:     Math.round(balanceDue * 100) / 100,
+              depositPercent, taxRate: taxRate ?? 0,
+            }),
+          })
+        } catch { /* non-blocking */ }
+      }
+
     } catch (err) {
       console.error('Failed to accept estimate:', err)
       alert('Failed to save signature. Please try again.')
@@ -189,16 +291,23 @@ export default function CabinetProposalPage({ params }: { params: Promise<{ id: 
           <div className="bg-white rounded-2xl border border-gray-200 p-5 sm:p-6">
             <h2 className="text-base font-bold text-gray-900 mb-3">Project Photos</h2>
             <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
-              {estimate.photoUrls.map((url, idx) => (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  key={url}
-                  src={url}
-                  alt={`Photo ${idx + 1}`}
-                  className="w-full aspect-square object-cover rounded-xl cursor-pointer hover:opacity-90 transition-opacity"
-                  onClick={() => setLightboxIndex(idx)}
-                />
-              ))}
+              {estimate.photoUrls.map((url, idx) => {
+                const note = (estimate as typeof estimate & { photoNotes?: string[] }).photoNotes?.[idx]
+                return (
+                  <div key={url} className="flex flex-col rounded-xl overflow-hidden border border-gray-100">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={url}
+                      alt={note || `Photo ${idx + 1}`}
+                      className="w-full aspect-square object-cover cursor-pointer hover:opacity-90 transition-opacity"
+                      onClick={() => setLightboxIndex(idx)}
+                    />
+                    {note && (
+                      <p className="px-2 py-1.5 text-xs text-gray-600 bg-white border-t border-gray-100 leading-snug">{note}</p>
+                    )}
+                  </div>
+                )
+              })}
             </div>
           </div>
         )}
@@ -238,14 +347,18 @@ export default function CabinetProposalPage({ params }: { params: Promise<{ id: 
 
         {/* ── Pricing summary ─────────────────────────────────────────────── */}
         {bd && (
-          <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
-            <div className="bg-gray-800 text-white text-center text-xs font-bold py-2.5 tracking-widest uppercase">
-              Your Estimate
+          <div className="bg-white rounded-[18px] border border-[oklch(0.93_0.006_80)] shadow-[0_1px_2px_rgba(20,40,30,0.04),0_12px_32px_rgba(20,40,30,0.08)]">
+
+            {/* Header */}
+            <div className="px-6 pt-6 pb-4 border-b border-[oklch(0.94_0.004_140)]">
+              <p className="text-[11px] font-bold uppercase tracking-[0.13em] text-[oklch(0.52_0.13_150)]">Your Estimate</p>
+              <h2 className="mt-1.5 text-lg font-bold text-[oklch(0.3_0.012_250)]">Everything&apos;s itemized — no surprises.</h2>
             </div>
-            <div className="p-6">
+
+            <div className="px-6 pt-2 pb-6">
 
               {/* Line items */}
-              <div className="space-y-2.5">
+              <div>
                 {bd.doorsTotal > 0 && (
                   <PriceLine
                     label={`${bd.doors} Door${bd.doors !== 1 ? 's' : ''} × ${fmtD(CABINET_PRICING.perDoor)}`}
@@ -279,46 +392,49 @@ export default function CabinetProposalPage({ params }: { params: Promise<{ id: 
                     value={fmtD(bd.aquaCoatTotal)}
                   />
                 )}
+                {customItems.map(item => (
+                  <PriceLine key={item.id} label={item.description} value={fmtD(item.price)} />
+                ))}
               </div>
 
               {/* Subtotal / discount / tax */}
-              <div className="border-t border-gray-100 mt-4 pt-4 space-y-2.5">
+              <div className="border-t border-[oklch(0.94_0.004_140)] mt-1 pt-1">
                 <PriceLine label="Subtotal" value={fmtD(subtotal)} />
                 {applyDiscount && (
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm font-medium text-green-700">Discount (10% — Sign Today)</span>
-                    <span className="text-sm font-medium text-green-700 tabular-nums">− {fmtD(discountAmount)}</span>
+                  <div className="flex justify-between items-center gap-4 py-[9px]">
+                    <span className="text-sm font-semibold text-[oklch(0.52_0.13_150)]">Discount (10% — Sign Today)</span>
+                    <span className="text-sm font-semibold text-[oklch(0.52_0.13_150)] tabular-nums">− {fmtD(discountAmount)}</span>
                   </div>
                 )}
                 {taxRate != null && (
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm text-gray-600">
+                  <div className="flex justify-between items-center gap-4 py-[9px]">
+                    <span className="text-sm text-[oklch(0.5_0.01_250)]">
                       Sales Tax ({(taxRate * 100).toFixed(1)}%{parseCityFromAddress(estimate.address) ? ` — ${parseCityFromAddress(estimate.address)}` : ''})
                     </span>
-                    <span className="text-sm text-gray-900 tabular-nums">+ {fmtD(taxAmount)}</span>
+                    <span className="text-sm text-[oklch(0.3_0.012_250)] tabular-nums">+ {fmtD(taxAmount)}</span>
                   </div>
                 )}
               </div>
 
-              {/* Deposit banner */}
-              <div className="bg-brand-50 border-t border-brand-200 mt-4 px-4 py-4 -mx-6 flex justify-between items-center">
-                <div>
-                  <p className="text-sm font-bold text-brand-700">Deposit Due ({Math.round(depositPercent * 100)}%)</p>
-                  <p className="text-xs text-brand-500 mt-0.5">Required to secure your project start date</p>
+              {/* Project total */}
+              <div className="border-t border-[oklch(0.94_0.004_140)] mt-1 pt-4 flex justify-between items-center gap-4">
+                <span className="font-bold text-[oklch(0.3_0.012_250)]">Project total</span>
+                <span className="text-[22px] font-bold text-[oklch(0.3_0.012_250)] tabular-nums">{fmtD(totalWithTax)}</span>
+              </div>
+
+              {/* Deposit */}
+              <div className="mt-5 rounded-[14px] p-[22px] bg-[oklch(0.96_0.035_150)] border border-[oklch(0.89_0.06_150)]">
+                <div className="flex justify-between items-start gap-4">
+                  <div>
+                    <p className="font-bold text-[oklch(0.4_0.1_150)]">Due today</p>
+                    <p className="text-xs mt-1 text-[oklch(0.5_0.01_250)]">Reserves your project start date · {Math.round(depositPercent * 100)}%</p>
+                  </div>
+                  <span className="text-[30px] font-extrabold leading-none text-[oklch(0.52_0.13_150)] tabular-nums shrink-0">{fmtD(depositAmount)}</span>
                 </div>
-                <span className="text-xl font-bold text-brand-600 tabular-nums">{fmtD(depositAmount)}</span>
-              </div>
-
-              {/* Balance */}
-              <div className="border-t border-gray-100 pt-3 pb-1 flex justify-between items-center">
-                <span className="text-sm text-gray-400">Balance due on completion</span>
-                <span className="text-sm text-gray-400 tabular-nums">{fmtD(balanceDue)}</span>
-              </div>
-
-              {/* Total */}
-              <div className="border-t border-gray-200 pt-4 flex justify-between items-center">
-                <span className="text-base font-bold text-gray-900">Total</span>
-                <span className="text-base font-bold text-gray-900 tabular-nums">{fmtD(totalWithTax)}</span>
+                <div className="border-t border-[oklch(0.89_0.06_150)] mt-4 pt-3 flex justify-between items-center gap-4">
+                  <span className="text-sm text-[oklch(0.5_0.01_250)]">Remaining balance · billed on completion</span>
+                  <span className="text-sm text-[oklch(0.5_0.01_250)] tabular-nums shrink-0">{fmtD(balanceDue)}</span>
+                </div>
               </div>
 
             </div>
@@ -352,6 +468,27 @@ export default function CabinetProposalPage({ params }: { params: Promise<{ id: 
               <p className="text-sm text-gray-400 mt-3">
                 Thank you! We will reach out shortly to schedule your project.
               </p>
+              {/* Invoice status */}
+              <div className="mt-4">
+                {invoiceStatus === 'done' && (
+                  <div className="flex flex-col items-center gap-2">
+                    <div className="flex items-center gap-2 bg-green-600 text-white px-5 py-2.5 rounded-xl font-semibold text-sm">
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 0 1-2.25 2.25h-15a2.25 2.25 0 0 1-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0 0 19.5 4.5h-15a2.25 2.25 0 0 0-2.25 2.25m19.5 0v.243a2.25 2.25 0 0 1-1.07 1.916l-7.5 4.615a2.25 2.25 0 0 1-2.36 0L3.32 8.91a2.25 2.25 0 0 1-1.07-1.916V6.75" /></svg>
+                      Invoice Sent
+                    </div>
+                    {depositInvoiceUrl && <a href={depositInvoiceUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 px-5 py-2.5 bg-brand-600 hover:bg-brand-700 text-white font-semibold text-sm rounded-xl transition-colors">Pay Deposit Now</a>}
+                  </div>
+                )}
+                {invoiceStatus === 'idle' && (
+                  <div className="flex items-center gap-3 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
+                    <div className="w-7 h-7 border-2 border-amber-400 border-t-transparent rounded-full animate-spin shrink-0" />
+                    <div className="text-left">
+                      <p className="text-sm font-semibold text-amber-800">Preparing your invoice…</p>
+                      <p className="text-xs text-amber-600 mt-0.5">Your deposit invoice will be sent to your email shortly.</p>
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           ) : (
             <>
@@ -504,9 +641,9 @@ export default function CabinetProposalPage({ params }: { params: Promise<{ id: 
 
 function PriceLine({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex justify-between items-center">
-      <span className="text-sm text-gray-600">{label}</span>
-      <span className="text-sm font-medium text-gray-900 tabular-nums">{value}</span>
+    <div className="flex justify-between items-center gap-4 py-[9px]">
+      <span className="text-sm text-[oklch(0.5_0.01_250)]">{label}</span>
+      <span className="text-sm font-medium text-[oklch(0.3_0.012_250)] tabular-nums shrink-0">{value}</span>
     </div>
   )
 }

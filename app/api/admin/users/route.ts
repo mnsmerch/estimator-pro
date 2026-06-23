@@ -36,7 +36,7 @@ export async function POST(req: NextRequest) {
     name: string; email: string; password: string; role: UserRole
   }
 
-  if (!name || !email || !password || !['admin', 'user'].includes(role)) {
+  if (!name || !email || !password || !['admin', 'estimator', 'pm', 'user'].includes(role)) {
     return NextResponse.json({ error: 'Invalid input' }, { status: 400 })
   }
 

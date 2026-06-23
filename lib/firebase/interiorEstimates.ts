@@ -1,6 +1,6 @@
 import {
   collection, doc, addDoc, updateDoc, getDoc, getDocFromServer, getDocs, deleteDoc,
-  query, where, serverTimestamp, Timestamp,
+  query, where, serverTimestamp, Timestamp, runTransaction,
 } from 'firebase/firestore'
 import { db } from './firestore'
 import type { InteriorEstimateDraft } from '@/types/interiorEstimate'
@@ -21,10 +21,22 @@ export interface InteriorEstimateRecord extends InteriorEstimateDraft {
   clientContactId?:  string
 }
 
+async function getNextEstimateNumber(): Promise<number> {
+  const counterRef = doc(db, 'settings', 'estimateCounter')
+  return runTransaction(db, async tx => {
+    const snap = await tx.get(counterRef)
+    const next = snap.exists() ? (snap.data().value as number) + 1 : 5585
+    tx.set(counterRef, { value: next })
+    return next
+  })
+}
+
 export async function createInteriorEstimate(data: InteriorEstimateDraft, userId: string): Promise<string> {
+  const estimateNumber = await getNextEstimateNumber()
   const ref = await addDoc(collection(db, COLLECTION), {
     ...data,
     userId,
+    estimateNumber,
     status:    'draft',
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),

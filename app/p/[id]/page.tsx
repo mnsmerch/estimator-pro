@@ -1,8 +1,9 @@
 'use client'
 
 import { useState, useEffect, useMemo, use, useRef, useCallback } from 'react'
+import { useAuth } from '@/context/AuthContext'
 import { buildApplicationList } from '@/lib/applicationList'
-import { calcEstimate, calcMarkup, calcStructureAddonSubtotal } from '@/lib/estimateEngine'
+import { calcEstimate, calcMarkup, calcStructureAddonSubtotal, calcStructureAddonGallons, calcStructureAddonDetails } from '@/lib/estimateEngine'
 import {
   DEFAULT_BUSINESS_RULES,
   DEFAULT_PRODUCTION_CONSTANTS,
@@ -39,10 +40,25 @@ function parseCityFromAddress(address: string): string {
   return cityChunk.replace(/\s+[A-Z]{2}\s+[\d-]+$/, '').replace(/\s+[A-Z]{2}$/, '').trim()
 }
 
+function parseAddress(address: string): { address1: string; city: string; state: string; zip: string } {
+  // Strip country suffix — Google Places appends ", USA"
+  const cleaned    = address.replace(/,?\s*(?:USA|United States)\s*$/i, '').trim()
+  const zipMatch   = cleaned.match(/(\d{5}(?:-\d{4})?)/)
+  const zip        = zipMatch ? zipMatch[1] : ''
+  const stateMatch = cleaned.match(/\b([A-Z]{2})\s+\d{5}/)
+  const state      = stateMatch ? stateMatch[1] : ''
+  const parts      = cleaned.split(/[,\n]+/).map(s => s.trim()).filter(Boolean)
+  const address1   = parts[0] ?? ''
+  const cityRaw    = parts[1] ?? ''
+  const city       = cityRaw.replace(/\s+[A-Z]{2}\s+[\d-]+$/, '').replace(/\s+[A-Z]{2}$/, '').trim()
+  return { address1, city, state, zip }
+}
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function ProposalPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
+  const { user } = useAuth()
 
   const [estimate, setEstimate]       = useState<EstimateData | null>(null)
   const [rules, setRules]             = useState<BusinessRules>(DEFAULT_BUSINESS_RULES)
@@ -54,10 +70,10 @@ export default function ProposalPage({ params }: { params: Promise<{ id: string 
   const [loadError, setLoadError]     = useState<string | null>(null)
 
   // Customer-interactive state
-  const [selectedBrand,  setSelectedBrand]  = useState('superPaint')
-  const [includeWood,    setIncludeWood]    = useState(false)
-  const [includeCustom,  setIncludeCustom]  = useState(false)
-  const [applyDiscount,  setApplyDiscount]  = useState(true)
+  const [selectedBrand,      setSelectedBrand]      = useState('superPaint')
+  const [includeWood,        setIncludeWood]        = useState(false)
+  const [includedCustomIds,  setIncludedCustomIds]  = useState<Set<string>>(new Set())
+  const [applyDiscount,      setApplyDiscount]      = useState(true)
 
   // Logo load state — hide the white box until the image file itself has downloaded
   const [logoLoaded, setLogoLoaded] = useState(false)
@@ -71,6 +87,7 @@ export default function ProposalPage({ params }: { params: Promise<{ id: string 
   const [agreed,      setAgreed]      = useState(false)
   const [signing,     setSigning]     = useState(false)
   const [signed,      setSigned]      = useState(false)
+  const [justSigned,  setJustSigned]  = useState(false) // true only when signed in this session
   const [pdfStatus,   setPdfStatus]   = useState<'idle' | 'uploading' | 'done' | 'error'>('idle')
   const [pdfLink,     setPdfLink]     = useState<string | null>(null)
   const [pdfError,    setPdfError]    = useState<string | null>(null)
@@ -82,6 +99,86 @@ export default function ProposalPage({ params }: { params: Promise<{ id: string 
   const [sending,   setSending]   = useState(false)
   const [sendDone,  setSendDone]  = useState(false)
   const [sendError, setSendError] = useState<string | null>(null)
+
+  // Retroactive GHL invoice creation (admin only, for manually-created estimates)
+  const [retryInvoice,      setRetryInvoice]      = useState(false)
+  const [retryInvoiceError, setRetryInvoiceError] = useState<string | null>(null)
+
+  // Change order state (admin only)
+  const [showChangeOrder,   setShowChangeOrder]   = useState(false)
+  const [coItems,           setCoItems]           = useState<{ id: string; description: string; price: number }[]>([])
+  const [coNotes,           setCoNotes]           = useState('')
+  const [coSaving,          setCoSaving]          = useState(false)
+  const [coError,           setCoError]           = useState<string | null>(null)
+  const [coResult,          setCoResult]          = useState<{ newGrandTotal: number; newBalanceDue: number; changeOrderTotal: number } | null>(null)
+  // Load existing change orders from estimate
+  const existingChangeOrders = (estimate as (typeof estimate & { changeOrders?: typeof coItems }) | null)?.changeOrders ?? []
+  const isModified = !!(estimate as (typeof estimate & { isModified?: boolean }) | null)?.isModified
+
+  function addCoItem() {
+    setCoItems(prev => [...prev, { id: crypto.randomUUID(), description: '', price: 0 }])
+  }
+  function updateCoItem(id: string, field: 'description' | 'price', value: string | number) {
+    setCoItems(prev => prev.map(i => i.id === id ? { ...i, [field]: value } : i))
+  }
+  function removeCoItem(id: string) {
+    setCoItems(prev => prev.filter(i => i.id !== id))
+  }
+
+  async function handleSaveChangeOrder() {
+    if (!coItems.length || coSaving) return
+    setCoSaving(true)
+    setCoError(null)
+    try {
+      const res  = await fetch('/api/change-order', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ estimateId: id, items: coItems, notes: coNotes }),
+      })
+      const json = await res.json() as { success?: boolean; error?: string; changeOrderTotal?: number; newGrandTotal?: number; newBalanceDue?: number }
+      if (!res.ok || json.error) throw new Error(json.error ?? 'Failed')
+      setCoResult({ newGrandTotal: json.newGrandTotal!, newBalanceDue: json.newBalanceDue!, changeOrderTotal: json.changeOrderTotal! })
+      setShowChangeOrder(false)
+      // Update local estimate to reflect modified state
+      setEstimate(prev => prev ? { ...(prev as object), isModified: true, changeOrders: coItems } as typeof prev : prev)
+    } catch (err) {
+      setCoError(err instanceof Error ? err.message : 'Failed to save')
+    } finally {
+      setCoSaving(false)
+    }
+  }
+
+  // Poll for invoice status when signed but no invoice yet
+  useEffect(() => {
+    // Only poll when signed in this session and invoice is still pending
+    if (!signed || !justSigned || invoiceStatus !== 'idle') return
+
+    let stopped = false
+    let attempts = 0
+    const MAX_ATTEMPTS = 60 // 5 min at 5s intervals
+
+    async function poll() {
+      if (stopped || attempts >= MAX_ATTEMPTS) return
+      attempts++
+      try {
+        const res  = await fetch(`/api/proposal/${id}`)
+        const json = await res.json() as { estimate?: { invoiceCreated?: boolean; depositInvoiceUrl?: string } }
+        if (json.estimate?.invoiceCreated) {
+          setInvoiceStatus('done')
+          if (json.estimate.depositInvoiceUrl) {
+            setDepositInvoiceUrl(json.estimate.depositInvoiceUrl)
+          }
+          stopped = true
+          return
+        }
+      } catch { /* ignore — keep polling */ }
+      if (!stopped) setTimeout(poll, 5000)
+    }
+
+    // Start after a short delay to give GHL time to respond
+    const timer = setTimeout(poll, 3000)
+    return () => { stopped = true; clearTimeout(timer) }
+  }, [signed, justSigned, invoiceStatus, id])
 
   useEffect(() => {
     async function load() {
@@ -103,9 +200,24 @@ export default function ProposalPage({ params }: { params: Promise<{ id: string 
         setEstimate(est)
         setSelectedBrand(est.selectedBrand ?? 'superPaint')
         setIncludeWood(est.woodReplacementOpen ?? false)
-        setIncludeCustom(est.customItemsOpen ?? false)
+        if (est.customItemsOpen) {
+          setIncludedCustomIds(new Set((est.customItems ?? []).filter(i => i.description && i.price > 0).map(i => i.id)))
+        }
         setSigned(est.status === 'approved')
         setSigName(est.signatureName ?? '')
+        // If already signed, resolve invoice status from stored data so we
+        // don't show a stale "Preparing your invoice…" spinner on revisit
+        if (est.status === 'approved') {
+          const estAny = est as typeof est & { invoiceCreated?: boolean; depositInvoiceUrl?: string }
+          if (estAny.invoiceCreated || estAny.depositInvoiceUrl) {
+            setInvoiceStatus('done')
+            if (estAny.depositInvoiceUrl) setDepositInvoiceUrl(estAny.depositInvoiceUrl)
+          } else if (!est.clientContactId) {
+            // Manual estimate — no GHL invoice will ever be created
+            setInvoiceStatus('done')
+          }
+          // Otherwise leave as 'idle' so the poll can detect a pending invoice
+        }
         setRules(json.rules)
         setConstants(json.constants)
         setPaintProducts(json.paintProducts)
@@ -125,18 +237,28 @@ export default function ProposalPage({ params }: { params: Promise<{ id: string 
   const appMap       = useMemo(() => new Map(applications.map(a => [a.uniqueKey, a])), [applications])
   const markup       = useMemo(() => calcMarkup(rules), [rules])
 
+  // Owner/client supplying paint — the estimate stored 'no-paint' products.
+  // In that case the customer can't switch paint tiers, so use the stored
+  // products directly instead of the brand preset.
+  const clientProvidingPaint = (estimate?.selectedBodyPaint === 'no-paint')
+
   // Paint totals for the currently selected brand
   const totals = useMemo(() => {
     if (!estimate?.rows?.length) return null
     const brand = PAINT_BRANDS.find(b => b.key === selectedBrand) ?? PAINT_BRANDS[0]
-    const bodyPaint   = paintProducts.find(p => p.id === brand.bodyId)   ?? emptyPaint
-    const trimPaint   = paintProducts.find(p => p.id === brand.trimId)   ?? emptyPaint
-    const accentPaint = paintProducts.find(p => p.id === brand.accentId) ?? emptyPaint
-    const stainPaint  = paintProducts.find(p => p.id === brand.stainId)  ?? emptyPaint
+    // When client supplies paint, use the stored selections; otherwise the brand preset
+    const bodyId   = clientProvidingPaint ? (estimate.selectedBodyPaint   ?? brand.bodyId)   : brand.bodyId
+    const trimId   = clientProvidingPaint ? (estimate.selectedTrimPaint   ?? brand.trimId)   : brand.trimId
+    const accentId = clientProvidingPaint ? (estimate.selectedAccentPaint ?? brand.accentId) : brand.accentId
+    const stainId  = clientProvidingPaint ? (estimate.selectedStainPaint  ?? brand.stainId)  : brand.stainId
+    const bodyPaint   = paintProducts.find(p => p.id === bodyId)   ?? emptyPaint
+    const trimPaint   = paintProducts.find(p => p.id === trimId)   ?? emptyPaint
+    const accentPaint = paintProducts.find(p => p.id === accentId) ?? emptyPaint
+    const stainPaint  = paintProducts.find(p => p.id === stainId)  ?? emptyPaint
     const validRows   = estimate.rows.filter(r => r.applicationKey !== '')
     if (!validRows.length) return null
     return calcEstimate(validRows, appMap, rules, constants, bodyPaint, trimPaint, accentPaint, stainPaint)
-  }, [estimate, selectedBrand, paintProducts, appMap, rules, constants])
+  }, [estimate, selectedBrand, clientProvidingPaint, paintProducts, appMap, rules, constants])
 
   // Wood replacement — always compute raw so the checkbox can show the price
   const woodTotalRaw = useMemo(() => {
@@ -158,15 +280,25 @@ export default function ProposalPage({ params }: { params: Promise<{ id: string 
     }, 0)
   }, [estimate])
 
-  const woodTotal   = includeWood   ? woodTotalRaw   : 0
-  const customTotal = includeCustom ? customTotalRaw : 0
+  const woodTotal   = includeWood ? woodTotalRaw : 0
+  const customTotal = useMemo(() => {
+    if (!estimate?.customItems?.length) return 0
+    return estimate.customItems.reduce((sum, item) => {
+      if (!item.description || !item.price) return sum
+      return includedCustomIds.has(item.id) ? sum + item.price : sum
+    }, 0)
+  }, [estimate, includedCustomIds])
 
   const jobType = estimate?.jobType ?? 'exterior'
 
   // Structure subtotals (deck, pergola, fence, shed)
   const deckSubtotal = useMemo(() => {
-    if (!estimate?.deckAddons?.length) return 0
-    return estimate.deckAddons.reduce((s, addon) =>
+    const addons = estimate?.deckAddons?.length
+      ? estimate.deckAddons
+      : estimate?.deckAddon
+      ? [estimate.deckAddon]
+      : []
+    return addons.reduce((s, addon) =>
       s + calcStructureAddonSubtotal(addon, 1 / 20, appMap, rules, constants, paintProducts), 0)
   }, [estimate, appMap, rules, constants, paintProducts])
 
@@ -181,6 +313,34 @@ export default function ProposalPage({ params }: { params: Promise<{ id: string 
   const shedSubtotal = useMemo(() =>
     estimate?.shedAddon ? calcStructureAddonSubtotal(estimate.shedAddon, 0, appMap, rules, constants, paintProducts) : 0,
     [estimate, appMap, rules, constants, paintProducts])
+
+  // Paint product name labels for structure line items
+  const deckPaintLabel = useMemo(() => {
+    const addons = estimate?.deckAddons?.length
+      ? estimate.deckAddons
+      : estimate?.deckAddon ? [estimate.deckAddon] : []
+    const ids = [...new Set(addons.filter(a => a.enabled).map(a => a.paintProductId))]
+    if (ids.length === 1) return paintProducts.find(p => p.id === ids[0])?.name ?? null
+    return null
+  }, [estimate, paintProducts])
+
+  const pergolaPaintLabel = useMemo(() =>
+    estimate?.pergolaAddon?.enabled
+      ? (paintProducts.find(p => p.id === estimate.pergolaAddon!.paintProductId)?.name ?? null)
+      : null,
+    [estimate, paintProducts])
+
+  const fencePaintLabel = useMemo(() =>
+    estimate?.fenceAddon?.enabled
+      ? (paintProducts.find(p => p.id === estimate.fenceAddon!.paintProductId)?.name ?? null)
+      : null,
+    [estimate, paintProducts])
+
+  const shedPaintLabel = useMemo(() =>
+    estimate?.shedAddon?.enabled
+      ? (paintProducts.find(p => p.id === estimate.shedAddon!.paintProductId)?.name ?? null)
+      : null,
+    [estimate, paintProducts])
 
   const structuresSubtotal = deckSubtotal + pergolaSubtotal + fenceSubtotal + shedSubtotal
   const hasStructures = structuresSubtotal > 0
@@ -197,8 +357,31 @@ export default function ProposalPage({ params }: { params: Promise<{ id: string 
   const depositAmount     = grandTotal * depositPercent
   const balanceDue        = grandTotal - depositAmount
 
+  // Cache grand total for list view (fire-and-forget, runs once after load)
+  const cachedTotalSaved = useRef(false)
+  useEffect(() => {
+    if (!loading && grandTotal > 0 && !cachedTotalSaved.current) {
+      cachedTotalSaved.current = true
+      fetch('/api/cache-grand-total', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ estimateId: id, estimateType: 'exterior', grandTotal }),
+      }).catch(() => {})
+    }
+  }, [loading, grandTotal, id])
+
   const hasWoodData   = (estimate?.woodReplacementRows ?? []).some(r => r.itemKey && (r.front + r.right + r.back + r.left) > 0)
   const hasCustomData = (estimate?.customItems ?? []).some(i => i.description && (i.price ?? 0) > 0)
+
+  // Manual estimates (created from scratch, no GHL contact) need complete client info
+  const isManualEstimate = !!estimate && !estimate.clientContactId
+  const missingFields = isManualEstimate ? [
+    !estimate!.clientName?.trim()    && 'Name',
+    !estimate!.clientAddress?.trim() && 'Address',
+    !estimate!.clientEmail?.trim()   && 'Email',
+    !estimate!.clientPhone?.trim()   && 'Phone',
+  ].filter(Boolean) as string[] : []
+  const canInteract = !isManualEstimate || missingFields.length === 0
 
   async function handleSign() {
     if (!sigName.trim() || !agreed || !sigDataUrl || !estimate) return
@@ -211,7 +394,7 @@ export default function ProposalPage({ params }: { params: Promise<{ id: string 
 
       // 1. Save signature + create GHL invoices atomically server-side
       const brandPresetForInvoice = PAINT_BRANDS.find(b => b.key === selectedBrand) ?? PAINT_BRANDS[0]
-      const itemLabel = `${applyDiscount ? '10% off ' : ''}Exterior Painting — ${brandPresetForInvoice.label}`
+      const itemLabel = `${applyDiscount ? '10% off ' : ''}Exterior Painting — ${clientProvidingPaint ? 'Labor (Paint by Owner)' : brandPresetForInvoice.label}`
       const acceptRes  = await fetch('/api/accept-estimate', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -220,18 +403,20 @@ export default function ProposalPage({ params }: { params: Promise<{ id: string 
           estimateType:   'exterior',
           signatureName:  sigName.trim(),
           signatureDataUrl: sigDataUrl,
+          // Always send pricing so it gets stored — needed for the GHL callback flow
+          depositAmount,
+          balanceDue,
+          depositPercent,
+          grandTotal,
+          taxRate:        taxRate ?? null,
+          taxCity:        parseCityFromAddress(estimate.clientAddress),
+          estimateNumber: estimate.estimateNumber ?? null,
           ...(estimate.clientContactId ? {
             contactId:      estimate.clientContactId,
             contactName:    estimate.clientName,
             contactEmail:   estimate.clientEmail,
             contactPhone:   estimate.clientPhone,
-            depositAmount,
-            balanceDue,
-            depositPercent,
-            grandTotal,
             itemLabel,
-            taxRate:        taxRate ?? null,
-            taxCity:        parseCityFromAddress(estimate.clientAddress),
             company: {
               name:          company.name,
               phone:         company.phone,
@@ -247,6 +432,7 @@ export default function ProposalPage({ params }: { params: Promise<{ id: string 
       if (!acceptRes.ok || acceptJson.error) throw new Error(acceptJson.error ?? 'Failed to accept estimate')
 
       setSigned(true)
+      setJustSigned(true)
       setEstimate(prev => prev ? { ...prev, status: 'approved', signatureName: sigName.trim() } : prev)
 
       // Set invoice status from server response
@@ -287,7 +473,7 @@ export default function ProposalPage({ params }: { params: Promise<{ id: string 
           selectedBrandLabel: brandPreset.label,
           paintingSubtotal,
           woodTotal,
-          customItems:        (estimate.customItems ?? []).filter(i => includeCustom && i.description && i.price > 0),
+          customItems:        (estimate.customItems ?? []).filter(i => includedCustomIds.has(i.id) && i.description && i.price > 0),
           combinedSubtotal,
           applyDiscount,
           discountAmount,
@@ -360,9 +546,58 @@ export default function ProposalPage({ params }: { params: Promise<{ id: string 
         }
       }
 
-      // 3. Create work order
+      // 3. Create work order (only on sign)
       try {
         const scopeParts = [scopeProject, scopePrepWork, scopePainting, scopeCleanUp, scopeWalkThrough].filter(Boolean)
+
+        // Sum structure add-on labor/materials
+        let structTotals = { hours: 0, landm: 0, paintCost: 0, sundries: 0 }
+        try {
+          const structAddonList = [
+            ...(estimate.deckAddons?.length ? estimate.deckAddons.map(a => ({ addon: a, setup: 1/20 })) : estimate.deckAddon ? [{ addon: estimate.deckAddon, setup: 1/20 }] : []),
+            ...(estimate.pergolaAddon ? [{ addon: estimate.pergolaAddon, setup: 0 }] : []),
+            ...(estimate.fenceAddon   ? [{ addon: estimate.fenceAddon,   setup: 0 }] : []),
+            ...(estimate.shedAddon    ? [{ addon: estimate.shedAddon,    setup: 0 }] : []),
+          ]
+          structTotals = structAddonList.reduce(
+            (acc, { addon, setup }) => {
+              const d = calcStructureAddonDetails(addon, setup, appMap, rules, constants, paintProducts)
+              return { hours: acc.hours + d.hours, landm: acc.landm + d.landm, paintCost: acc.paintCost + d.paintCost, sundries: acc.sundries + d.sundries }
+            },
+            { hours: 0, landm: 0, paintCost: 0, sundries: 0 },
+          )
+        } catch { /* non-critical */ }
+
+        const landm   = (totals?.landm ?? 0) + structTotals.landm
+        const hrs     = (totals?.totalHours ?? 0) + structTotals.hours
+        const matCost = (totals?.totalPaintCost ?? 0) + (totals?.sundries ?? 0) + structTotals.paintCost + structTotals.sundries
+
+        // Build "Paints & Gallons" string from selected brand + calculated gallons
+        const bp = PAINT_BRANDS.find(b => b.key === selectedBrand) ?? PAINT_BRANDS[0]
+        const bodyName   = paintProducts.find(p => p.id === bp.bodyId)?.name   ?? bp.bodyId
+        const trimName   = paintProducts.find(p => p.id === bp.trimId)?.name   ?? bp.trimId
+        const accentName = paintProducts.find(p => p.id === bp.accentId)?.name ?? bp.accentId
+        const stainName  = paintProducts.find(p => p.id === bp.stainId)?.name  ?? bp.stainId
+        const paintLines: string[] = []
+        if ((totals?.body.gallons ?? 0) > 0)   paintLines.push(`Body: ${bodyName} - ${Math.ceil(totals!.body.gallons)} Gal`)
+        if ((totals?.trim.gallons ?? 0) > 0)   paintLines.push(`Trim: ${trimName} - ${Math.ceil(totals!.trim.gallons)} Gal`)
+        if ((totals?.accent.gallons ?? 0) > 0) paintLines.push(`Accent/Other: ${accentName} - ${Math.ceil(totals!.accent.gallons)} Gal`)
+        if ((totals?.stain.gallons ?? 0) > 0)  paintLines.push(`Stain: ${stainName} - ${Math.ceil(totals!.stain.gallons)} Gal`)
+        // Structure add-on gallons
+        const structureAddons = [
+          ...(estimate.deckAddons?.length ? estimate.deckAddons.map((a, i) => ({ label: estimate.deckAddons!.length > 1 ? `Deck ${i + 1}` : 'Deck', addon: a })) : estimate.deckAddon ? [{ label: 'Deck', addon: estimate.deckAddon }] : []),
+          ...(estimate.pergolaAddon ? [{ label: 'Pergola', addon: estimate.pergolaAddon }] : []),
+          ...(estimate.fenceAddon   ? [{ label: 'Fence',   addon: estimate.fenceAddon   }] : []),
+          ...(estimate.shedAddon    ? [{ label: 'Shed',    addon: estimate.shedAddon    }] : []),
+        ]
+        for (const { label, addon } of structureAddons) {
+          if (!addon.enabled) continue
+          const gals = calcStructureAddonGallons(addon, appMap, constants, paintProducts)
+          if (gals <= 0) continue
+          const prodName = paintProducts.find(p => p.id === addon.paintProductId)?.name ?? addon.paintProductId
+          paintLines.push(`${label}: ${prodName} - ${Math.ceil(gals)} Gal`)
+        }
+
         await fetch('/api/work-orders/create', {
           method:  'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -375,13 +610,70 @@ export default function ProposalPage({ params }: { params: Promise<{ id: string 
             clientPhone:     estimate.clientPhone,
             clientContactId: estimate.clientContactId ?? '',
             scopeOfWork:     scopeParts.join('\n\n'),
+            painterPay:      landm > 0 ? landm.toFixed(2) : '',
+            totalHours:      hrs > 0 ? hrs.toFixed(2) : '',
+            materialsPrice:  matCost > 0 ? matCost.toFixed(2) : '',
+            projectTotal:    grandTotal > 0 ? grandTotal.toFixed(2) : '',
+            fullPrice:       combinedSubtotal > 0 ? combinedSubtotal.toFixed(2) : '',
+            discountAmount:  discountAmount > 0 ? discountAmount.toFixed(2) : '',
+            paintsAndGallons: paintLines.join('\n'),
+            jobType:         'Residential Exterior',
+            jobNumber:       estimate.estimateNumber ? String(estimate.estimateNumber) : '',
+            photoUrls:       estimate.photoUrls ?? [],
           }),
         })
       } catch {
         // Non-blocking — don't fail signing if work order creation fails
       }
 
-      // GHL invoices are now created server-side in /api/accept-estimate
+      // 4. For manual estimates (no GHL contact), fire the accepted webhook
+      if (isManualEstimate && capturedPdfUrl) {
+        try {
+          const brandPreset  = PAINT_BRANDS.find(b => b.key === selectedBrand) ?? PAINT_BRANDS[0]
+          const bodyProd     = paintProducts.find(p => p.id === brandPreset.bodyId)
+          const trimProd     = paintProducts.find(p => p.id === brandPreset.trimId)
+          const accentProd   = paintProducts.find(p => p.id === brandPreset.accentId)
+          const stainProd    = paintProducts.find(p => p.id === brandPreset.stainId)
+          const parsedAddr   = parseAddress(estimate.clientAddress ?? '')
+          await fetch('https://services.leadconnectorhq.com/hooks/KmTuAFWyGn4ijrs1sIzJ/webhook-trigger/5590c13c-51a2-4ccf-9446-45f85557c79c', {
+            method:  'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              // IDs GHL needs to call back with
+              estimateId:     id,
+              callbackUrl:    `${window.location.origin}/api/webhook/attach-contact`,
+              // Client info
+              clientName:     estimate.clientName,
+              clientAddress1: parsedAddr.address1,
+              clientCity:     parsedAddr.city,
+              clientState:    parsedAddr.state,
+              clientZip:      parsedAddr.zip,
+              clientEmail:    estimate.clientEmail,
+              clientPhone:    estimate.clientPhone,
+              estimateType:   'exterior',
+              estimateUrl:    `${window.location.origin}/p/${id}`,
+              pdfUrl:         capturedPdfUrl,
+              // Pricing (so GHL can pass them back for invoice creation)
+              grandTotal:     Math.round(grandTotal * 100) / 100,
+              depositAmount:  Math.round(depositAmount * 100) / 100,
+              balanceDue:     Math.round(balanceDue * 100) / 100,
+              depositPercent,
+              taxRate:        taxRate ?? 0,
+              taxCity:        parseCityFromAddress(estimate.clientAddress ?? ''),
+              selectedBrand: brandPreset.label,
+              productsSelected: {
+                body:   bodyProd?.name   ?? '',
+                trim:   trimProd?.name   ?? '',
+                accent: accentProd?.name ?? '',
+                stain:  stainProd?.name  ?? '',
+              },
+              photoUrls: estimate.photoUrls ?? [],
+            }),
+          })
+        } catch {
+          // Non-blocking — don't fail the sign flow
+        }
+      }
 
     } catch (err) {
       console.error('Failed to accept estimate:', err)
@@ -528,20 +820,27 @@ export default function ProposalPage({ params }: { params: Promise<{ id: string 
           <div className="bg-white rounded-2xl border border-gray-200 p-6">
             <h3 className="text-base font-bold text-gray-900 mb-4">Project Photos</h3>
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-              {estimate.photoUrls!.map((url, idx) => (
-                <button
-                  key={url}
-                  onClick={() => setLightboxIndex(idx)}
-                  className="aspect-square rounded-xl overflow-hidden bg-gray-100 cursor-zoom-in group focus:outline-none focus:ring-2 focus:ring-brand-500"
-                >
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={url}
-                    alt={`Photo ${idx + 1}`}
-                    className="w-full h-full object-cover transition-transform duration-200 group-hover:scale-105"
-                  />
-                </button>
-              ))}
+              {estimate.photoUrls!.map((url, idx) => {
+                const note = (estimate as typeof estimate & { photoNotes?: string[] }).photoNotes?.[idx]
+                return (
+                  <div key={url} className="flex flex-col rounded-xl overflow-hidden border border-gray-100">
+                    <button
+                      onClick={() => setLightboxIndex(idx)}
+                      className="aspect-square bg-gray-100 cursor-zoom-in group focus:outline-none"
+                    >
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={url}
+                        alt={note || `Photo ${idx + 1}`}
+                        className="w-full h-full object-cover transition-transform duration-200 group-hover:scale-105"
+                      />
+                    </button>
+                    {note && (
+                      <p className="px-2 py-1.5 text-xs text-gray-600 bg-white border-t border-gray-100 leading-snug">{note}</p>
+                    )}
+                  </div>
+                )
+              })}
             </div>
           </div>
         )}
@@ -559,23 +858,44 @@ export default function ProposalPage({ params }: { params: Promise<{ id: string 
 
         {/* ── Paint options + add-ons ────────────────────────────────────── */}
         {jobType !== 'structures' && <div className="bg-white rounded-2xl border border-gray-200 p-6">
+          {clientProvidingPaint ? (
+            <div className="flex items-start gap-3">
+              <div className="w-8 h-8 bg-brand-50 rounded-full flex items-center justify-center shrink-0">
+                <svg className="w-4 h-4 text-brand-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9.53 16.122a3 3 0 0 0-5.78 1.128 2.25 2.25 0 0 1-2.4 2.245 4.5 4.5 0 0 0 8.4-2.245c0-.399-.078-.78-.22-1.128Zm0 0a15.998 15.998 0 0 0 3.388-1.62m-5.043-.025a15.994 15.994 0 0 1 1.622-3.395m3.42 3.42a15.995 15.995 0 0 0 4.764-4.648l3.876-5.814a1.151 1.151 0 0 0-1.597-1.597L14.146 6.32a15.996 15.996 0 0 0-4.649 4.763m3.42 3.42a6.776 6.776 0 0 0-3.42-3.42" />
+                </svg>
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-gray-900">Paint Provided by Owner</h3>
+                <p className="text-sm text-gray-500 mt-0.5">You are supplying the paint for this project, so no paint cost is included in the pricing below.</p>
+              </div>
+            </div>
+          ) : (
+          <>
           <h3 className="text-base font-bold text-gray-900 mb-1">Choose Your Paint</h3>
-          <p className="text-sm text-gray-400 mb-4">Select a paint tier to see how it affects your price.</p>
+          <p className="text-sm text-gray-400 mb-4">
+            {signed ? 'Paint selection locked — already signed.' : 'Select a paint tier to see how it affects your price.'}
+          </p>
           <div className="flex flex-wrap gap-2">
             {PAINT_BRANDS.map(brand => (
               <button
                 key={brand.key}
-                onClick={() => setSelectedBrand(brand.key)}
+                onClick={() => { if (!signed) setSelectedBrand(brand.key) }}
+                disabled={signed && selectedBrand !== brand.key}
                 className={`px-4 py-2 rounded-xl text-sm font-semibold border transition-colors ${
                   selectedBrand === brand.key
-                    ? 'bg-brand-600 text-white border-brand-600'
-                    : 'bg-white text-gray-700 border-gray-300 hover:border-brand-400 hover:text-brand-600'
+                    ? 'bg-brand-600 text-white border-brand-600' + (signed ? ' ring-2 ring-brand-400' : '')
+                    : signed
+                      ? 'bg-white text-gray-300 border-gray-200 cursor-not-allowed opacity-50'
+                      : 'bg-white text-gray-700 border-gray-300 hover:border-brand-400 hover:text-brand-600'
                 }`}
               >
-                {brand.label}
+                {brand.label}{signed && selectedBrand === brand.key ? ' ✓' : ''}
               </button>
             ))}
           </div>
+          </>
+          )}
 
           {/* Add-on toggles */}
           {(hasWoodData || hasCustomData) && (
@@ -589,7 +909,7 @@ export default function ProposalPage({ params }: { params: Promise<{ id: string 
                         type="checkbox"
                         checked={includeWood}
                         onChange={e => setIncludeWood(e.target.checked)}
-                        className="w-4 h-4 rounded accent-brand-600"
+                        className="w-6 h-6 rounded accent-brand-600 cursor-pointer"
                       />
                       <div>
                         <p className="text-sm font-medium text-gray-700 group-hover:text-gray-900">Wood Replacement</p>
@@ -606,9 +926,14 @@ export default function ProposalPage({ params }: { params: Promise<{ id: string 
                     <div className="flex items-center gap-3">
                       <input
                         type="checkbox"
-                        checked={includeCustom}
-                        onChange={e => setIncludeCustom(e.target.checked)}
-                        className="w-4 h-4 rounded accent-brand-600"
+                        checked={includedCustomIds.has(item.id)}
+                        onChange={e => setIncludedCustomIds(prev => {
+                          const next = new Set(prev)
+                          if (e.target.checked) next.add(item.id)
+                          else next.delete(item.id)
+                          return next
+                        })}
+                        className="w-6 h-6 rounded accent-brand-600 cursor-pointer"
                       />
                       <p className="text-sm font-medium text-gray-700 group-hover:text-gray-900">{item.description}</p>
                     </div>
@@ -658,73 +983,77 @@ export default function ProposalPage({ params }: { params: Promise<{ id: string 
 
         {/* ── Pricing summary ────────────────────────────────────────────── */}
         {(totals || hasStructures) && (
-          <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
-            <div className="bg-gray-800 text-white text-center text-xs font-bold py-2.5 tracking-widest uppercase">
-              Your Estimate
+          <div className="bg-white rounded-[18px] border border-[oklch(0.93_0.006_80)] shadow-[0_1px_2px_rgba(20,40,30,0.04),0_12px_32px_rgba(20,40,30,0.08)]">
+
+            {/* Header */}
+            <div className="px-6 pt-6 pb-4 border-b border-[oklch(0.94_0.004_140)]">
+              <p className="text-[11px] font-bold uppercase tracking-[0.13em] text-[oklch(0.52_0.13_150)]">Your Estimate</p>
+              <h2 className="mt-1.5 text-lg font-bold text-[oklch(0.3_0.012_250)]">Everything&apos;s itemized — no surprises.</h2>
             </div>
-            <div className="p-6">
+
+            <div className="px-6 pt-2 pb-6">
 
               {/* Line items */}
-              <div className="space-y-2.5">
+              <div>
                 {jobType !== 'structures' && paintingSubtotal > 0 && (
-                  <PriceLine label={`Exterior Painting — ${PAINT_BRANDS.find(b => b.key === selectedBrand)?.label}`} value={fmtD(paintingSubtotal)} />
+                  <PriceLine label={clientProvidingPaint ? 'Exterior Painting — Labor (Paint by Owner)' : `Exterior Painting — ${PAINT_BRANDS.find(b => b.key === selectedBrand)?.label}`} value={fmtD(paintingSubtotal)} />
                 )}
                 {jobType !== 'exterior' && deckSubtotal > 0 && (
-                  <PriceLine label="Deck" value={fmtD(deckSubtotal)} />
+                  <PriceLine label={`Deck${deckPaintLabel ? ` — ${deckPaintLabel}` : ''}`} value={fmtD(deckSubtotal)} />
                 )}
                 {jobType !== 'exterior' && pergolaSubtotal > 0 && (
-                  <PriceLine label="Pergola" value={fmtD(pergolaSubtotal)} />
+                  <PriceLine label={`Pergola${pergolaPaintLabel ? ` — ${pergolaPaintLabel}` : ''}`} value={fmtD(pergolaSubtotal)} />
                 )}
                 {jobType !== 'exterior' && fenceSubtotal > 0 && (
-                  <PriceLine label="Fence" value={fmtD(fenceSubtotal)} />
+                  <PriceLine label={`Fence${fencePaintLabel ? ` — ${fencePaintLabel}` : ''}`} value={fmtD(fenceSubtotal)} />
                 )}
                 {jobType !== 'exterior' && shedSubtotal > 0 && (
-                  <PriceLine label="Shed" value={fmtD(shedSubtotal)} />
+                  <PriceLine label={`Shed${shedPaintLabel ? ` — ${shedPaintLabel}` : ''}`} value={fmtD(shedSubtotal)} />
                 )}
                 {includeWood && woodTotal > 0 && <PriceLine label="Wood Replacement" value={fmtD(woodTotal)} />}
-                {includeCustom && (estimate.customItems ?? []).filter(i => i.description && i.price > 0).map(item => (
+                {(estimate.customItems ?? []).filter(i => includedCustomIds.has(i.id) && i.description && i.price > 0).map(item => (
                   <PriceLine key={item.id} label={item.description} value={fmtD(item.price)} />
                 ))}
               </div>
 
               {/* Subtotal / discount / tax */}
-              <div className="border-t border-gray-100 mt-4 pt-4 space-y-2.5">
+              <div className="border-t border-[oklch(0.94_0.004_140)] mt-1 pt-1">
                 <PriceLine label="Subtotal" value={fmtD(combinedSubtotal)} />
                 {applyDiscount && (
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm font-medium text-green-700">Discount (10% — Sign Today)</span>
-                    <span className="text-sm font-medium text-green-700 tabular-nums">− {fmtD(discountAmount)}</span>
+                  <div className="flex justify-between items-center gap-4 py-[9px]">
+                    <span className="text-sm font-semibold text-[oklch(0.52_0.13_150)]">Discount (10% — Sign Today)</span>
+                    <span className="text-sm font-semibold text-[oklch(0.52_0.13_150)] tabular-nums">− {fmtD(discountAmount)}</span>
                   </div>
                 )}
                 {taxRate != null && (
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm text-gray-600">
+                  <div className="flex justify-between items-center gap-4 py-[9px]">
+                    <span className="text-sm text-[oklch(0.5_0.01_250)]">
                       Sales Tax ({(taxRate * 100).toFixed(1)}%{parseCityFromAddress(estimate.clientAddress) ? ` — ${parseCityFromAddress(estimate.clientAddress)}` : ''})
                     </span>
-                    <span className="text-sm text-gray-900 tabular-nums">+ {fmtD(taxAmount)}</span>
+                    <span className="text-sm text-[oklch(0.3_0.012_250)] tabular-nums">+ {fmtD(taxAmount)}</span>
                   </div>
                 )}
               </div>
 
+              {/* Project total */}
+              <div className="border-t border-[oklch(0.94_0.004_140)] mt-1 pt-4 flex justify-between items-center gap-4">
+                <span className="font-bold text-[oklch(0.3_0.012_250)]">Project total</span>
+                <span className="text-[22px] font-bold text-[oklch(0.3_0.012_250)] tabular-nums">{fmtD(grandTotal)}</span>
+              </div>
+
               {/* Deposit */}
-              <div className="bg-brand-50 border-t border-brand-200 mt-4 px-4 py-4 -mx-6 flex justify-between items-center">
-                <div>
-                  <p className="text-sm font-bold text-brand-700">Deposit Due ({Math.round(depositPercent * 100)}%)</p>
-                  <p className="text-xs text-brand-500 mt-0.5">Required to secure your project start date</p>
+              <div className="mt-5 rounded-[14px] p-[22px] bg-[oklch(0.96_0.035_150)] border border-[oklch(0.89_0.06_150)]">
+                <div className="flex justify-between items-start gap-4">
+                  <div>
+                    <p className="font-bold text-[oklch(0.4_0.1_150)]">Due today</p>
+                    <p className="text-xs mt-1 text-[oklch(0.5_0.01_250)]">Reserves your project start date · {Math.round(depositPercent * 100)}%</p>
+                  </div>
+                  <span className="text-[30px] font-extrabold leading-none text-[oklch(0.52_0.13_150)] tabular-nums shrink-0">{fmtD(depositAmount)}</span>
                 </div>
-                <span className="text-xl font-bold text-brand-600 tabular-nums">{fmtD(depositAmount)}</span>
-              </div>
-
-              {/* Balance */}
-              <div className="border-t border-gray-100 pt-3 pb-1 flex justify-between items-center">
-                <span className="text-sm text-gray-400">Balance due on completion</span>
-                <span className="text-sm text-gray-400 tabular-nums">{fmtD(balanceDue)}</span>
-              </div>
-
-              {/* Grand total */}
-              <div className="border-t border-gray-200 pt-4 flex justify-between items-center">
-                <span className="text-base font-bold text-gray-900">Total</span>
-                <span className="text-base font-bold text-gray-900 tabular-nums">{fmtD(grandTotal)}</span>
+                <div className="border-t border-[oklch(0.89_0.06_150)] mt-4 pt-3 flex justify-between items-center gap-4">
+                  <span className="text-sm text-[oklch(0.5_0.01_250)]">Remaining balance · billed on completion</span>
+                  <span className="text-sm text-[oklch(0.5_0.01_250)] tabular-nums shrink-0">{fmtD(balanceDue)}</span>
+                </div>
               </div>
 
             </div>
@@ -796,20 +1125,28 @@ export default function ProposalPage({ params }: { params: Promise<{ id: string 
 
                 {/* Invoice status */}
                 {invoiceStatus === 'creating' && (
-                  <div className="flex items-center justify-center gap-2 text-sm text-gray-400">
+                  <div className="flex items-center justify-center gap-2 text-sm text-gray-400 mt-3">
                     <div className="w-4 h-4 border-2 border-gray-300 border-t-brand-600 rounded-full animate-spin" />
-                    Creating invoices…
+                    Sending invoice…
                   </div>
                 )}
+
                 {invoiceStatus === 'done' && (
-                  <div className="flex flex-col items-center gap-3">
-                    <p className="text-sm text-green-600 font-medium">✓ Deposit &amp; balance invoices created</p>
+                  <div className="mt-4 flex flex-col items-center gap-3">
+                    {/* "Invoice Sent" banner */}
+                    <div className="flex items-center gap-2 bg-green-600 text-white px-5 py-2.5 rounded-xl font-semibold text-sm shadow-sm">
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 0 1-2.25 2.25h-15a2.25 2.25 0 0 1-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0 0 19.5 4.5h-15a2.25 2.25 0 0 0-2.25 2.25m19.5 0v.243a2.25 2.25 0 0 1-1.07 1.916l-7.5 4.615a2.25 2.25 0 0 1-2.36 0L3.32 8.91a2.25 2.25 0 0 1-1.07-1.916V6.75" />
+                      </svg>
+                      Invoice Sent
+                    </div>
+                    <p className="text-xs text-gray-400">Your deposit invoice has been sent. Check your email.</p>
                     {depositInvoiceUrl && (
                       <a
                         href={depositInvoiceUrl}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="inline-flex items-center gap-2 px-6 py-3 bg-green-600 hover:bg-green-700 text-white font-semibold text-sm rounded-xl transition-colors shadow-sm"
+                        className="inline-flex items-center gap-2 px-6 py-3 bg-brand-600 hover:bg-brand-700 text-white font-semibold text-sm rounded-xl transition-colors shadow-sm"
                       >
                         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                           <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 8.25h19.5M2.25 9h19.5m-16.5 5.25h6m-6 2.25h3m-3.75 3h15a2.25 2.25 0 0 0 2.25-2.25V6.75A2.25 2.25 0 0 0 19.5 4.5h-15a2.25 2.25 0 0 0-2.25 2.25v10.5A2.25 2.25 0 0 0 4.5 19.5Z" />
@@ -819,12 +1156,131 @@ export default function ProposalPage({ params }: { params: Promise<{ id: string 
                     )}
                   </div>
                 )}
+
+                {/* Signed but invoice not yet processed — actively polling */}
+                {invoiceStatus === 'idle' && justSigned && (
+                  <div className="mt-4 flex items-center gap-3 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
+                    <div className="shrink-0">
+                      <div className="w-8 h-8 border-2 border-amber-400 border-t-transparent rounded-full animate-spin" />
+                    </div>
+                    <div className="text-left">
+                      <p className="text-sm font-semibold text-amber-800">Preparing your invoice…</p>
+                      <p className="text-xs text-amber-600 mt-0.5">This usually takes less than a minute. Your deposit invoice will be sent to your email automatically.</p>
+                    </div>
+                  </div>
+                )}
+
                 {invoiceStatus === 'error' && (
-                  <div className="bg-yellow-50 border border-yellow-200 rounded-xl px-4 py-3 text-left">
-                    <p className="text-sm font-semibold text-yellow-800">Invoice creation failed</p>
+                  <div className="mt-3 bg-yellow-50 border border-yellow-200 rounded-xl px-4 py-3 text-left">
+                    <p className="text-sm font-semibold text-yellow-800">Invoice could not be sent automatically</p>
+                    <p className="text-xs text-yellow-600 mt-0.5">Our team will follow up with your deposit invoice shortly.</p>
                     {invoiceError && <p className="text-xs text-yellow-500 mt-1 font-mono break-all">{invoiceError}</p>}
                   </div>
                 )}
+
+                {/* Admin-only: create GHL invoices retroactively for estimates that missed them */}
+                {user && estimate?.clientContactId && invoiceStatus === 'idle' && grandTotal > 0 && (
+                  <div className="mt-6 pt-5 border-t border-gray-100">
+                    <p className="text-xs text-gray-400 mb-3 text-center">Admin — GHL invoices were not created at signing</p>
+                    {retryInvoice ? (
+                      <div className="flex items-center justify-center gap-2 text-sm text-gray-400">
+                        <div className="w-4 h-4 border-2 border-gray-300 border-t-brand-600 rounded-full animate-spin" />
+                        Creating invoices…
+                      </div>
+                    ) : retryInvoiceError ? (
+                      <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-left">
+                        <p className="text-sm font-semibold text-red-700">Failed: {retryInvoiceError}</p>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={async () => {
+                          setRetryInvoice(true)
+                          setRetryInvoiceError(null)
+                          try {
+                            const brandPreset = PAINT_BRANDS.find(b => b.key === selectedBrand) ?? PAINT_BRANDS[0]
+                            const itemLabel   = `Exterior Painting — ${brandPreset.label}`
+                            const res = await fetch('/api/accept-estimate', {
+                              method:  'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body:    JSON.stringify({
+                                estimateId:     id,
+                                estimateType:   'exterior',
+                                signatureName:  estimate.signatureName ?? '',
+                                contactId:      estimate.clientContactId,
+                                contactName:    estimate.clientName,
+                                contactEmail:   estimate.clientEmail,
+                                contactPhone:   estimate.clientPhone,
+                                depositAmount,
+                                balanceDue,
+                                depositPercent,
+                                grandTotal,
+                                itemLabel,
+                                taxRate:        taxRate ?? null,
+                                taxCity:        parseCityFromAddress(estimate.clientAddress ?? ''),
+                                company: {
+                                  name:          company.name,
+                                  phone:         company.phone,
+                                  email:         company.email,
+                                  website:       company.website,
+                                  streetAddress: company.streetAddress,
+                                  cityStateZip:  company.cityStateZip,
+                                },
+                              }),
+                            })
+                            const json = await res.json() as { depositInvoiceUrl?: string; invoiceError?: string }
+                            if (json.invoiceError) throw new Error(json.invoiceError)
+                            if (json.depositInvoiceUrl) setDepositInvoiceUrl(json.depositInvoiceUrl)
+                            setInvoiceStatus('done')
+                          } catch (err) {
+                            setRetryInvoiceError(err instanceof Error ? err.message : 'Failed')
+                          } finally {
+                            setRetryInvoice(false)
+                          }
+                        }}
+                        className="w-full py-2.5 rounded-xl border border-brand-300 text-brand-700 text-sm font-semibold hover:bg-brand-50 transition-colors"
+                      >
+                        Create GHL Invoices Now
+                      </button>
+                    )}
+                  </div>
+                )}
+              {/* Change Order summary — shown to everyone when a change order exists */}
+              {(coResult || (isModified && existingChangeOrders.length > 0)) && (() => {
+                const items   = coResult ? coItems : existingChangeOrders
+                const coTotal = items.reduce((s, i) => s + (i.price || 0), 0)
+                const signedTotal   = (estimate as typeof estimate & { signedGrandTotal?: number })?.signedGrandTotal ?? grandTotal
+                const signedDeposit = (estimate as typeof estimate & { signedDepositAmount?: number })?.signedDepositAmount ?? depositAmount
+                    const newTotal  = coResult?.newGrandTotal  ?? (signedTotal + coTotal)
+                    const newBal    = coResult?.newBalanceDue  ?? (newTotal - signedDeposit)
+                    return (
+                      <div className="mb-5 bg-amber-50 border border-amber-200 rounded-xl p-4">
+                        <div className="flex items-center gap-2 mb-3">
+                          <span className="text-xs font-bold uppercase tracking-wider text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full">Modified</span>
+                          <p className="text-sm font-bold text-amber-800">Change Order Applied</p>
+                        </div>
+                        <div className="space-y-1.5 text-sm">
+                          <div className="flex justify-between text-gray-600">
+                            <span>Original Contract Total</span>
+                            <span className="tabular-nums">{fmtD(signedTotal)}</span>
+                          </div>
+                          <div className="flex justify-between text-gray-600">
+                            <span>Deposit Paid</span>
+                            <span className="tabular-nums text-green-600">− {fmtD(signedDeposit)}</span>
+                          </div>
+                          {items.map(item => (
+                            <div key={item.id} className="flex justify-between text-amber-700">
+                              <span>{item.description}</span>
+                              <span className={`tabular-nums ${item.price >= 0 ? 'text-amber-700' : 'text-green-700'}`}>{item.price >= 0 ? '+ ' : '− '}{fmtD(Math.abs(item.price))}</span>
+                            </div>
+                          ))}
+                          <div className="border-t border-amber-200 pt-2 flex justify-between font-bold text-gray-900">
+                            <span>New Total Due</span>
+                            <span className="tabular-nums">{fmtD(newBal)}</span>
+                          </div>
+                        </div>
+                      </div>
+                    )
+              })()}
               </div>
             </div>
           ) : (
@@ -834,6 +1290,17 @@ export default function ProposalPage({ params }: { params: Promise<{ id: string 
                 By signing below you authorize {company.name} to proceed with the work described
                 above at the price shown.
               </p>
+
+              {/* Warning when manual estimate is missing required client info */}
+              {isManualEstimate && missingFields.length > 0 && (
+                <div className="mb-5 bg-yellow-50 border border-yellow-200 rounded-xl px-4 py-3">
+                  <p className="text-sm font-semibold text-yellow-800 mb-1">Missing contact information</p>
+                  <p className="text-sm text-yellow-700">
+                    This estimate is missing: <span className="font-medium">{missingFields.join(', ')}</span>.
+                    Please contact {company.name} to have your information added before signing.
+                  </p>
+                </div>
+              )}
               <div className="space-y-4">
                 <label className="flex items-start gap-3 cursor-pointer">
                   <input
@@ -891,7 +1358,7 @@ export default function ProposalPage({ params }: { params: Promise<{ id: string 
 
                 <button
                   onClick={handleSign}
-                  disabled={!agreed || !sigName.trim() || !sigDataUrl || signing}
+                  disabled={!agreed || !sigName.trim() || !sigDataUrl || signing || !canInteract}
                   className="w-full py-3 rounded-xl bg-brand-600 text-white font-semibold text-sm hover:bg-brand-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                 >
                   {signing ? 'Signing…' : 'Sign & Accept Estimate'}
@@ -908,13 +1375,24 @@ export default function ProposalPage({ params }: { params: Promise<{ id: string 
             <p className="text-sm text-gray-400 mb-4">
               We&apos;ll send this estimate to your email so you can review and sign it later.
             </p>
+
+            {/* Warning for manual estimates missing info */}
+            {isManualEstimate && missingFields.length > 0 && (
+              <div className="mb-4 bg-yellow-50 border border-yellow-200 rounded-xl px-4 py-3 text-left">
+                <p className="text-sm font-semibold text-yellow-800 mb-1">Cannot send — missing information</p>
+                <p className="text-sm text-yellow-700">
+                  Missing: <span className="font-medium">{missingFields.join(', ')}</span>. Please contact {company.name}.
+                </p>
+              </div>
+            )}
+
             {sendDone ? (
               <p className="text-sm font-semibold text-green-600">✓ Estimate sent! Check your email.</p>
             ) : (
               <>
                 <button
                   onClick={async () => {
-                    if (!estimate || sending) return
+                    if (!estimate || sending || !canInteract) return
                     setSending(true)
                     setSendError(null)
                     try {
@@ -932,6 +1410,11 @@ export default function ProposalPage({ params }: { params: Promise<{ id: string 
                           estimateUrl,
                           estimateId:      id,
                           estimateType:    'exterior',
+                          subtotal:        Math.round(combinedSubtotal * 100) / 100,
+                          discountAmount:  Math.round(combinedSubtotal * 0.10 * 100) / 100,
+                          grandTotal:      Math.round((combinedSubtotal * 0.90 + taxAmount) * 100) / 100,
+                          taxRate:         taxRate ?? 0,
+                          taxAmount:       Math.round(taxAmount * 100) / 100,
                         }),
                       })
                       const json = await res.json() as { success?: boolean; error?: string }
@@ -943,7 +1426,7 @@ export default function ProposalPage({ params }: { params: Promise<{ id: string 
                       setSending(false)
                     }
                   }}
-                  disabled={sending}
+                  disabled={sending || !canInteract}
                   className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl border border-gray-300 bg-white text-sm font-medium text-gray-700 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                 >
                   {sending ? (
@@ -1072,9 +1555,9 @@ function ScopeBlock({ label, text }: { label: string; text: string }) {
 
 function PriceLine({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex justify-between items-center gap-4">
-      <span className="text-sm text-gray-600">{label}</span>
-      <span className="text-sm font-medium text-gray-900 tabular-nums shrink-0">{value}</span>
+    <div className="flex justify-between items-center gap-4 py-[9px]">
+      <span className="text-sm text-[oklch(0.5_0.01_250)]">{label}</span>
+      <span className="text-sm font-medium text-[oklch(0.3_0.012_250)] tabular-nums shrink-0">{value}</span>
     </div>
   )
 }

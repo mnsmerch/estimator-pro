@@ -62,6 +62,17 @@ export interface StainingRateItem {
   surfaceAreaFactor: number
 }
 
+/** Admin-defined application option added on top of the built-in catalog. */
+export interface CustomApplication {
+  id:                 string   // unique, e.g. 'custom-...'
+  categoryKey:        string   // one of the supported category keys
+  categoryLabel:      string   // display group label
+  label:              string   // line-item name shown in the dropdown
+  unitLabel:          string   // 'SqFt' | 'LnFt' | 'Units' | 'Hrs' | '#'
+  rate:               number   // production rate = units per hour
+  surfaceAreaFactor?: number   // staining only — sq ft per unit for paint gallons
+}
+
 export interface ProductionRates {
   prepWork: Record<string, number>
   bodyApplication: Record<string, number>
@@ -76,4 +87,6 @@ export interface ProductionRates {
   shutters: Record<string, number>
   staining: Record<string, StainingRateItem>
   woodReplacement: Record<string, number>
+  // Admin-added custom application options (appended to the built-in catalog)
+  customApplications?: CustomApplication[]
 }

@@ -11,15 +11,30 @@ import {
   orderBy,
   serverTimestamp,
   Timestamp,
+  runTransaction,
 } from 'firebase/firestore'
 import { db } from './firestore'
 import type { EstimateData } from '@/types/estimate'
 
 const COLLECTION = 'estimates'
+const COUNTER_DOC = 'estimateCounter'
+const COUNTER_START = 5585
+
+async function getNextEstimateNumber(): Promise<number> {
+  const counterRef = doc(db, 'settings', COUNTER_DOC)
+  return runTransaction(db, async tx => {
+    const snap = await tx.get(counterRef)
+    const next = snap.exists() ? (snap.data().value as number) + 1 : COUNTER_START
+    tx.set(counterRef, { value: next })
+    return next
+  })
+}
 
 export async function createEstimate(data: Omit<EstimateData, 'id' | 'createdAt' | 'updatedAt'>): Promise<string> {
+  const estimateNumber = await getNextEstimateNumber()
   const ref = await addDoc(collection(db, COLLECTION), {
     ...data,
+    estimateNumber,
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   })

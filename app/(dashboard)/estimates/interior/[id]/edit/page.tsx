@@ -15,11 +15,16 @@ export default function EditInteriorEstimatePage({ params }: { params: Promise<{
 
   useEffect(() => {
     if (!user) return
-    getInteriorEstimate(id).then(est => {
-      if (!est) setNotFound(true)
-      else setData(est)
-      setLoading(false)
-    })
+    getInteriorEstimate(id)
+      .then(est => {
+        if (!est) setNotFound(true)
+        else setData(est)
+      })
+      .catch(err => {
+        console.error('Failed to load interior estimate:', err)
+        setNotFound(true)
+      })
+      .finally(() => setLoading(false))
   }, [id, user])
 
   if (loading) {

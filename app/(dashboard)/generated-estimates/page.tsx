@@ -54,6 +54,7 @@ export default function GeneratedEstimatesPage() {
   const [loading, setLoading] = useState(true)
   const [copied,  setCopied]  = useState<string | null>(null)
   const [filter,  setFilter]  = useState<FilterKey>('all')
+  const [search,  setSearch]  = useState('')
 
   useEffect(() => {
     if (!user) return
@@ -65,7 +66,7 @@ export default function GeneratedEstimatesPage() {
         let int: GeneratedItem[] = []
         let cab: GeneratedItem[] = []
 
-        if (role === 'admin') {
+        if (role === 'admin' || role === 'estimator' || role === 'pm') {
           const token = await user!.getIdToken()
           const res = await fetch('/api/admin/all-estimates', {
             headers: { Authorization: `Bearer ${token}` },
@@ -146,6 +147,27 @@ export default function GeneratedEstimatesPage() {
           <p className="text-sm text-gray-500 mt-1">All estimates with their shareable proposal links</p>
         </div>
 
+        {/* Search */}
+        <div className="relative mb-4">
+          <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="m21 21-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0Z" />
+          </svg>
+          <input
+            type="text"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="Search by name or address…"
+            className="w-full pl-9 pr-4 py-2.5 rounded-lg border border-gray-300 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+          />
+          {search && (
+            <button onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
+              </svg>
+            </button>
+          )}
+        </div>
+
         {/* Filter pills */}
         <div className="flex items-center gap-2 mb-6">
           {FILTERS.map(f => (
@@ -169,13 +191,20 @@ export default function GeneratedEstimatesPage() {
           </div>
         ) : (
           <div className="bg-white rounded-xl border border-gray-200 divide-y divide-gray-100">
-            {items.filter(i => filter === 'all' || i.status === filter).length === 0 ? (
-              <div className="p-12 text-center">
-                <p className="text-gray-500">
-                  No <span className="font-medium">{FILTERS.find(f => f.key === filter)?.label.toLowerCase()}</span> estimates.
-                </p>
-              </div>
-            ) : items.filter(i => filter === 'all' || i.status === filter).map(item => (
+            {(() => {
+              const q = search.trim().toLowerCase()
+              const filtered = items.filter(i =>
+                (filter === 'all' || i.status === filter) &&
+                (!q || i.clientName.toLowerCase().includes(q) || i.address.toLowerCase().includes(q))
+              )
+              if (filtered.length === 0) return (
+                <div className="p-12 text-center">
+                  <p className="text-gray-500">
+                    {q ? `No results for "${search}"` : <>No <span className="font-medium">{FILTERS.find(f => f.key === filter)?.label.toLowerCase()}</span> estimates.</>}
+                  </p>
+                </div>
+              )
+              return filtered.map(item => (
               <a
                 key={item.id}
                 href={item.proposalUrl}
@@ -223,7 +252,8 @@ export default function GeneratedEstimatesPage() {
                   </svg>
                 </div>
               </a>
-            ))}
+              ))
+            })()}
           </div>
         )}
       </main>

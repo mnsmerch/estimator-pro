@@ -1,7 +1,7 @@
 import { doc, getDoc, setDoc, collection, getDocs, serverTimestamp } from 'firebase/firestore'
 import { db } from './firestore'
 
-export type UserRole = 'admin' | 'user'
+export type UserRole = 'admin' | 'estimator' | 'pm' | 'user'
 
 export interface UserRecord {
   uid:       string

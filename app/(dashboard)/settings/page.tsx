@@ -12,6 +12,7 @@ import InteriorRulesForm from '@/components/settings/InteriorRulesForm'
 import InteriorPaintProductsTable from '@/components/settings/InteriorPaintProductsTable'
 import InteriorRatesAccordion from '@/components/settings/InteriorRatesAccordion'
 import TeamSettings from '@/components/settings/TeamSettings'
+import CustomApplicationsManager from '@/components/settings/CustomApplicationsManager'
 import AppHeader from '@/components/AppHeader'
 
 const TABS = [
@@ -19,6 +20,7 @@ const TABS = [
   { key: 'business',         label: 'Exterior Rules'     },
   { key: 'paints',           label: 'Exterior Paints'    },
   { key: 'rates',            label: 'Exterior Rates'     },
+  { key: 'custom-apps',      label: 'Custom Options'     },
   { key: 'interior',         label: 'Interior Rules'     },
   { key: 'interior-paints',  label: 'Interior Paints'    },
   { key: 'interior-rates',   label: 'Interior Rates'     },
@@ -72,6 +74,7 @@ export default function SettingsPage() {
           {activeTab === 'business'        && <BusinessRulesForm />}
           {activeTab === 'paints'          && <PaintProductsTable />}
           {activeTab === 'rates'           && <RatesAccordion />}
+          {activeTab === 'custom-apps'     && <CustomApplicationsManager />}
           {activeTab === 'interior'        && <InteriorRulesForm />}
           {activeTab === 'interior-paints' && <InteriorPaintProductsTable />}
           {activeTab === 'interior-rates'  && <InteriorRatesAccordion />}

@@ -25,7 +25,7 @@ export async function PATCH(
   const { uid } = await params
   const { role } = await req.json()
 
-  if (!['admin', 'user'].includes(role)) {
+  if (!['admin', 'estimator', 'pm', 'user'].includes(role)) {
     return NextResponse.json({ error: 'Invalid role' }, { status: 400 })
   }
 
@@ -58,7 +58,14 @@ export async function DELETE(
   }
 
   try {
-    await adminAuth.deleteUser(uid)
+    // Delete from Firebase Auth — ignore "user not found" (may have been deleted in Console)
+    try {
+      await adminAuth.deleteUser(uid)
+    } catch (authErr: unknown) {
+      const code = (authErr as { code?: string }).code
+      if (code !== 'auth/user-not-found') throw authErr
+    }
+    // Always clean up the Firestore user document
     await adminDb.collection('users').doc(uid).delete()
     return NextResponse.json({ success: true })
   } catch (err) {

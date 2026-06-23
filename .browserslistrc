@@ -1,0 +1,11 @@
+[production]
+> 0.5%
+last 2 versions
+not dead
+iOS >= 14
+Safari >= 14
+
+[development]
+last 1 Chrome version
+last 1 Firefox version
+last 1 Safari version

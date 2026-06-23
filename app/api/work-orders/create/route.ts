@@ -15,15 +15,25 @@ function getAdminDb() {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json() as {
-      estimateId?:      string
-      estimateType?:    string
-      clientName?:      string
-      clientAddress?:   string
-      clientEmail?:     string
-      clientPhone?:     string
-      clientContactId?: string
-      scopeOfWork?:     string
-      [key: string]:    unknown
+      estimateId?:       string
+      estimateType?:     string
+      clientName?:       string
+      clientAddress?:    string
+      clientEmail?:      string
+      clientPhone?:      string
+      clientContactId?:  string
+      scopeOfWork?:      string
+      painterPay?:       string
+      totalHours?:       string
+      materialsPrice?:   string
+      projectTotal?:     string
+      paintsAndGallons?: string
+      jobType?:          string
+      jobNumber?:        string
+      fullPrice?:        string
+      discountAmount?:   string
+      photoUrls?:        string[]
+      [key: string]:     unknown
     }
 
     const db = getAdminDb()
@@ -38,16 +48,24 @@ export async function POST(req: NextRequest) {
       clientPhone:      body.clientPhone     ?? '',
       clientContactId:  body.clientContactId ?? '',
 
-      // Editable by PM — default to empty string
-      jobNumber:        '',
+      // Pre-populated from estimate calculation
+      totalHours:       body.totalHours       ?? '',
+      materialsPrice:   body.materialsPrice   ?? '',
+      projectTotal:     body.projectTotal     ?? '',
+      paintsAndGallons: body.paintsAndGallons ?? '',
+      fullPrice:        body.fullPrice        ?? '',
+      discountAmount:   body.discountAmount   ?? '',
+      photoUrls:        body.photoUrls        ?? [],
+
+      // Editable by PM
+      jobNumber:        body.jobNumber ?? '',
       crmLink:          '',
-      painterPay:       '',
+      painterPay:       body.painterPay ?? '',
       colorChange:      '',
       numberOfColors:   '',
-      jobType:          '',
+      jobType:          body.jobType ?? '',
       budgetHours:      '',
       materialsBudget:  '',
-      paintsAndGallons: '',
       colorIds:         '',
       scopeOfWork:      body.scopeOfWork     ?? '',
       exclusionsAndNotes: '',

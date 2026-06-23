@@ -3,6 +3,7 @@
 import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/context/AuthContext'
+import AppSidebar from '@/components/AppSidebar'
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth()
@@ -24,5 +25,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   if (!user) return null
 
-  return <>{children}</>
+  return (
+    <div className="min-h-screen bg-gray-50">
+      <AppSidebar />
+      <div className="xl:pl-64">
+        {children}
+      </div>
+    </div>
+  )
 }

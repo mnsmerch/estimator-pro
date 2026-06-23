@@ -5,6 +5,19 @@ export interface LargePanelEntry {
   doorEquivalents: number | ''
 }
 
+export interface CabinetCustomItem {
+  id:          string
+  description: string
+  price:       number
+}
+
+// Sum custom add-on items — only counts items with a description and a positive
+// price, so the live form total matches what's rendered on the proposal.
+export function sumCabinetCustomItems(items?: CabinetCustomItem[]): number {
+  if (!items?.length) return 0
+  return items.reduce((s, i) => s + (i.description?.trim() && i.price > 0 ? i.price : 0), 0)
+}
+
 export interface CabinetScopeFields {
   projectDescription: string
   prepWork:           string
@@ -49,9 +62,13 @@ export interface CabinetEstimateDraft {
 
   // Photos
   photoUrls:      string[]
+  photoNotes?:    string[]   // index-matched notes for each photo
 
   // Optional notes
   notes?:         string
+
+  // Custom price add-ons (description + dollar amount)
+  customItems?:   CabinetCustomItem[]
 }
 
 // ── Pricing constants ────────────────────────────────────────────────────────

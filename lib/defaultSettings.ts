@@ -82,6 +82,11 @@ export const DEFAULT_PAINT_PRODUCTS: PaintProduct[] = [
   { id: 'masonry-bm-ultra-spec',       name: 'Masonry - (BM) Ultra Spec',                   singleGallon: 43.00, fiveGallon: 43.00, coverage: 300 },
   { id: 'masonry-bm-regal-select',     name: 'Masonry - (BM) Regal Select',                 singleGallon: 70.00, fiveGallon: 70.00, coverage: 350 },
   { id: 'masonry-bm-aura',             name: 'Masonry - (BM) Aura',                         singleGallon: 80.00, fiveGallon: 80.00, coverage: 250 },
+  // Deck & fence stains / coatings
+  { id: 'sw-deck-dock-coating',        name: '(SW) Deck & Dock Coating',                    singleGallon: 50.00, fiveGallon: 48.00, coverage: 400 },
+  { id: 'rodda-sharkskin-hybrid-solid', name: 'Rodda Shark Skin Hybrid Solid Stain',         singleGallon: 54.95, fiveGallon: 54.95, coverage: 400 },
+  { id: 'rodda-sharkskin-semi-trans',  name: 'Rodda Shark Skin Semi-Transparent Stain',     singleGallon: 54.95, fiveGallon: 54.95, coverage: 400 },
+  { id: 'ready-seal-oil-stain',        name: 'Ready Seal Oil-Based Stain & Sealant',        singleGallon: 40.00, fiveGallon: 34.00, coverage: 400 },
 ]
 
 export const DEFAULT_INTERIOR_RULES: InteriorBusinessRules = {

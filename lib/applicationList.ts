@@ -175,7 +175,7 @@ const APP_META: ApplicationMeta[] = [
 
 /** Build the full application list enriched with live rate data from settings */
 export function buildApplicationList(rates: ProductionRates): ApplicationItem[] {
-  return APP_META.map(meta => {
+  const builtIn = APP_META.map(meta => {
     const { categoryKey, key } = meta
     let rate = 0
     let trimLnFt = 0
@@ -205,6 +205,23 @@ export function buildApplicationList(rates: ProductionRates): ApplicationItem[] 
       surfaceAreaFactor,
     }
   })
+
+  // Append admin-defined custom applications. They reuse existing categories,
+  // so paint-bucket + surface-area behavior is inherited from the category.
+  const custom: ApplicationItem[] = (rates.customApplications ?? []).map(c => ({
+    key:               c.id,
+    categoryKey:       c.categoryKey,
+    categoryLabel:     c.categoryLabel,
+    label:             c.label,
+    unitLabel:         c.unitLabel,
+    uniqueKey:         `${c.categoryKey}.${c.id}`,
+    rate:              c.rate,
+    converter:         c.rate > 0 ? 1 / c.rate : 0,
+    trimLnFt:          0,
+    surfaceAreaFactor: c.surfaceAreaFactor ?? 0,
+  }))
+
+  return [...builtIn, ...custom]
 }
 
 /** Unique category groups for grouped dropdown */

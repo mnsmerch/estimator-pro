@@ -22,16 +22,30 @@ export default function LoginPage() {
     setLoading(true)
 
     try {
-      await setPersistence(auth, rememberMe ? browserLocalPersistence : browserSessionPersistence)
-      await signInWithEmailAndPassword(auth, email, password)
-      if (rememberMe) {
-        localStorage.setItem('loginAt', String(Date.now() + TWO_WEEKS_MS))
-      } else {
-        localStorage.removeItem('loginAt')
+      // setPersistence can fail on older iOS (IndexedDB restricted in private mode)
+      // — treat it as non-fatal so login still works
+      try {
+        await setPersistence(auth, rememberMe ? browserLocalPersistence : browserSessionPersistence)
+      } catch {
+        // ignore persistence errors — session auth will still work
       }
+
+      await signInWithEmailAndPassword(auth, email, password)
+
+      // localStorage can throw in private/restricted mode — don't let it block navigation
+      try {
+        if (rememberMe) {
+          localStorage.setItem('loginAt', String(Date.now() + TWO_WEEKS_MS))
+        } else {
+          localStorage.removeItem('loginAt')
+        }
+      } catch {
+        // ignore storage errors
+      }
+
       router.push('/dashboard')
     } catch {
-      setError('Invalid email or password.')
+      setError('Invalid email or password. Please check your credentials and try again.')
     } finally {
       setLoading(false)
     }
@@ -64,7 +78,7 @@ export default function LoginPage() {
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="w-full px-3 py-2.5 rounded-lg border border-gray-300 text-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent"
+                className="w-full px-3 py-3 rounded-lg border border-gray-300 text-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent"
                 placeholder="you@example.com"
               />
             </div>
@@ -81,13 +95,13 @@ export default function LoginPage() {
                   required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full px-3 py-2.5 pr-10 rounded-lg border border-gray-300 text-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent"
+                  className="w-full px-3 py-3 pr-12 rounded-lg border border-gray-300 text-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent"
                   placeholder="••••••••"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(v => !v)}
-                  className="absolute inset-y-0 right-0 flex items-center px-3 text-gray-400 hover:text-gray-600"
+                  className="absolute inset-y-0 right-0 flex items-center px-4 text-gray-400 hover:text-gray-600 touch-manipulation cursor-pointer z-10"
                   tabIndex={-1}
                   aria-label={showPassword ? 'Hide password' : 'Show password'}
                 >
@@ -127,7 +141,7 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-2.5 px-4 bg-brand-600 hover:bg-brand-700 disabled:bg-brand-400 text-white text-sm font-semibold rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-brand-500 focus:ring-offset-2"
+              className="w-full py-3 px-4 bg-brand-600 hover:bg-brand-700 disabled:bg-brand-400 text-white text-sm font-semibold rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-brand-500 focus:ring-offset-2 touch-manipulation"
             >
               {loading ? 'Signing in…' : 'Sign In'}
             </button>

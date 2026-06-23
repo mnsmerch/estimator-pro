@@ -8,6 +8,11 @@ export interface WorkOrderData {
   clientPhone:      string
   clientContactId:  string
 
+  // Auto-populated from estimate calc, editable by PM
+  totalHours:       string   // from calcEstimate totalHours
+  materialsPrice:   string   // paint cost + sundries
+  projectTotal:     string   // grand total signed by customer
+
   // Editable by PM
   jobNumber:        string
   crmLink:          string
@@ -17,10 +22,16 @@ export interface WorkOrderData {
   jobType:          string   // 'Residential Exterior' | 'Commercial Exterior' | 'Residential Interior' | 'Commercial Interior' | 'Cabinet'
   budgetHours:      string
   materialsBudget:  string
-  paintsAndGallons: string   // multiline: "Body: X Gal\nTrim: X Gal\nAccent/Other: X Gal"
+  paintsAndGallons: string   // multiline: "Body: Product - X Gal\nTrim: Product - X Gal\nAccent/Other: Product - X Gal"
   colorIds:         string   // multiline color IDs
   scopeOfWork:      string   // pre-populated from estimate scope, editable
   exclusionsAndNotes: string
+
+  // Pricing breakdown (for PM reference — not in submitted PDF)
+  fullPrice:      string   // combinedSubtotal before discount
+  discountAmount: string   // 10% discount amount
+  // Photos from estimate
+  photoUrls:      string[]
 
   // Meta
   status:    'new' | 'in_progress' | 'completed'

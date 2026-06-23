@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useMemo, useCallback } from 'react'
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/context/AuthContext'
 import { getSettingsDoc } from '@/lib/firebase/settings'
@@ -8,7 +8,7 @@ import { createEstimate, updateEstimate, resetSignatureForChangeOrder } from '@/
 import { uploadPhoto, deletePhoto } from '@/lib/firebase/storage'
 import { buildApplicationList, CATEGORY_ORDER } from '@/lib/applicationList'
 import type { ApplicationItem } from '@/lib/applicationList'
-import { calcEstimate, calcMarkup, calcPaintCost } from '@/lib/estimateEngine'
+import { calcEstimate, calcMarkup, calcPaintCost, surfaceAreaFactor, calcStructureAddonSubtotal } from '@/lib/estimateEngine'
 import { SCOPE_DEFAULTS, getDefaultScopeForBrand } from '@/types/estimate'
 import type { ScopeFields, JobType } from '@/types/estimate'
 import {
@@ -289,16 +289,26 @@ function StructureTable({ addon, onChange, appMap, groupedApps, paintProducts, r
               const labor    = totalHours * rules.wage * rules.payrollBurden
               const sundries = totalHours * constants.sundriesPerHour
 
-              // Paint: stain sqft from staining rows ÷ product coverage
+              // Paint: accumulate sqft by application method
               const paintProduct = paintProducts.find(p => p.id === addon.paintProductId)
-              const stainSqft = addon.rows.reduce((s, r) => {
+              let spraySqft = 0, brushRollSqft = 0, stainSqft = 0
+              for (const r of addon.rows) {
+                if (r.amount <= 0) continue
                 const app = appMap.get(r.applicationKey)
-                return app?.categoryKey === 'staining' && r.amount > 0
-                  ? s + r.amount * (app.surfaceAreaFactor || 1)
-                  : s
-              }, 0)
-              const paintGallons = paintProduct && paintProduct.coverage > 0 ? (stainSqft * constants.stainCoverage) / paintProduct.coverage : 0
-              const paintCost    = paintProduct ? calcPaintCost(paintGallons, paintProduct) : 0
+                if (!app) continue
+                const factor = surfaceAreaFactor(app, constants)
+                if (factor <= 0) continue
+                const sqft = r.amount * factor
+                if (app.categoryKey === 'staining')             stainSqft     += sqft
+                else if (app.categoryKey === 'bodyApplication') spraySqft     += sqft
+                else                                            brushRollSqft += sqft
+              }
+              const paintGallons = paintProduct && paintProduct.coverage > 0
+                ? (spraySqft * constants.paintCoverageSpray
+                   + brushRollSqft * constants.paintCoverageBrushRoll
+                   + stainSqft * constants.stainCoverage) / paintProduct.coverage
+                : 0
+              const paintCost = paintProduct ? calcPaintCost(paintGallons, paintProduct) : 0
 
               const landm   = labor + paintCost + sundries
               const markup  = calcMarkup(rules)
@@ -425,6 +435,61 @@ export default function EstimateForm({ estimateId, initialData }: EstimateFormPr
   // Client info — seed from initialData if editing
   const [clientName,      setClientName]      = useState(initialData?.clientName      ?? '')
   const [clientAddress,   setClientAddress]   = useState(initialData?.clientAddress   ?? '')
+
+  // Google Places Autocomplete
+  const addressInputRef = useRef<HTMLInputElement>(null)
+  const acInitialized   = useRef(false)
+
+  const initAutocomplete = useCallback(() => {
+    if (acInitialized.current) return
+    const input = addressInputRef.current
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const g = (window as any).google
+    if (!input || !g?.maps?.places) return
+    acInitialized.current = true
+    const ac = new g.maps.places.Autocomplete(input, {
+      types: ['address'],
+      componentRestrictions: { country: 'us' },
+      fields: ['formatted_address'],
+    })
+    ac.addListener('place_changed', () => {
+      const place = ac.getPlace()
+      if (place?.formatted_address) {
+        // Google Places appends ", USA" — strip it so the address stays clean
+        const addr = place.formatted_address.replace(/,?\s*(?:USA|United States)\s*$/i, '').trim()
+        setClientAddress(addr)
+      }
+    })
+  }, [])
+
+  // Load the Google Maps script once
+  useEffect(() => {
+    const MAPS_API_KEY = 'AIzaSyC6B8UH_okz_x4sN2lZEIFscWc3zz_GqY8'
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    if ((window as any).google?.maps?.places) {
+      initAutocomplete()
+      return
+    }
+    if (document.querySelector('script[data-gmaps]')) {
+      window.addEventListener('gmaps-ready', initAutocomplete, { once: true })
+      return
+    }
+    const script = document.createElement('script')
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${MAPS_API_KEY}&libraries=places`
+    script.async = true
+    script.dataset.gmaps = '1'
+    script.onload = () => {
+      window.dispatchEvent(new Event('gmaps-ready'))
+      initAutocomplete()
+    }
+    document.head.appendChild(script)
+  }, [initAutocomplete])
+
+  // For existing estimates the form is hidden behind a loading spinner until
+  // settings load — the ref is null at mount time. Retry once settings are done.
+  useEffect(() => {
+    if (!loadingSettings) initAutocomplete()
+  }, [loadingSettings, initAutocomplete])
   const [clientPhone,     setClientPhone]     = useState(initialData?.clientPhone     ?? '')
   const [clientEmail,     setClientEmail]     = useState(initialData?.clientEmail     ?? '')
   const [clientFolderId,  setClientFolderId]  = useState(initialData?.clientFolderId  ?? '')
@@ -525,9 +590,20 @@ export default function EstimateForm({ estimateId, initialData }: EstimateFormPr
 
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState(false)
-  const [photoUrls, setPhotoUrls] = useState<string[]>(initialData?.photoUrls ?? [])
+  const [photoUrls,  setPhotoUrls]  = useState<string[]>(initialData?.photoUrls  ?? [])
+  const [photoNotes, setPhotoNotes] = useState<string[]>(initialData?.photoNotes ?? [])
   const [uploadingPhotos, setUploadingPhotos] = useState(false)
   const [uploadError, setUploadError] = useState<string | null>(null)
+
+  function setPhotoNote(index: number, note: string) {
+    setPhotoNotes(prev => {
+      const next = [...prev]
+      // Pad array to match photoUrls length
+      while (next.length < photoUrls.length) next.push('')
+      next[index] = note
+      return next
+    })
+  }
 
   // Load settings
   useEffect(() => {
@@ -592,6 +668,20 @@ export default function EstimateForm({ estimateId, initialData }: EstimateFormPr
     }, 0)
   }, [customItems, customOpen])
 
+  // Structure add-ons (deck / pergola / fence / shed). Mirrors the proposal
+  // page so the form summary subtotal matches the generated estimate.
+  const structuresSubtotal = useMemo(() => {
+    const deckTotal = deckAddons.reduce(
+      (s, addon) => s + calcStructureAddonSubtotal(addon, 1 / 20, appMap, rules, constants, paintProducts), 0)
+    const pergola = calcStructureAddonSubtotal(pergolaAddon, 0, appMap, rules, constants, paintProducts)
+    const fence   = calcStructureAddonSubtotal(fenceAddon,   0, appMap, rules, constants, paintProducts)
+    const shed    = calcStructureAddonSubtotal(shedAddon,    0, appMap, rules, constants, paintProducts)
+    return deckTotal + pergola + fence + shed
+  }, [deckAddons, pergolaAddon, fenceAddon, shedAddon, appMap, rules, constants, paintProducts])
+
+  // Structures only count toward the total when the job includes them.
+  const structTotal = jobType !== 'exterior' ? structuresSubtotal : 0
+
   function selectBrand(key: string) {
     const brand = PAINT_BRANDS.find(b => b.key === key)
     if (!brand) return
@@ -615,16 +705,18 @@ export default function EstimateForm({ estimateId, initialData }: EstimateFormPr
     setCustomItems(r => r.map(i => i.id === id ? { ...i, [field]: value } : i))
   }, [])
 
+  const PHOTO_LIMIT = 30
+
   async function handlePhotoUpload(e: React.ChangeEvent<HTMLInputElement>) {
     if (!user || !e.target.files?.length) return
-    const remaining = 20 - photoUrls.length
+    const remaining = PHOTO_LIMIT - photoUrls.length
     const files = Array.from(e.target.files).slice(0, remaining)
     if (!files.length) return
     setUploadingPhotos(true)
     setUploadError(null)
     try {
       const urls = await Promise.all(files.map(f => uploadPhoto(user.uid, f)))
-      setPhotoUrls(prev => [...prev, ...urls].slice(0, 20))
+      setPhotoUrls(prev => [...prev, ...urls].slice(0, PHOTO_LIMIT))
     } catch (err: unknown) {
       console.error('Photo upload failed:', err)
       const msg = err instanceof Error ? err.message : String(err)
@@ -636,8 +728,28 @@ export default function EstimateForm({ estimateId, initialData }: EstimateFormPr
   }
 
   async function handleRemovePhoto(url: string) {
+    const idx = photoUrls.indexOf(url)
     setPhotoUrls(prev => prev.filter(u => u !== url))
-    await deletePhoto(url)
+    setPhotoNotes(prev => prev.filter((_, i) => i !== idx))
+    try { await deletePhoto(url) } catch { /* non-blocking */ }
+  }
+
+  async function handleReplacePhoto(oldUrl: string, e: React.ChangeEvent<HTMLInputElement>) {
+    if (!user || !e.target.files?.[0]) return
+    setUploadingPhotos(true)
+    setUploadError(null)
+    try {
+      const newUrl = await uploadPhoto(user.uid, e.target.files[0])
+      setPhotoUrls(prev => prev.map(u => u === oldUrl ? newUrl : u))
+      // note stays at same index — no change needed
+      try { await deletePhoto(oldUrl) } catch { /* non-blocking */ }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err)
+      setUploadError(msg)
+    } finally {
+      setUploadingPhotos(false)
+      e.target.value = ''
+    }
   }
   const updateRow = useCallback((id: string, field: keyof EstimateRow, value: string | number) => {
     setRows(r => {
@@ -663,13 +775,27 @@ export default function EstimateForm({ estimateId, initialData }: EstimateFormPr
     })
   }, [])
 
+  // Zip code required for tax lookup — warn if address present but no zip
+  const addressHasZip = /\d{5}/.test(clientAddress)
+  const missingZip = clientAddress.trim().length > 0 && !addressHasZip
+
+  // Structures that are enabled but missing a paint product selection
+  const structuresMissingPaint: string[] = [
+    ...(deckAddons.some(a => a.enabled && !a.paintProductId) ? ['Deck'] : []),
+    ...(pergolaAddon.enabled && !pergolaAddon.paintProductId ? ['Pergola'] : []),
+    ...(fenceAddon.enabled   && !fenceAddon.paintProductId   ? ['Fence']   : []),
+    ...(shedAddon.enabled    && !shedAddon.paintProductId    ? ['Shed']    : []),
+  ]
+  const hasStructureValidationError = structuresMissingPaint.length > 0
+
   async function handleSave(status: 'draft' | 'sent') {
     if (!user) return
     setSaving(true)
     setSaveError(false)
     const payload = {
       userId: user.uid,
-      status,
+      // Preserve 'approved' status — never downgrade a signed estimate back to draft
+      status: (initialData?.status === 'approved' ? 'approved' : status) as import('@/types/estimate').EstimateStatus,
       clientName, clientAddress, clientPhone, clientEmail,
       clientFolderId, clientContactId,
       rows,
@@ -701,6 +827,7 @@ export default function EstimateForm({ estimateId, initialData }: EstimateFormPr
       totalColors:  currentScope.totalColors,
       totalCoats:   currentScope.totalCoats,
       photoUrls,
+      photoNotes,
       jobType,
       taxExcluded:  !includeTax,
       salesTaxRate: includeTax ? (initialData?.salesTaxRate ?? null) : null,
@@ -757,8 +884,20 @@ export default function EstimateForm({ estimateId, initialData }: EstimateFormPr
       totalColors:  currentScope.totalColors,
       totalCoats:   currentScope.totalCoats,
       photoUrls,
+      photoNotes,
+      jobType,
       taxExcluded:  !includeTax,
       salesTaxRate: includeTax ? (salesTaxRate ?? null) : null,
+      // Freeze the pricing basis at quote time so later settings edits can't
+      // change the customer's quoted/signed price. The proposal page + dashboard
+      // recompute against this snapshot instead of live settings.
+      pricingSnapshot: {
+        rules,
+        constants,
+        rates,
+        paintProducts,
+        snapshottedAt: new Date().toISOString(),
+      },
     }
     if (isEdit && estimateId) {
       await updateEstimate(estimateId, payload)
@@ -776,16 +915,15 @@ export default function EstimateForm({ estimateId, initialData }: EstimateFormPr
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
-      <header className="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between sticky top-0 z-10">
-        <a href="/estimates" className="flex items-center gap-3">
-          <img src="/logo.png" alt="Logo" className="h-10 w-auto object-contain" />
-          <span className="font-bold text-gray-900 text-lg">Estimator Pro</span>
+      <header className="bg-white border-b border-gray-200 px-4 sm:px-6 py-3 flex items-center justify-between sticky top-0 z-10">
+        <a href="/estimates" className="flex items-center gap-1.5 text-sm font-medium text-gray-500 hover:text-gray-900 transition-colors">
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5" />
+          </svg>
+          <span className="hidden sm:inline">Estimates</span>
         </a>
         <div className="flex items-center gap-3">
-          <a href="/estimates" className="text-sm text-gray-500 hover:text-gray-800">
-            <span className="sm:hidden">←</span>
-            <span className="hidden sm:inline">← Estimates</span>
-          </a>
+          <a href="/estimates" className="hidden" />
           {saveError && <span className="text-sm text-red-600">Error saving. Try again.</span>}
           {isEdit && estimateId && (
             <>
@@ -795,6 +933,14 @@ export default function EstimateForm({ estimateId, initialData }: EstimateFormPr
                     <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
                   </svg>
                   Signed
+                </span>
+              )}
+              {hasStructureValidationError && (
+                <span className="hidden sm:inline-flex items-center gap-1.5 text-xs font-semibold text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-1.5">
+                  <svg className="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" />
+                  </svg>
+                  Select paint for: {structuresMissingPaint.join(', ')}
                 </span>
               )}
               <button
@@ -814,8 +960,9 @@ export default function EstimateForm({ estimateId, initialData }: EstimateFormPr
                     setSaving(false)
                   }
                 }}
-                disabled={saving}
-                className="hidden sm:inline-flex px-4 py-2 text-sm font-medium rounded-lg bg-brand-600 text-white hover:bg-brand-700 disabled:opacity-50"
+                disabled={saving || hasStructureValidationError || missingZip}
+                title={missingZip ? 'Add zip code to address first' : hasStructureValidationError ? `Select paint product for: ${structuresMissingPaint.join(', ')}` : undefined}
+                className="hidden sm:inline-flex px-4 py-2 text-sm font-medium rounded-lg bg-brand-600 text-white hover:bg-brand-700 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {saving ? 'Saving…' : initialData?.status === 'approved' ? 'Generate New Estimate ↗' : 'Generate Estimate ↗'}
               </button>
@@ -868,7 +1015,23 @@ export default function EstimateForm({ estimateId, initialData }: EstimateFormPr
               <input type="text" value={clientName} onChange={e => setClientName(e.target.value)} placeholder="John Smith" className="input" />
             </Field>
             <Field label="Address">
-              <input type="text" value={clientAddress} onChange={e => setClientAddress(e.target.value)} placeholder="123 Main St, City, WA 98000" className="input" />
+              <input
+                ref={addressInputRef}
+                type="text"
+                value={clientAddress}
+                onChange={e => setClientAddress(e.target.value)}
+                placeholder="123 Main St, City, WA 98000"
+                className={`input ${missingZip ? 'border-amber-400 focus:ring-amber-400' : ''}`}
+                autoComplete="off"
+              />
+              {missingZip && (
+                <p className="mt-1 text-xs text-amber-600 flex items-center gap-1">
+                  <svg className="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" />
+                  </svg>
+                  Zip code required for sales tax — e.g. &ldquo;Buckley, WA 98321&rdquo;
+                </p>
+              )}
             </Field>
             <Field label="Phone">
               <input type="tel" value={clientPhone} onChange={e => setClientPhone(e.target.value)} placeholder="253-555-0100" className="input" />
@@ -881,11 +1044,15 @@ export default function EstimateForm({ estimateId, initialData }: EstimateFormPr
                 <input type="text" value={clientFolderId} readOnly className="input bg-gray-50 text-gray-500 cursor-not-allowed" />
               </Field>
             )}
-            {clientContactId && (
-              <Field label="Contact ID">
-                <input type="text" value={clientContactId} readOnly className="input bg-gray-50 text-gray-500 cursor-not-allowed" />
-              </Field>
-            )}
+            <Field label="GHL Contact ID">
+              <input
+                type="text"
+                value={clientContactId}
+                onChange={e => setClientContactId(e.target.value)}
+                placeholder="Paste GHL contact ID (optional)"
+                className="input"
+              />
+            </Field>
           </div>
         </section>
 
@@ -1388,10 +1555,10 @@ export default function EstimateForm({ estimateId, initialData }: EstimateFormPr
             <div className="flex items-center gap-2">
               <h2 className="text-base font-semibold text-gray-900">Photos</h2>
               <span className="text-xs font-medium text-gray-400 bg-gray-100 rounded-full px-2 py-0.5">
-                {photoUrls.length} / 20
+                {photoUrls.length} / {PHOTO_LIMIT}
               </span>
             </div>
-            {photoUrls.length < 20 && (
+            {photoUrls.length < PHOTO_LIMIT && (
               <label className={`flex items-center gap-1.5 text-sm font-medium cursor-pointer select-none ${
                 uploadingPhotos ? 'text-gray-400 pointer-events-none' : 'text-brand-600 hover:text-brand-800'
               }`}>
@@ -1399,14 +1566,7 @@ export default function EstimateForm({ estimateId, initialData }: EstimateFormPr
                   <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
                 </svg>
                 {uploadingPhotos ? 'Uploading…' : 'Add Photos'}
-                <input
-                  type="file"
-                  accept="image/*"
-                  multiple
-                  className="sr-only"
-                  disabled={uploadingPhotos}
-                  onChange={handlePhotoUpload}
-                />
+                <input type="file" accept="image/*" multiple className="sr-only" disabled={uploadingPhotos} onChange={handlePhotoUpload} />
               </label>
             )}
           </div>
@@ -1414,6 +1574,13 @@ export default function EstimateForm({ estimateId, initialData }: EstimateFormPr
           {uploadError && (
             <div className="mb-3 text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
               Upload failed: {uploadError}
+            </div>
+          )}
+
+          {uploadingPhotos && (
+            <div className="mb-3 flex items-center gap-2 text-sm text-brand-600">
+              <div className="w-4 h-4 border-2 border-brand-600 border-t-transparent rounded-full animate-spin" />
+              Uploading…
             </div>
           )}
 
@@ -1425,49 +1592,60 @@ export default function EstimateForm({ estimateId, initialData }: EstimateFormPr
                 <path strokeLinecap="round" strokeLinejoin="round" d="m2.25 15.75 5.159-5.159a2.25 2.25 0 0 1 3.182 0l5.159 5.159m-1.5-1.5 1.409-1.409a2.25 2.25 0 0 1 3.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 0 0 1.5-1.5V6a1.5 1.5 0 0 0-1.5-1.5H3.75A1.5 1.5 0 0 0 2.25 6v12a1.5 1.5 0 0 0 1.5 1.5Zm10.5-11.25h.008v.008h-.008V8.25Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Z" />
               </svg>
               <p className="text-sm text-gray-400">Click to upload photos</p>
-              <p className="text-xs text-gray-300 mt-1">Up to 20 images</p>
-              <input
-                type="file"
-                accept="image/*"
-                multiple
-                className="sr-only"
-                disabled={uploadingPhotos}
-                onChange={handlePhotoUpload}
-              />
+              <p className="text-xs text-gray-300 mt-1">Up to {PHOTO_LIMIT} images</p>
+              <input type="file" accept="image/*" multiple className="sr-only" disabled={uploadingPhotos} onChange={handlePhotoUpload} />
             </label>
           ) : (
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
               {photoUrls.map((url, idx) => (
-                <div key={url} className="relative group aspect-square rounded-lg overflow-hidden bg-gray-100">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={url} alt={`Photo ${idx + 1}`} className="w-full h-full object-cover" />
-                  <button
-                    onClick={() => handleRemovePhoto(url)}
-                    className="absolute top-1.5 right-1.5 opacity-0 group-hover:opacity-100 bg-black/60 hover:bg-red-600 text-white rounded-full w-6 h-6 flex items-center justify-center transition-all"
-                    title="Remove photo"
-                  >
-                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
-                    </svg>
-                  </button>
+                <div key={url} className="flex flex-col rounded-lg overflow-hidden border border-gray-200 bg-gray-100">
+                  {/* Image */}
+                  <div className="relative aspect-square">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={url} alt={`Photo ${idx + 1}`} className="w-full h-full object-cover" />
+
+                    {/* Action bar */}
+                    <div className="absolute bottom-0 left-0 right-0 flex items-center justify-between px-1.5 py-1 bg-black/50">
+                      <label className="flex items-center gap-1 text-white text-xs font-medium cursor-pointer hover:text-brand-300 transition-colors" title="Replace photo">
+                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10" />
+                        </svg>
+                        Edit
+                        <input type="file" accept="image/*" className="sr-only" disabled={uploadingPhotos} onChange={e => handleReplacePhoto(url, e)} />
+                      </label>
+                      <button onClick={() => handleRemovePhoto(url)} className="flex items-center gap-1 text-white text-xs font-medium hover:text-red-400 transition-colors" disabled={uploadingPhotos}>
+                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
+                        </svg>
+                        Remove
+                      </button>
+                    </div>
+
+                    {/* Number badge */}
+                    <div className="absolute top-1.5 left-1.5 bg-black/50 text-white text-xs font-semibold rounded px-1.5 py-0.5">{idx + 1}</div>
+                  </div>
+
+                  {/* Note input */}
+                  <input
+                    type="text"
+                    value={photoNotes[idx] ?? ''}
+                    onChange={e => setPhotoNote(idx, e.target.value)}
+                    placeholder="Add a note…"
+                    className="w-full px-2 py-1.5 text-xs text-gray-700 placeholder-gray-400 bg-white border-t border-gray-200 focus:outline-none focus:ring-1 focus:ring-brand-400"
+                  />
                 </div>
               ))}
-              {photoUrls.length < 20 && (
+
+              {/* Add more tile */}
+              {photoUrls.length < PHOTO_LIMIT && (
                 <label className={`aspect-square rounded-lg border-2 border-dashed border-gray-200 flex flex-col items-center justify-center cursor-pointer transition-colors ${
                   uploadingPhotos ? 'opacity-50 pointer-events-none' : 'hover:border-brand-300 hover:bg-brand-50'
                 }`}>
                   <svg className="w-6 h-6 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
                   </svg>
-                  <span className="text-xs text-gray-400 mt-1">{uploadingPhotos ? 'Uploading…' : 'Add more'}</span>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    multiple
-                    className="sr-only"
-                    disabled={uploadingPhotos}
-                    onChange={handlePhotoUpload}
-                  />
+                  <span className="text-xs text-gray-400 mt-1">Add more</span>
+                  <input type="file" accept="image/*" multiple className="sr-only" disabled={uploadingPhotos} onChange={handlePhotoUpload} />
                 </label>
               )}
             </div>
@@ -1556,11 +1734,12 @@ export default function EstimateForm({ estimateId, initialData }: EstimateFormPr
                 <SummaryRow label="Sundries" value={fmtCents(totals.sundries)} />
                 <SummaryRow label="L&amp;M"  value={fmtCents(totals.landm)} />
                 <div className="border-t border-gray-200 pt-2 space-y-1.5">
-                  {(woodTotal > 0 || customTotal > 0) && <SummaryRow label="Painting Subtotal" value={fmtCents(totals.subtotal)} />}
+                  {(woodTotal > 0 || customTotal > 0 || structTotal > 0) && <SummaryRow label="Painting Subtotal" value={fmtCents(totals.subtotal)} />}
+                  {structTotal > 0 && <SummaryRow label="Structures"       value={fmtCents(structTotal)} />}
                   {woodTotal   > 0 && <SummaryRow label="Wood Replacement" value={fmtCents(woodTotal)} />}
                   {customTotal > 0 && <SummaryRow label="Custom Items"     value={fmtCents(customTotal)} />}
-                  <SummaryRow label="Subtotal" value={fmtCents(totals.subtotal + woodTotal + customTotal)} bold />
-                  <SummaryRow label="10% Off"  value={fmtCents((totals.subtotal + woodTotal + customTotal) * 0.90)} />
+                  <SummaryRow label="Subtotal" value={fmtCents(totals.subtotal + structTotal + woodTotal + customTotal)} bold />
+                  <SummaryRow label="10% Off"  value={fmtCents((totals.subtotal + structTotal + woodTotal + customTotal) * 0.90)} />
                   <div className="flex items-center justify-between pt-1">
                     <label htmlFor="includeTax" className="text-sm text-gray-600 cursor-pointer select-none">
                       Include Sales Tax
@@ -1631,26 +1810,45 @@ export default function EstimateForm({ estimateId, initialData }: EstimateFormPr
         {/* ── Bottom save ───────────────────────────────────────────────── */}
         <div className="flex flex-col sm:flex-row justify-end gap-3 pb-10">
           {isEdit && estimateId && (
-            <button
-              onClick={async () => {
-                const win = window.open('', '_blank')
-                setSaving(true)
-                try {
-                  const taxRate = clientAddress ? await lookupSalesTax(clientAddress) : null
-                  await saveQuiet(taxRate)
-                  if (initialData?.status === 'approved') {
-                    await resetSignatureForChangeOrder(estimateId)
+            <>
+              {missingZip && (
+                <span className="flex items-center gap-1.5 text-xs font-semibold text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2.5">
+                  <svg className="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" />
+                  </svg>
+                  Add zip code to address (required for tax)
+                </span>
+              )}
+              {hasStructureValidationError && (
+                <span className="flex items-center gap-1.5 text-xs font-semibold text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2.5">
+                  <svg className="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" />
+                  </svg>
+                  Select paint for: {structuresMissingPaint.join(', ')}
+                </span>
+              )}
+              <button
+                onClick={async () => {
+                  const win = window.open('', '_blank')
+                  setSaving(true)
+                  try {
+                    const taxRate = clientAddress ? await lookupSalesTax(clientAddress) : null
+                    await saveQuiet(taxRate)
+                    if (initialData?.status === 'approved') {
+                      await resetSignatureForChangeOrder(estimateId)
+                    }
+                    if (win) win.location.href = `/p/${estimateId}`
+                  } finally {
+                    setSaving(false)
                   }
-                  if (win) win.location.href = `/p/${estimateId}`
-                } finally {
-                  setSaving(false)
-                }
-              }}
-              disabled={saving}
-              className="px-6 py-2.5 text-sm font-medium rounded-lg bg-brand-600 text-white hover:bg-brand-700 disabled:opacity-50"
-            >
-              {saving ? 'Saving…' : initialData?.status === 'approved' ? 'Generate New Estimate ↗' : 'Generate Estimate ↗'}
-            </button>
+                }}
+                disabled={saving || hasStructureValidationError || missingZip}
+                title={missingZip ? 'Add zip code to address first' : hasStructureValidationError ? `Select paint product for: ${structuresMissingPaint.join(', ')}` : undefined}
+                className="px-6 py-2.5 text-sm font-medium rounded-lg bg-brand-600 text-white hover:bg-brand-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {saving ? 'Saving…' : initialData?.status === 'approved' ? 'Generate New Estimate ↗' : 'Generate Estimate ↗'}
+              </button>
+            </>
           )}
           <button
             onClick={() => handleSave('draft')}

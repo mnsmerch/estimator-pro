@@ -28,6 +28,7 @@ export default function WorkOrdersPage() {
   const [workOrders, setWorkOrders] = useState<WorkOrderItem[]>([])
   const [loading,    setLoading]    = useState(true)
   const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [search,     setSearch]     = useState('')
 
   useEffect(() => {
     if (!user) return
@@ -62,11 +63,32 @@ export default function WorkOrdersPage() {
       <main className="max-w-5xl mx-auto px-6 py-10">
 
         {/* Page title row */}
-        <div className="flex items-start justify-between mb-8">
+        <div className="flex items-start justify-between mb-6">
           <div>
             <h1 className="text-2xl font-bold text-gray-900">Work Orders</h1>
             <p className="text-sm text-gray-500 mt-1">Manage and track all active work orders</p>
           </div>
+        </div>
+
+        {/* Search */}
+        <div className="relative mb-6">
+          <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="m21 21-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0Z" />
+          </svg>
+          <input
+            type="text"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="Search by client name or address…"
+            className="w-full pl-9 pr-9 py-2.5 rounded-lg border border-gray-300 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+          />
+          {search && (
+            <button onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
+              </svg>
+            </button>
+          )}
         </div>
 
         {/* List */}
@@ -74,19 +96,25 @@ export default function WorkOrdersPage() {
           <div className="flex justify-center py-20">
             <div className="w-6 h-6 border-2 border-brand-600 border-t-transparent rounded-full animate-spin" />
           </div>
-        ) : workOrders.length === 0 ? (
+        ) : workOrders.filter(wo => {
+            const q = search.trim().toLowerCase()
+            return !q || wo.clientName.toLowerCase().includes(q) || (wo.clientAddress ?? '').toLowerCase().includes(q) || (wo.jobNumber ?? '').toLowerCase().includes(q)
+          }).length === 0 ? (
           <div className="bg-white rounded-xl border border-gray-200 p-12 text-center">
             <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
               <svg className="w-6 h-6 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 0 0 2.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 0 0-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 0 0 .75-.75 2.25 2.25 0 0 0-.1-.664m-5.8 0A2.251 2.251 0 0 1 13.5 2.25H15c1.012 0 1.867.668 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m0 0H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V9.375c0-.621-.504-1.125-1.125-1.125H8.25ZM6.75 12h.008v.008H6.75V12Zm0 3h.008v.008H6.75V15Zm0 3h.008v.008H6.75V18Z" />
               </svg>
             </div>
-            <p className="text-gray-500 font-medium">No work orders yet</p>
-            <p className="text-sm text-gray-400 mt-1">Work orders are created automatically when clients sign proposals.</p>
+            <p className="text-gray-500 font-medium">{search ? `No results for "${search}"` : 'No work orders yet'}</p>
+            {!search && <p className="text-sm text-gray-400 mt-1">Work orders are created automatically when clients sign proposals.</p>}
           </div>
         ) : (
           <div className="bg-white rounded-xl border border-gray-200 divide-y divide-gray-100">
-            {workOrders.map(wo => (
+            {workOrders.filter(wo => {
+              const q = search.trim().toLowerCase()
+              return !q || wo.clientName.toLowerCase().includes(q) || (wo.clientAddress ?? '').toLowerCase().includes(q) || (wo.jobNumber ?? '').toLowerCase().includes(q)
+            }).map(wo => (
               <a
                 key={wo.id}
                 href={`/work-orders/${wo.id}`}

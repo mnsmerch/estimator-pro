@@ -1,6 +1,6 @@
 import {
   collection, doc, addDoc, updateDoc, getDoc, getDocFromServer, getDocs, deleteDoc,
-  query, where, serverTimestamp, Timestamp,
+  query, where, serverTimestamp, Timestamp, runTransaction,
 } from 'firebase/firestore'
 import { db } from './firestore'
 import type { CabinetEstimateDraft } from '@/types/cabinetEstimate'
@@ -17,6 +17,12 @@ export interface CabinetEstimateRecord extends CabinetEstimateDraft {
   signatureName?:    string
   signatureDataUrl?: string
   signatureDate?:    string
+  clientContactId?:  string
+  clientFolderId?:   string
+  estimateNumber?:   number
+  salesTaxRate?:     number | null
+  invoiceCreated?:   boolean
+  depositInvoiceUrl?:string
 }
 
 function mapDoc(snap: ReturnType<typeof getDoc> extends Promise<infer T> ? T : never): CabinetEstimateRecord {
@@ -42,6 +48,7 @@ function mapDoc(snap: ReturnType<typeof getDoc> extends Promise<infer T> ? T : n
     scope:           d.scope           ?? { ...CABINET_SCOPE_DEFAULTS },
     photoUrls:       d.photoUrls       ?? [],
     notes:           d.notes           ?? '',
+    customItems:     d.customItems      ?? [],
     status:          d.status          ?? 'draft',
     createdAt:       ts(d.createdAt),
     updatedAt:       ts(d.updatedAt),
@@ -51,10 +58,22 @@ function mapDoc(snap: ReturnType<typeof getDoc> extends Promise<infer T> ? T : n
   }
 }
 
+async function getNextEstimateNumber(): Promise<number> {
+  const counterRef = doc(db, 'settings', 'estimateCounter')
+  return runTransaction(db, async tx => {
+    const snap = await tx.get(counterRef)
+    const next = snap.exists() ? (snap.data().value as number) + 1 : 5585
+    tx.set(counterRef, { value: next })
+    return next
+  })
+}
+
 export async function createCabinetEstimate(data: CabinetEstimateDraft, userId: string): Promise<string> {
+  const estimateNumber = await getNextEstimateNumber()
   const ref = await addDoc(collection(db, COLLECTION), {
     ...data,
     userId,
+    estimateNumber,
     status:    'draft',
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
@@ -155,6 +174,7 @@ export async function duplicateCabinetEstimate(id: string, newClientName: string
     scope:            original.scope,
     photoUrls:        original.photoUrls,
     notes:            original.notes           ?? '',
+    customItems:      original.customItems     ?? [],
     userId,
     status:           'draft',
     signatureName:    '',
