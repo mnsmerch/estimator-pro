@@ -1,13 +1,10 @@
 'use client'
 
 import { useState, useEffect, use, useRef, useCallback } from 'react'
-import { useAuth } from '@/context/AuthContext'
 import { DEFAULT_COMPANY } from '@/lib/defaultSettings'
-import { updateCabinetEstimate } from '@/lib/firebase/cabinetEstimates'
 import type { CabinetEstimateRecord } from '@/lib/firebase/cabinetEstimates'
 import type { CompanySettings } from '@/types/settings'
 import { calculateCabinet, CABINET_PRICING, sumCabinetCustomItems } from '@/types/cabinetEstimate'
-import EstimatorSubtotalOverride from '@/components/EstimatorSubtotalOverride'
 
 function fmtD(n: number) {
   return n.toLocaleString('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 2 })
@@ -23,7 +20,6 @@ function parseCityFromAddress(address: string): string {
 
 export default function CabinetProposalPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
-  const { user } = useAuth()
 
   const [estimate,  setEstimate]  = useState<CabinetEstimateRecord | null>(null)
   const [company,   setCompany]   = useState<CompanySettings>(DEFAULT_COMPANY)
@@ -91,10 +87,6 @@ export default function CabinetProposalPage({ params }: { params: Promise<{ id: 
   const depositAmount  = Math.round(totalWithTax * depositPercent * 100) / 100
   const balanceDue     = Math.round((totalWithTax - depositAmount) * 100) / 100
 
-  async function saveSubtotalOverride(value: number | null) {
-    await updateCabinetEstimate(id, { subtotalOverride: value })
-    setEstimate(prev => prev ? { ...prev, subtotalOverride: value } : prev)
-  }
 
   const isManualEstimate = !!estimate && !estimate.clientContactId
   const missingFields    = isManualEstimate ? [
@@ -411,16 +403,6 @@ export default function CabinetProposalPage({ params }: { params: Promise<{ id: 
 
               {/* Subtotal / discount / tax */}
               <div className="border-t border-[oklch(0.94_0.004_140)] mt-1 pt-1">
-                {user && (
-                  <div className="pt-2">
-                    <EstimatorSubtotalOverride
-                      override={subtotalOverride}
-                      computedSubtotal={computedSubtotal}
-                      onSave={saveSubtotalOverride}
-                      fmt={fmtD}
-                    />
-                  </div>
-                )}
                 <PriceLine label="Subtotal" value={fmtD(subtotal)} />
                 {applyDiscount && (
                   <div className="flex justify-between items-center gap-4 py-[9px]">

@@ -14,10 +14,7 @@ import {
   DEFAULT_INTERIOR_CONSTANTS,
   DEFAULT_COMPANY,
 } from '@/lib/defaultSettings'
-import { useAuth } from '@/context/AuthContext'
-import { updateInteriorEstimate } from '@/lib/firebase/interiorEstimates'
 import type { InteriorEstimateRecord } from '@/lib/firebase/interiorEstimates'
-import EstimatorSubtotalOverride from '@/components/EstimatorSubtotalOverride'
 import type { InteriorBusinessRules, InteriorPaintProduct, InteriorProductionRates, InteriorProductionConstants } from '@/types/interiorSettings'
 import type { CompanySettings } from '@/types/settings'
 import type { RoomOption } from '@/types/interiorEstimate'
@@ -48,7 +45,6 @@ function getRoomBreakdown(
 
 export default function InteriorProposalPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
-  const { user } = useAuth()
 
   const [estimate,  setEstimate]  = useState<InteriorEstimateRecord | null>(null)
   const [rules,     setRules]     = useState<InteriorBusinessRules>(DEFAULT_INTERIOR_RULES)
@@ -189,10 +185,6 @@ export default function InteriorProposalPage({ params }: { params: Promise<{ id:
   const depositAmount  = Math.round(totalWithTax * depositPercent * 100) / 100
   const balanceDue     = Math.round((totalWithTax - depositAmount) * 100) / 100
 
-  async function saveSubtotalOverride(value: number | null) {
-    await updateInteriorEstimate(id, { subtotalOverride: value })
-    setEstimate(prev => prev ? { ...prev, subtotalOverride: value } : prev)
-  }
 
   // Cache grand total for list view
   const cachedTotalSaved = useRef(false)
@@ -558,16 +550,6 @@ export default function InteriorProposalPage({ params }: { params: Promise<{ id:
 
           {/* Subtotal / discount / tax */}
           <div className="border-t border-[oklch(0.94_0.004_140)] mt-4 pt-1">
-            {user && (
-              <div className="pt-2">
-                <EstimatorSubtotalOverride
-                  override={subtotalOverride}
-                  computedSubtotal={computedSubtotal}
-                  onSave={saveSubtotalOverride}
-                  fmt={fmtD}
-                />
-              </div>
-            )}
             <div className="flex justify-between items-center gap-4 py-[9px]">
               <span className="text-sm text-[oklch(0.5_0.01_250)]">
                 {multiRoom ? `${selectedRooms.size} room${selectedRooms.size !== 1 ? 's' : ''} selected` : 'Subtotal'}

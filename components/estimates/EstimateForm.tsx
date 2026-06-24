@@ -8,6 +8,7 @@ import { createEstimate, updateEstimate, resetSignatureForChangeOrder } from '@/
 import { uploadPhoto, deletePhoto } from '@/lib/firebase/storage'
 import { useAutoSave } from '@/lib/useAutoSave'
 import AutoSaveIndicator from '@/components/AutoSaveIndicator'
+import EstimatorSubtotalOverride from '@/components/EstimatorSubtotalOverride'
 import { buildApplicationList, CATEGORY_ORDER } from '@/lib/applicationList'
 import type { ApplicationItem } from '@/lib/applicationList'
 import { calcEstimate, calcMarkup, calcPaintCost, surfaceAreaFactor, calcStructureAddonSubtotal } from '@/lib/estimateEngine'
@@ -597,6 +598,7 @@ export default function EstimateForm({ estimateId, initialData }: EstimateFormPr
 
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState(false)
+  const [subtotalOverride, setSubtotalOverride] = useState<number | null>(initialData?.subtotalOverride ?? null)
   const [photoUrls,  setPhotoUrls]  = useState<string[]>(initialData?.photoUrls  ?? [])
   const [photoNotes, setPhotoNotes] = useState<string[]>(initialData?.photoNotes ?? [])
   const [uploadingPhotos, setUploadingPhotos] = useState(false)
@@ -688,6 +690,19 @@ export default function EstimateForm({ estimateId, initialData }: EstimateFormPr
 
   // Structures only count toward the total when the job includes them.
   const structTotal = jobType !== 'exterior' ? structuresSubtotal : 0
+
+  // Pre-tax subtotal as computed (mirrors the proposal) — reference for the
+  // estimator-only price override.
+  const paintingSubtotal = jobType !== 'structures' ? (totals?.subtotal ?? 0) : 0
+  const computedSubtotal = paintingSubtotal + structTotal + woodTotal + customTotal
+
+  // Persist the estimator-only subtotal override directly (kept out of the
+  // autosaved payload so editing other fields never disturbs it).
+  async function saveSubtotalOverride(value: number | null) {
+    if (!estimateId) return
+    await updateEstimate(estimateId, { subtotalOverride: value })
+    setSubtotalOverride(value)
+  }
 
   function selectBrand(key: string) {
     const brand = PAINT_BRANDS.find(b => b.key === key)
@@ -1808,6 +1823,16 @@ export default function EstimateForm({ estimateId, initialData }: EstimateFormPr
             <p className="text-sm text-gray-400">Add measurement rows above to see the estimate.</p>
           )}
         </section>}
+
+        {/* ── Estimator price override ──────────────────────────────────── */}
+        {isEdit && (
+          <EstimatorSubtotalOverride
+            override={subtotalOverride}
+            computedSubtotal={computedSubtotal}
+            onSave={saveSubtotalOverride}
+            fmt={fmtCents}
+          />
+        )}
 
         {/* ── Scope of Work ─────────────────────────────────────────────── */}
         <section className="bg-white rounded-xl border border-gray-200 p-4 sm:p-6">

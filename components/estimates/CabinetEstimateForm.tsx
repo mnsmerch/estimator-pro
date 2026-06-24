@@ -11,6 +11,7 @@ import type { CabinetEstimateRecord } from '@/lib/firebase/cabinetEstimates'
 import { uploadPhoto, deletePhoto } from '@/lib/firebase/storage'
 import { useAutoSave } from '@/lib/useAutoSave'
 import AutoSaveIndicator from '@/components/AutoSaveIndicator'
+import EstimatorSubtotalOverride from '@/components/EstimatorSubtotalOverride'
 import AppHeader from '@/components/AppHeader'
 import {
   calculateCabinet, CABINET_SCOPE_DEFAULTS, CABINET_PRICING, sumCabinetCustomItems,
@@ -129,6 +130,7 @@ export default function CabinetEstimateForm({
   const [taxLookupFailed, setTaxLookupFailed] = useState(false)
   const [uploadingPhotos, setUploadingPhotos] = useState(false)
   const [lightboxIndex, setLightboxIndex]     = useState<number | null>(null)
+  const [subtotalOverride, setSubtotalOverride] = useState<number | null>(initialRecord?.subtotalOverride ?? null)
 
   const isEditing = !!estimateId
 
@@ -136,6 +138,14 @@ export default function CabinetEstimateForm({
   const bd = calculateCabinet(draft)
   const customTotal = sumCabinetCustomItems(draft.customItems)
   const grandTotal  = bd.total + customTotal
+
+  // Persist the estimator-only subtotal override directly (kept out of the
+  // autosaved draft so editing other fields never disturbs it).
+  async function saveSubtotalOverride(value: number | null) {
+    if (!estimateId) return
+    await updateCabinetEstimate(estimateId, { subtotalOverride: value })
+    setSubtotalOverride(value)
+  }
 
   // ── Auto-save ────────────────────────────────────────────────────────────
   const creatingRef = useRef(false)
@@ -656,6 +666,16 @@ export default function CabinetEstimateForm({
               </div>
             </div>
           </div>
+        )}
+
+        {/* ── Estimator price override ───────────────────────────────────── */}
+        {isEditing && (
+          <EstimatorSubtotalOverride
+            override={subtotalOverride}
+            computedSubtotal={grandTotal}
+            onSave={saveSubtotalOverride}
+            fmt={fmtD}
+          />
         )}
 
         {/* ── Scope of work ─────────────────────────────────────────────── */}

@@ -49,6 +49,7 @@ function mapDoc(snap: ReturnType<typeof getDoc> extends Promise<infer T> ? T : n
     photoUrls:       d.photoUrls       ?? [],
     notes:           d.notes           ?? '',
     customItems:     d.customItems      ?? [],
+    subtotalOverride: d.subtotalOverride ?? null,
     status:          d.status          ?? 'draft',
     createdAt:       ts(d.createdAt),
     updatedAt:       ts(d.updatedAt),

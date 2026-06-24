@@ -9,6 +9,7 @@ import { createInteriorEstimate, updateInteriorEstimate, resetSignatureForInteri
 import { uploadPhoto, deletePhoto } from '@/lib/firebase/storage'
 import { useAutoSave } from '@/lib/useAutoSave'
 import AutoSaveIndicator from '@/components/AutoSaveIndicator'
+import EstimatorSubtotalOverride from '@/components/EstimatorSubtotalOverride'
 import AppHeader from '@/components/AppHeader'
 import { calculateWallCalc, calculateCeilingCalc, calculateBaseboardCalc, calculateDoorCalc, calculateDoorFrameCalc, calculateWindowCalc, calculateMiscCalc, calculateOtherCalc, calculatePainterOverview, calculateCostBreakdown, calculateCombiningSavings, sumCombinedGallons } from '@/lib/interiorCalculations'
 import { DEFAULT_INTERIOR_RATES, DEFAULT_INTERIOR_RULES, DEFAULT_INTERIOR_CONSTANTS } from '@/lib/defaultSettings'
@@ -356,6 +357,15 @@ export default function InteriorEstimateForm({
   const [taxLookupFailed, setTaxLookupFailed] = useState(false)
   const [uploadingPhotos, setUploadingPhotos] = useState(false)
   const [uploadError, setUploadError]         = useState<string | null>(null)
+  const [subtotalOverride, setSubtotalOverride] = useState<number | null>(initialRecord?.subtotalOverride ?? null)
+
+  // Persist the estimator-only subtotal override directly (kept out of the
+  // autosaved draft so editing other fields never disturbs it).
+  async function saveSubtotalOverride(value: number | null) {
+    if (!estimateId) return
+    await updateInteriorEstimate(estimateId, { subtotalOverride: value })
+    setSubtotalOverride(value)
+  }
 
   // Custom items
   const [customItems, setCustomItems] = useState<InteriorCustomItem[]>(
@@ -1129,6 +1139,16 @@ export default function InteriorEstimateForm({
                 </div>
               )}
             </div>
+
+            {/* ── Estimator price override ─────────────────────────────────── */}
+            {isEditing && (
+              <EstimatorSubtotalOverride
+                override={subtotalOverride}
+                computedSubtotal={allRoomsTotalPrice + customTotal}
+                onSave={saveSubtotalOverride}
+                fmt={n => n.toLocaleString('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              />
+            )}
 
             {/* ── Photos ───────────────────────────────────────────────────── */}
             <SectionHeader label="Photos" />
