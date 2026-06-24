@@ -295,7 +295,10 @@ export default function EstimateDetailPage({ params }: { params: Promise<{ id: s
   const customTotal     = (estimate?.customItemsOpen ?? false) ? customTotalRaw : 0
   const paintingSubtotal = jobType !== 'structures' ? (totals?.subtotal ?? 0) : 0
   const structTotal     = jobType !== 'exterior' ? (deckSubtotal + pergolaSubtotal + fenceSubtotal + shedSubtotal) : 0
-  const combinedSubtotal = paintingSubtotal + structTotal + woodTotal + customTotal
+  const computedSubtotal = paintingSubtotal + structTotal + woodTotal + customTotal
+  // Estimator-only manual subtotal override (set on the proposal page) takes precedence
+  const subtotalOverride = (estimate?.subtotalOverride != null && estimate.subtotalOverride > 0) ? estimate.subtotalOverride : null
+  const combinedSubtotal = subtotalOverride ?? computedSubtotal
   const discountAmount  = combinedSubtotal * salesDiscount
   const discounted      = combinedSubtotal - discountAmount
   const taxAmount       = taxRate != null ? discounted * taxRate : 0

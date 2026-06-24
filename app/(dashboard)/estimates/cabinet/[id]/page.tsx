@@ -74,7 +74,8 @@ export default function CabinetEstimateDetailPage({ params }: { params: Promise<
       cachedTotalSaved.current = true
       try {
         const bd = calculateCabinet(estimate)
-        const sub = (bd?.total ?? 0) + sumCabinetCustomItems(estimate.customItems)
+        const ov = (estimate.subtotalOverride != null && estimate.subtotalOverride > 0) ? estimate.subtotalOverride : null
+        const sub = ov ?? ((bd?.total ?? 0) + sumCabinetCustomItems(estimate.customItems))
         const gt = (sub * 0.90) + ((estimate.salesTaxRate ?? null) != null ? sub * 0.90 * (estimate.salesTaxRate as number) : 0)
         if (gt > 0) {
           fetch('/api/cache-grand-total', {
@@ -168,7 +169,8 @@ export default function CabinetEstimateDetailPage({ params }: { params: Promise<
   const isModified    = !!(estimate as typeof estimate & { isModified?: boolean }).isModified
   const existingCO    = (estimate as typeof estimate & { changeOrders?: typeof coItems }).changeOrders ?? []
   const bd            = calculateCabinet(estimate)
-  const subtotal      = (bd?.total ?? 0) + sumCabinetCustomItems(estimate.customItems)
+  const subtotalOverride = (estimate.subtotalOverride != null && estimate.subtotalOverride > 0) ? estimate.subtotalOverride : null
+  const subtotal      = subtotalOverride ?? ((bd?.total ?? 0) + sumCabinetCustomItems(estimate.customItems))
   const discounted    = subtotal * 0.90
   const taxRate       = estimate.salesTaxRate ?? null
   const taxAmount     = taxRate ? discounted * taxRate : 0

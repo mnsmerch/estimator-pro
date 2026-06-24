@@ -70,6 +70,11 @@ function newCustomItem(): CustomItem {
   return { id: crypto.randomUUID(), description: '', price: 0 }
 }
 
+// Shown before regenerating an already-signed estimate, since that starts a
+// change order and clears the existing signature.
+const SIGNED_REGEN_WARNING =
+  'This estimate is already signed.\n\nRegenerating it starts a change order and will remove the current signature — the customer will need to sign again.\n\nContinue?'
+
 const WOOD_ITEMS: { key: string; label: string }[] = [
   { key: 'trim1Story',          label: '1st Story Trim' },
   { key: 'trim2Story',          label: '2nd Story Trim' },
@@ -979,6 +984,7 @@ export default function EstimateForm({ estimateId, initialData }: EstimateFormPr
               )}
               <button
                 onClick={async () => {
+                  if (initialData?.status === 'approved' && !window.confirm(SIGNED_REGEN_WARNING)) return
                   const win = window.open('', '_blank')
                   setSaving(true)
                   try {
@@ -1863,6 +1869,7 @@ export default function EstimateForm({ estimateId, initialData }: EstimateFormPr
               )}
               <button
                 onClick={async () => {
+                  if (initialData?.status === 'approved' && !window.confirm(SIGNED_REGEN_WARNING)) return
                   const win = window.open('', '_blank')
                   setSaving(true)
                   try {

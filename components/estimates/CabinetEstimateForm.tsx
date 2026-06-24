@@ -60,6 +60,11 @@ async function lookupSalesTax(fullAddress: string): Promise<number | null> {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
+// Shown before regenerating an already-signed estimate, since that starts a
+// change order and clears the existing signature.
+const SIGNED_REGEN_WARNING =
+  'This estimate is already signed.\n\nRegenerating it starts a change order and will remove the current signature — the customer will need to sign again.\n\nContinue?'
+
 function newPanel(): LargePanelEntry {
   return { id: crypto.randomUUID(), doorEquivalents: '' }
 }
@@ -170,6 +175,7 @@ export default function CabinetEstimateForm({
   // ── Generate estimate (lookup tax, save, open proposal) ──────────────────
   async function handleGenerate() {
     if (!estimateId || !user) return
+    if (initialRecord?.status === 'approved' && !window.confirm(SIGNED_REGEN_WARNING)) return
     setSaving(true)
     setTaxLookupFailed(false)
     try {

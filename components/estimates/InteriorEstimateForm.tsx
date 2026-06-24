@@ -267,6 +267,11 @@ function recordToDraft(r: InteriorEstimateRecord): InteriorEstimateDraft {
   }
 }
 
+// Shown before regenerating an already-signed estimate, since that starts a
+// change order and clears the existing signature.
+const SIGNED_REGEN_WARNING =
+  'This estimate is already signed.\n\nRegenerating it starts a change order and will remove the current signature — the customer will need to sign again.\n\nContinue?'
+
 const WA_DOR_URL = 'https://webgis.dor.wa.gov/webapi/AddressRates.aspx'
 
 async function taxLookupCall(addr: string, city: string, zip: string): Promise<number | null> {
@@ -701,6 +706,7 @@ export default function InteriorEstimateForm({
                 )}
                 <button
                   onClick={async () => {
+                    if (initialRecord?.status === 'approved' && !window.confirm(SIGNED_REGEN_WARNING)) return
                     // Open immediately (sync) so Safari/iOS doesn't block the popup
                     const win = window.open('', '_blank')
                     setSaving(true)
@@ -1678,6 +1684,7 @@ export default function InteriorEstimateForm({
           {isEditing && estimateId && (
             <button
               onClick={async () => {
+                if (initialRecord?.status === 'approved' && !window.confirm(SIGNED_REGEN_WARNING)) return
                 const win = window.open('', '_blank')
                 setSaving(true)
                 setTaxLookupFailed(false)
