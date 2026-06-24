@@ -69,6 +69,9 @@ export interface CabinetEstimateDraft {
 
   // Custom price add-ons (description + dollar amount)
   customItems?:   CabinetCustomItem[]
+
+  // Estimator-only manual override of the pre-tax subtotal (null = use calculated)
+  subtotalOverride?: number | null
 }
 
 // ── Pricing constants ────────────────────────────────────────────────────────

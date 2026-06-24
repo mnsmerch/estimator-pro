@@ -73,6 +73,8 @@ export interface EstimateData {
   woodReplacementOpen?: boolean
   customItems?: CustomItem[]
   customItemsOpen?: boolean
+  // Estimator-only manual override of the pre-tax subtotal (null/undefined = use calculated)
+  subtotalOverride?: number | null
   // Structure add-ons
   deckAddon?:    StructureAddon   // legacy — superseded by deckAddons
   deckAddons?:   StructureAddon[]

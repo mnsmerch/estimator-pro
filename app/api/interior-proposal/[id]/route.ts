@@ -49,7 +49,9 @@ function computeInteriorGrandTotal(
     const customItems = (estimate.customItems ?? []) as { price?: number }[]
     const customTotal = customItems.reduce((s, i) => s + (i.price || 0), 0)
 
-    const combinedSubtotal = selectedTotal + customTotal
+    const overrideRaw = estimate.subtotalOverride
+    const override = (typeof overrideRaw === 'number' && overrideRaw > 0) ? overrideRaw : null
+    const combinedSubtotal = override ?? (selectedTotal + customTotal)
     const discounted = combinedSubtotal - Math.round(combinedSubtotal * 0.10 * 100) / 100
     const taxRate = estimate.salesTaxRate as number | null ?? null
     const taxAmount = taxRate != null ? Math.round(discounted * taxRate * 100) / 100 : 0

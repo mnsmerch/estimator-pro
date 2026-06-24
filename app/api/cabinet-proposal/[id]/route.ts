@@ -38,7 +38,8 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
         } as unknown as CabinetEstimateDraft
         const bd = calculateCabinet(safeDraft)
         const customTotal = sumCabinetCustomItems(raw.customItems as CabinetCustomItem[] | undefined)
-        const subtotal = (bd.total ?? 0) + customTotal
+        const override = (typeof raw.subtotalOverride === 'number' && raw.subtotalOverride > 0) ? raw.subtotalOverride : null
+        const subtotal = override ?? ((bd.total ?? 0) + customTotal)
         if (subtotal > 0) {
           const taxRate    = raw.salesTaxRate as number | null ?? null
           const discounted = subtotal * 0.90

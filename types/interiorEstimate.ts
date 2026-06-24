@@ -144,6 +144,8 @@ export interface InteriorEstimateDraft {
   photoNotes?:   string[]   // index-matched notes for each photo
   scope:         InteriorScopeFields
   customItems?:  InteriorCustomItem[]
+  // Estimator-only manual override of the pre-tax subtotal (null = use calculated)
+  subtotalOverride?: number | null
 }
 
 export interface OptionOverview {

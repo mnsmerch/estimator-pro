@@ -77,7 +77,8 @@ function computeGrandTotal(
       ? (estimate.customItems ?? []).reduce((sum, i) => (!i.description && !i.price) ? sum : sum + (i.price || 0), 0)
       : 0
 
-    const combinedSubtotal = paintingSubtotal + structTotal + woodTotal + customTotal
+    const override = (estimate.subtotalOverride != null && estimate.subtotalOverride > 0) ? estimate.subtotalOverride : null
+    const combinedSubtotal = override ?? (paintingSubtotal + structTotal + woodTotal + customTotal)
     const salesDiscount = rules.salesDiscount ?? 0.10
     const discounted = combinedSubtotal * (1 - salesDiscount)
     const taxRate = estimate.salesTaxRate ?? null

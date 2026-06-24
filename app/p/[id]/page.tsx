@@ -13,6 +13,8 @@ import {
 } from '@/lib/defaultSettings'
 import type { EstimateData } from '@/types/estimate'
 import { getDefaultScopeForBrand } from '@/types/estimate'
+import { updateEstimate } from '@/lib/firebase/estimates'
+import EstimatorSubtotalOverride from '@/components/EstimatorSubtotalOverride'
 import type {
   BusinessRules, ProductionConstants, PaintProduct, ProductionRates, CompanySettings,
 } from '@/types/settings'
@@ -347,7 +349,10 @@ export default function ProposalPage({ params }: { params: Promise<{ id: string 
 
   const paintingSubtotal  = jobType !== 'structures' ? (totals?.subtotal ?? 0) : 0
   const structTotal       = jobType !== 'exterior'   ? structuresSubtotal       : 0
-  const combinedSubtotal  = paintingSubtotal + structTotal + woodTotal + customTotal
+  const computedSubtotal  = paintingSubtotal + structTotal + woodTotal + customTotal
+  // Estimator-only manual subtotal override takes precedence when set
+  const subtotalOverride  = (estimate?.subtotalOverride != null && estimate.subtotalOverride > 0) ? estimate.subtotalOverride : null
+  const combinedSubtotal  = subtotalOverride ?? computedSubtotal
   const discountAmount    = applyDiscount ? combinedSubtotal * 0.10 : 0
   const discounted        = combinedSubtotal - discountAmount
   const taxRate           = estimate?.salesTaxRate ?? null
@@ -356,6 +361,11 @@ export default function ProposalPage({ params }: { params: Promise<{ id: string 
   const depositPercent    = rules.depositPercent ?? 0.20
   const depositAmount     = grandTotal * depositPercent
   const balanceDue        = grandTotal - depositAmount
+
+  async function saveSubtotalOverride(value: number | null) {
+    await updateEstimate(id, { subtotalOverride: value })
+    setEstimate(prev => prev ? { ...prev, subtotalOverride: value } : prev)
+  }
 
   // Cache grand total for list view (fire-and-forget, runs once after load)
   const cachedTotalSaved = useRef(false)
@@ -1018,6 +1028,16 @@ export default function ProposalPage({ params }: { params: Promise<{ id: string 
 
               {/* Subtotal / discount / tax */}
               <div className="border-t border-[oklch(0.94_0.004_140)] mt-1 pt-1">
+                {user && (
+                  <div className="pt-2">
+                    <EstimatorSubtotalOverride
+                      override={subtotalOverride}
+                      computedSubtotal={computedSubtotal}
+                      onSave={saveSubtotalOverride}
+                      fmt={fmtD}
+                    />
+                  </div>
+                )}
                 <PriceLine label="Subtotal" value={fmtD(combinedSubtotal)} />
                 {applyDiscount && (
                   <div className="flex justify-between items-center gap-4 py-[9px]">
