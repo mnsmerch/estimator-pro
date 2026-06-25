@@ -78,6 +78,9 @@ export default function CabinetProposalPage({ params }: { params: Promise<{ id: 
   // Estimator-only manual subtotal override takes precedence when set
   const subtotalOverride = (estimate?.subtotalOverride != null && estimate.subtotalOverride > 0) ? estimate.subtotalOverride : null
   const subtotal       = subtotalOverride ?? computedSubtotal
+  // When the price is overridden, the per-item amounts no longer sum to the
+  // shown subtotal, so hide them on the customer view — show labels only.
+  const hideItemPrices = subtotalOverride != null
   const discountAmount = applyDiscount ? Math.round(subtotal * 0.10 * 100) / 100 : 0
   const discounted     = subtotal - discountAmount
   const taxRate        = estimate?.salesTaxRate ?? null
@@ -356,7 +359,7 @@ export default function CabinetProposalPage({ params }: { params: Promise<{ id: 
             {/* Header */}
             <div className="px-6 pt-6 pb-4 border-b border-[oklch(0.94_0.004_140)]">
               <p className="text-[11px] font-bold uppercase tracking-[0.13em] text-[oklch(0.52_0.13_150)]">Your Estimate</p>
-              <h2 className="mt-1.5 text-lg font-bold text-[oklch(0.3_0.012_250)]">Everything&apos;s itemized — no surprises.</h2>
+              <h2 className="mt-1.5 text-lg font-bold text-[oklch(0.3_0.012_250)]">{hideItemPrices ? 'Simple, all-in pricing.' : 'Everything’s itemized — no surprises.'}</h2>
             </div>
 
             <div className="px-6 pt-2 pb-6">
@@ -365,39 +368,39 @@ export default function CabinetProposalPage({ params }: { params: Promise<{ id: 
               <div>
                 {bd.doorsTotal > 0 && (
                   <PriceLine
-                    label={`${bd.doors} Door${bd.doors !== 1 ? 's' : ''} × ${fmtD(CABINET_PRICING.perDoor)}`}
-                    value={fmtD(bd.doorsTotal)}
+                    label={`${bd.doors} Door${bd.doors !== 1 ? 's' : ''}${hideItemPrices ? '' : ` × ${fmtD(CABINET_PRICING.perDoor)}`}`}
+                    value={hideItemPrices ? undefined : fmtD(bd.doorsTotal)}
                   />
                 )}
                 {bd.drawersTotal > 0 && (
                   <PriceLine
-                    label={`${bd.drawers} Drawer${bd.drawers !== 1 ? 's' : ''} × ${fmtD(CABINET_PRICING.perDrawer)}`}
-                    value={fmtD(bd.drawersTotal)}
+                    label={`${bd.drawers} Drawer${bd.drawers !== 1 ? 's' : ''}${hideItemPrices ? '' : ` × ${fmtD(CABINET_PRICING.perDrawer)}`}`}
+                    value={hideItemPrices ? undefined : fmtD(bd.drawersTotal)}
                   />
                 )}
                 {bd.panelsTotal > 0 && (
                   <PriceLine
-                    label={`${bd.totalPanelEquivs} Panel Door-Equiv × ${fmtD(CABINET_PRICING.perPanelDoorEquiv)}`}
-                    value={fmtD(bd.panelsTotal)}
+                    label={`${bd.totalPanelEquivs} Panel Door-Equiv${hideItemPrices ? '' : ` × ${fmtD(CABINET_PRICING.perPanelDoorEquiv)}`}`}
+                    value={hideItemPrices ? undefined : fmtD(bd.panelsTotal)}
                   />
                 )}
                 {bd.twoToneTotal > 0 && (
-                  <PriceLine label="Two-tone Color Scheme" value={fmtD(bd.twoToneTotal)} />
+                  <PriceLine label="Two-tone Color Scheme" value={hideItemPrices ? undefined : fmtD(bd.twoToneTotal)} />
                 )}
                 {bd.patchHolesTotal > 0 && (
                   <PriceLine
-                    label={`Patch / Drill Holes (${bd.doors + bd.drawers} items × ${fmtD(CABINET_PRICING.perPatchDrill)})`}
-                    value={fmtD(bd.patchHolesTotal)}
+                    label={`Patch / Drill Holes${hideItemPrices ? '' : ` (${bd.doors + bd.drawers} items × ${fmtD(CABINET_PRICING.perPatchDrill)})`}`}
+                    value={hideItemPrices ? undefined : fmtD(bd.patchHolesTotal)}
                   />
                 )}
                 {bd.aquaCoatTotal > 0 && (
                   <PriceLine
-                    label={`AquaCoat Grain Filler (${bd.doors + bd.drawers} items × ${fmtD(CABINET_PRICING.perAquaCoat)})`}
-                    value={fmtD(bd.aquaCoatTotal)}
+                    label={`AquaCoat Grain Filler${hideItemPrices ? '' : ` (${bd.doors + bd.drawers} items × ${fmtD(CABINET_PRICING.perAquaCoat)})`}`}
+                    value={hideItemPrices ? undefined : fmtD(bd.aquaCoatTotal)}
                   />
                 )}
                 {customItems.map(item => (
-                  <PriceLine key={item.id} label={item.description} value={fmtD(item.price)} />
+                  <PriceLine key={item.id} label={item.description} value={hideItemPrices ? undefined : fmtD(item.price)} />
                 ))}
               </div>
 
@@ -643,11 +646,13 @@ export default function CabinetProposalPage({ params }: { params: Promise<{ id: 
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
-function PriceLine({ label, value }: { label: string; value: string }) {
+function PriceLine({ label, value }: { label: string; value?: string }) {
   return (
     <div className="flex justify-between items-center gap-4 py-[9px]">
       <span className="text-sm text-[oklch(0.5_0.01_250)]">{label}</span>
-      <span className="text-sm font-medium text-[oklch(0.3_0.012_250)] tabular-nums shrink-0">{value}</span>
+      {value != null && (
+        <span className="text-sm font-medium text-[oklch(0.3_0.012_250)] tabular-nums shrink-0">{value}</span>
+      )}
     </div>
   )
 }

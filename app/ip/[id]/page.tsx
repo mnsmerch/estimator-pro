@@ -176,6 +176,9 @@ export default function InteriorProposalPage({ params }: { params: Promise<{ id:
   // Estimator-only manual subtotal override takes precedence when set
   const subtotalOverride = (estimate?.subtotalOverride != null && estimate.subtotalOverride > 0) ? estimate.subtotalOverride : null
   const combinedSubtotal = subtotalOverride ?? computedSubtotal
+  // When the price is overridden, room/item amounts no longer drive the shown
+  // subtotal, so hide them on the customer view — show labels only.
+  const hideItemPrices = subtotalOverride != null
   const discountAmount = applyDiscount ? Math.round(combinedSubtotal * 0.10 * 100) / 100 : 0
   const discounted     = combinedSubtotal - discountAmount
   const taxRate        = estimate?.salesTaxRate ?? null
@@ -500,9 +503,9 @@ export default function InteriorProposalPage({ params }: { params: Promise<{ id:
         <div className="bg-white rounded-[18px] border border-[oklch(0.93_0.006_80)] shadow-[0_1px_2px_rgba(20,40,30,0.04),0_12px_32px_rgba(20,40,30,0.08)] p-5 sm:p-6 space-y-4">
           <div>
             <h2 className="text-base font-bold text-gray-900">
-              {multiRoom ? 'Select Rooms' : 'Pricing'}
+              {hideItemPrices ? 'Your Project' : multiRoom ? 'Select Rooms' : 'Pricing'}
             </h2>
-            {multiRoom && (
+            {multiRoom && !hideItemPrices && (
               <p className="text-sm text-gray-500 mt-1">
                 All rooms are included by default. Uncheck any rooms you&apos;d like to remove from this estimate.
               </p>
@@ -517,13 +520,13 @@ export default function InteriorProposalPage({ params }: { params: Promise<{ id:
               return (
                 <label
                   key={option.id}
-                  className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-colors ${
-                    isChecked
+                  className={`flex items-center gap-3 p-3 rounded-xl border transition-colors ${hideItemPrices ? '' : 'cursor-pointer'} ${
+                    (isChecked || hideItemPrices)
                       ? 'border-[oklch(0.89_0.06_150)] bg-[oklch(0.96_0.035_150)]'
                       : 'border-gray-200 bg-gray-50 opacity-60'
                   }`}
                 >
-                  {multiRoom && (
+                  {multiRoom && !hideItemPrices && (
                     <input
                       type="checkbox"
                       checked={isChecked}
@@ -532,9 +535,11 @@ export default function InteriorProposalPage({ params }: { params: Promise<{ id:
                     />
                   )}
                   <span className="flex-1 text-sm font-medium text-gray-900">{option.name}</span>
-                  <span className="text-sm font-semibold text-gray-900 tabular-nums shrink-0">
-                    {fmtD(price)}
-                  </span>
+                  {!hideItemPrices && (
+                    <span className="text-sm font-semibold text-gray-900 tabular-nums shrink-0">
+                      {fmtD(price)}
+                    </span>
+                  )}
                 </label>
               )
             })}
@@ -544,7 +549,9 @@ export default function InteriorProposalPage({ params }: { params: Promise<{ id:
           {customItems.filter(i => i.description && i.price > 0).map(item => (
             <div key={item.id} className="flex items-center gap-3 p-3 rounded-xl border border-gray-200 bg-gray-50">
               <span className="flex-1 text-sm font-medium text-gray-900">{item.description}</span>
-              <span className="text-sm font-semibold text-gray-900 tabular-nums shrink-0">{fmtD(item.price)}</span>
+              {!hideItemPrices && (
+                <span className="text-sm font-semibold text-gray-900 tabular-nums shrink-0">{fmtD(item.price)}</span>
+              )}
             </div>
           ))}
 
@@ -552,7 +559,7 @@ export default function InteriorProposalPage({ params }: { params: Promise<{ id:
           <div className="border-t border-[oklch(0.94_0.004_140)] mt-4 pt-1">
             <div className="flex justify-between items-center gap-4 py-[9px]">
               <span className="text-sm text-[oklch(0.5_0.01_250)]">
-                {multiRoom ? `${selectedRooms.size} room${selectedRooms.size !== 1 ? 's' : ''} selected` : 'Subtotal'}
+                {(multiRoom && !hideItemPrices) ? `${selectedRooms.size} room${selectedRooms.size !== 1 ? 's' : ''} selected` : 'Subtotal'}
               </span>
               <span className="text-sm font-medium text-[oklch(0.3_0.012_250)] tabular-nums">{fmtD(combinedSubtotal)}</span>
             </div>

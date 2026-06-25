@@ -351,6 +351,9 @@ export default function ProposalPage({ params }: { params: Promise<{ id: string 
   // Estimator-only manual subtotal override takes precedence when set
   const subtotalOverride  = (estimate?.subtotalOverride != null && estimate.subtotalOverride > 0) ? estimate.subtotalOverride : null
   const combinedSubtotal  = subtotalOverride ?? computedSubtotal
+  // When the price is overridden, the per-item amounts no longer sum to the
+  // shown subtotal, so hide them on the customer view — show labels only.
+  const hideItemPrices    = subtotalOverride != null
   const discountAmount    = applyDiscount ? combinedSubtotal * 0.10 : 0
   const discounted        = combinedSubtotal - discountAmount
   const taxRate           = estimate?.salesTaxRate ?? null
@@ -991,7 +994,7 @@ export default function ProposalPage({ params }: { params: Promise<{ id: string 
             {/* Header */}
             <div className="px-6 pt-6 pb-4 border-b border-[oklch(0.94_0.004_140)]">
               <p className="text-[11px] font-bold uppercase tracking-[0.13em] text-[oklch(0.52_0.13_150)]">Your Estimate</p>
-              <h2 className="mt-1.5 text-lg font-bold text-[oklch(0.3_0.012_250)]">Everything&apos;s itemized — no surprises.</h2>
+              <h2 className="mt-1.5 text-lg font-bold text-[oklch(0.3_0.012_250)]">{hideItemPrices ? 'Simple, all-in pricing.' : 'Everything’s itemized — no surprises.'}</h2>
             </div>
 
             <div className="px-6 pt-2 pb-6">
@@ -999,23 +1002,23 @@ export default function ProposalPage({ params }: { params: Promise<{ id: string 
               {/* Line items */}
               <div>
                 {jobType !== 'structures' && paintingSubtotal > 0 && (
-                  <PriceLine label={clientProvidingPaint ? 'Exterior Painting — Labor (Paint by Owner)' : `Exterior Painting — ${PAINT_BRANDS.find(b => b.key === selectedBrand)?.label}`} value={fmtD(paintingSubtotal)} />
+                  <PriceLine label={clientProvidingPaint ? 'Exterior Painting — Labor (Paint by Owner)' : `Exterior Painting — ${PAINT_BRANDS.find(b => b.key === selectedBrand)?.label}`} value={hideItemPrices ? undefined : fmtD(paintingSubtotal)} />
                 )}
                 {jobType !== 'exterior' && deckSubtotal > 0 && (
-                  <PriceLine label={`Deck${deckPaintLabel ? ` — ${deckPaintLabel}` : ''}`} value={fmtD(deckSubtotal)} />
+                  <PriceLine label={`Deck${deckPaintLabel ? ` — ${deckPaintLabel}` : ''}`} value={hideItemPrices ? undefined : fmtD(deckSubtotal)} />
                 )}
                 {jobType !== 'exterior' && pergolaSubtotal > 0 && (
-                  <PriceLine label={`Pergola${pergolaPaintLabel ? ` — ${pergolaPaintLabel}` : ''}`} value={fmtD(pergolaSubtotal)} />
+                  <PriceLine label={`Pergola${pergolaPaintLabel ? ` — ${pergolaPaintLabel}` : ''}`} value={hideItemPrices ? undefined : fmtD(pergolaSubtotal)} />
                 )}
                 {jobType !== 'exterior' && fenceSubtotal > 0 && (
-                  <PriceLine label={`Fence${fencePaintLabel ? ` — ${fencePaintLabel}` : ''}`} value={fmtD(fenceSubtotal)} />
+                  <PriceLine label={`Fence${fencePaintLabel ? ` — ${fencePaintLabel}` : ''}`} value={hideItemPrices ? undefined : fmtD(fenceSubtotal)} />
                 )}
                 {jobType !== 'exterior' && shedSubtotal > 0 && (
-                  <PriceLine label={`Shed${shedPaintLabel ? ` — ${shedPaintLabel}` : ''}`} value={fmtD(shedSubtotal)} />
+                  <PriceLine label={`Shed${shedPaintLabel ? ` — ${shedPaintLabel}` : ''}`} value={hideItemPrices ? undefined : fmtD(shedSubtotal)} />
                 )}
-                {includeWood && woodTotal > 0 && <PriceLine label="Wood Replacement" value={fmtD(woodTotal)} />}
+                {includeWood && woodTotal > 0 && <PriceLine label="Wood Replacement" value={hideItemPrices ? undefined : fmtD(woodTotal)} />}
                 {(estimate.customItems ?? []).filter(i => includedCustomIds.has(i.id) && i.description && i.price > 0).map(item => (
-                  <PriceLine key={item.id} label={item.description} value={fmtD(item.price)} />
+                  <PriceLine key={item.id} label={item.description} value={hideItemPrices ? undefined : fmtD(item.price)} />
                 ))}
               </div>
 
@@ -1556,11 +1559,13 @@ function ScopeBlock({ label, text }: { label: string; text: string }) {
   )
 }
 
-function PriceLine({ label, value }: { label: string; value: string }) {
+function PriceLine({ label, value }: { label: string; value?: string }) {
   return (
     <div className="flex justify-between items-center gap-4 py-[9px]">
       <span className="text-sm text-[oklch(0.5_0.01_250)]">{label}</span>
-      <span className="text-sm font-medium text-[oklch(0.3_0.012_250)] tabular-nums shrink-0">{value}</span>
+      {value != null && (
+        <span className="text-sm font-medium text-[oklch(0.3_0.012_250)] tabular-nums shrink-0">{value}</span>
+      )}
     </div>
   )
 }
