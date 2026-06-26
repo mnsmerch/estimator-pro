@@ -4,7 +4,7 @@ import { useState, useEffect, use, useRef, useCallback } from 'react'
 import { DEFAULT_COMPANY } from '@/lib/defaultSettings'
 import type { CabinetEstimateRecord } from '@/lib/firebase/cabinetEstimates'
 import type { CompanySettings } from '@/types/settings'
-import { calculateCabinet, CABINET_PRICING, sumCabinetCustomItems } from '@/types/cabinetEstimate'
+import { calculateCabinet, sumCabinetCustomItems } from '@/types/cabinetEstimate'
 
 function fmtD(n: number) {
   return n.toLocaleString('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 2 })
@@ -72,15 +72,11 @@ export default function CabinetProposalPage({ params }: { params: Promise<{ id: 
 
   // ── Pricing ────────────────────────────────────────────────────────────────
   const bd = estimate ? calculateCabinet(estimate) : null
-  const customItems    = estimate?.customItems?.filter(i => i.description?.trim() && i.price > 0) ?? []
   const customTotal    = sumCabinetCustomItems(estimate?.customItems)
   const computedSubtotal = (bd?.total ?? 0) + customTotal
   // Estimator-only manual subtotal override takes precedence when set
   const subtotalOverride = (estimate?.subtotalOverride != null && estimate.subtotalOverride > 0) ? estimate.subtotalOverride : null
   const subtotal       = subtotalOverride ?? computedSubtotal
-  // When the price is overridden, the per-item amounts no longer sum to the
-  // shown subtotal, so hide them on the customer view — show labels only.
-  const hideItemPrices = subtotalOverride != null
   const discountAmount = applyDiscount ? Math.round(subtotal * 0.10 * 100) / 100 : 0
   const discounted     = subtotal - discountAmount
   const taxRate        = estimate?.salesTaxRate ?? null
@@ -359,54 +355,14 @@ export default function CabinetProposalPage({ params }: { params: Promise<{ id: 
             {/* Header */}
             <div className="px-6 pt-6 pb-4 border-b border-[oklch(0.94_0.004_140)]">
               <p className="text-[11px] font-bold uppercase tracking-[0.13em] text-[oklch(0.52_0.13_150)]">Your Estimate</p>
-              <h2 className="mt-1.5 text-lg font-bold text-[oklch(0.3_0.012_250)]">{hideItemPrices ? 'Simple, all-in pricing.' : 'Everything’s itemized — no surprises.'}</h2>
+              <h2 className="mt-1.5 text-lg font-bold text-[oklch(0.3_0.012_250)]">Simple, all-in pricing.</h2>
             </div>
 
             <div className="px-6 pt-2 pb-6">
 
-              {/* Line items */}
-              <div>
-                {bd.doorsTotal > 0 && (
-                  <PriceLine
-                    label={`${bd.doors} Door${bd.doors !== 1 ? 's' : ''}${hideItemPrices ? '' : ` × ${fmtD(CABINET_PRICING.perDoor)}`}`}
-                    value={hideItemPrices ? undefined : fmtD(bd.doorsTotal)}
-                  />
-                )}
-                {bd.drawersTotal > 0 && (
-                  <PriceLine
-                    label={`${bd.drawers} Drawer${bd.drawers !== 1 ? 's' : ''}${hideItemPrices ? '' : ` × ${fmtD(CABINET_PRICING.perDrawer)}`}`}
-                    value={hideItemPrices ? undefined : fmtD(bd.drawersTotal)}
-                  />
-                )}
-                {bd.panelsTotal > 0 && (
-                  <PriceLine
-                    label={`${bd.totalPanelEquivs} Panel Door-Equiv${hideItemPrices ? '' : ` × ${fmtD(CABINET_PRICING.perPanelDoorEquiv)}`}`}
-                    value={hideItemPrices ? undefined : fmtD(bd.panelsTotal)}
-                  />
-                )}
-                {bd.twoToneTotal > 0 && (
-                  <PriceLine label="Two-tone Color Scheme" value={hideItemPrices ? undefined : fmtD(bd.twoToneTotal)} />
-                )}
-                {bd.patchHolesTotal > 0 && (
-                  <PriceLine
-                    label={`Patch / Drill Holes${hideItemPrices ? '' : ` (${bd.doors + bd.drawers} items × ${fmtD(CABINET_PRICING.perPatchDrill)})`}`}
-                    value={hideItemPrices ? undefined : fmtD(bd.patchHolesTotal)}
-                  />
-                )}
-                {bd.aquaCoatTotal > 0 && (
-                  <PriceLine
-                    label={`AquaCoat Grain Filler${hideItemPrices ? '' : ` (${bd.doors + bd.drawers} items × ${fmtD(CABINET_PRICING.perAquaCoat)})`}`}
-                    value={hideItemPrices ? undefined : fmtD(bd.aquaCoatTotal)}
-                  />
-                )}
-                {customItems.map(item => (
-                  <PriceLine key={item.id} label={item.description} value={hideItemPrices ? undefined : fmtD(item.price)} />
-                ))}
-              </div>
-
-              {/* Subtotal / discount / tax */}
-              <div className="border-t border-[oklch(0.94_0.004_140)] mt-1 pt-1">
-                <PriceLine label="Subtotal" value={fmtD(subtotal)} />
+              {/* Cabinet work shown as a single lump-sum line (full scope is in the Scope of Work section) */}
+              <div className="pt-1">
+                <PriceLine label="Cabinet Refinishing" value={fmtD(subtotal)} />
                 {applyDiscount && (
                   <div className="flex justify-between items-center gap-4 py-[9px]">
                     <span className="text-sm font-semibold text-[oklch(0.52_0.13_150)]">Discount (10% — Sign Today)</span>
