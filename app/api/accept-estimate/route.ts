@@ -57,6 +57,9 @@ export async function POST(req: Request) {
       balanceDue,
       depositPercent,
       grandTotal,
+      subtotal,
+      discountAmount,
+      taxAmount,
       itemLabel,
       taxRate,
       taxCity,
@@ -75,6 +78,9 @@ export async function POST(req: Request) {
       balanceDue?:    number
       depositPercent?: number
       grandTotal?:    number
+      subtotal?:      number
+      discountAmount?: number
+      taxAmount?:     number
       itemLabel?:     string
       taxRate?:        number | null
       taxCity?:        string
@@ -93,8 +99,12 @@ export async function POST(req: Request) {
       signatureName,
       signatureDate:    new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }),
       ...(signatureDataUrl ? { signatureDataUrl } : {}),
-      // Store pricing at signing time so webhook callbacks can create invoices later
+      // Lock the agreed price at signing time. The proposal reads these for any
+      // approved estimate so the price never drifts if settings/rates change.
       ...(grandTotal   != null ? { signedGrandTotal:    grandTotal }   : {}),
+      ...(subtotal     != null ? { signedSubtotal:      subtotal }     : {}),
+      ...(discountAmount != null ? { signedDiscountAmount: discountAmount } : {}),
+      ...(taxAmount    != null ? { signedTaxAmount:     taxAmount }    : {}),
       ...(depositAmount != null ? { signedDepositAmount: depositAmount } : {}),
       ...(balanceDue   != null ? { signedBalanceDue:    balanceDue }   : {}),
       ...(depositPercent != null ? { signedDepositPercent: depositPercent } : {}),

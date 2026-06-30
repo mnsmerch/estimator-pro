@@ -76,15 +76,52 @@ export default function CabinetProposalPage({ params }: { params: Promise<{ id: 
   const computedSubtotal = (bd?.total ?? 0) + customTotal
   // Estimator-only manual subtotal override takes precedence when set
   const subtotalOverride = (estimate?.subtotalOverride != null && estimate.subtotalOverride > 0) ? estimate.subtotalOverride : null
-  const subtotal       = subtotalOverride ?? computedSubtotal
-  const discountAmount = applyDiscount ? Math.round(subtotal * 0.10 * 100) / 100 : 0
-  const discounted     = subtotal - discountAmount
-  const taxRate        = estimate?.salesTaxRate ?? null
-  const taxAmount      = taxRate != null ? Math.round(discounted * taxRate * 100) / 100 : 0
-  const totalWithTax   = discounted + taxAmount
   const depositPercent = 0.20
-  const depositAmount  = Math.round(totalWithTax * depositPercent * 100) / 100
-  const balanceDue     = Math.round((totalWithTax - depositAmount) * 100) / 100
+
+  // Live (recomputed) pricing — used only until the estimate is signed.
+  const liveSubtotal   = subtotalOverride ?? computedSubtotal
+  const liveDiscount   = applyDiscount ? Math.round(liveSubtotal * 0.10 * 100) / 100 : 0
+  const liveTaxRate    = estimate?.salesTaxRate ?? null
+  const liveTax        = liveTaxRate != null ? Math.round((liveSubtotal - liveDiscount) * liveTaxRate * 100) / 100 : 0
+  const liveTotal      = liveSubtotal - liveDiscount + liveTax
+
+  // PRICE LOCK: once signed (approved), show the exact agreed price from the
+  // stored signed* fields — never recompute from live settings.
+  const lk = estimate?.status === 'approved'
+    ? (estimate as CabinetEstimateRecord & {
+        signedGrandTotal?: number; signedSubtotal?: number; signedDiscountAmount?: number
+        signedTaxAmount?: number; signedTaxRate?: number; signedDepositAmount?: number
+        signedBalanceDue?: number; signedDepositPercent?: number
+      })
+    : null
+  const isLocked = lk?.signedGrandTotal != null
+
+  let subtotal: number, discountAmount: number, taxAmount: number,
+      totalWithTax: number, depositAmount: number, balanceDue: number, taxRate: number | null
+  if (isLocked) {
+    totalWithTax  = lk!.signedGrandTotal!
+    taxRate       = lk!.signedTaxRate ?? liveTaxRate
+    depositAmount = lk!.signedDepositAmount ?? Math.round(totalWithTax * (lk!.signedDepositPercent ?? depositPercent) * 100) / 100
+    balanceDue    = lk!.signedBalanceDue ?? Math.round((totalWithTax - depositAmount) * 100) / 100
+    if (lk!.signedSubtotal != null) {
+      subtotal       = lk!.signedSubtotal
+      taxAmount      = lk!.signedTaxAmount ?? 0
+      discountAmount = lk!.signedDiscountAmount ?? 0
+    } else {
+      const preTax   = taxRate != null ? totalWithTax / (1 + taxRate) : totalWithTax
+      subtotal       = Math.round(preTax / 0.90 * 100) / 100
+      discountAmount = Math.round((subtotal - preTax) * 100) / 100
+      taxAmount      = Math.round((totalWithTax - preTax) * 100) / 100
+    }
+  } else {
+    subtotal      = liveSubtotal
+    discountAmount = liveDiscount
+    taxRate       = liveTaxRate
+    taxAmount     = liveTax
+    totalWithTax  = liveTotal
+    depositAmount = Math.round(liveTotal * depositPercent * 100) / 100
+    balanceDue    = Math.round((liveTotal - depositAmount) * 100) / 100
+  }
 
 
   const isManualEstimate = !!estimate && !estimate.clientContactId
@@ -132,6 +169,9 @@ export default function CabinetProposalPage({ params }: { params: Promise<{ id: 
           balanceDue,
           depositPercent,
           grandTotal:       totalWithTax,
+          subtotal,
+          discountAmount,
+          taxAmount,
           taxRate:          taxRate ?? null,
           taxCity:          parseCityFromAddress(estimate.address ?? ''),
           estimateNumber:   estimate.estimateNumber ?? null,
@@ -315,7 +355,8 @@ export default function CabinetProposalPage({ params }: { params: Promise<{ id: 
           </div>
         )}
 
-        {/* ── Discount toggle ─────────────────────────────────────────────── */}
+        {/* ── Discount toggle (hidden once signed — price is locked) ──────── */}
+        {!isLocked && (
         <div className={`rounded-2xl border-2 p-5 transition-colors ${
           applyDiscount ? 'bg-green-50 border-green-400' : 'bg-white border-gray-200'
         }`}>
@@ -347,6 +388,7 @@ export default function CabinetProposalPage({ params }: { params: Promise<{ id: 
             </button>
           </div>
         </div>
+        )}
 
         {/* ── Pricing summary ─────────────────────────────────────────────── */}
         {bd && (
@@ -363,7 +405,7 @@ export default function CabinetProposalPage({ params }: { params: Promise<{ id: 
               {/* Cabinet work shown as a single lump-sum line (full scope is in the Scope of Work section) */}
               <div className="pt-1">
                 <PriceLine label="Cabinet Refinishing" value={fmtD(subtotal)} />
-                {applyDiscount && (
+                {(isLocked ? discountAmount > 0 : applyDiscount) && (
                   <div className="flex justify-between items-center gap-4 py-[9px]">
                     <span className="text-sm font-semibold text-[oklch(0.52_0.13_150)]">Discount (10% — Sign Today)</span>
                     <span className="text-sm font-semibold text-[oklch(0.52_0.13_150)] tabular-nums">− {fmtD(discountAmount)}</span>

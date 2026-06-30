@@ -350,18 +350,57 @@ export default function ProposalPage({ params }: { params: Promise<{ id: string 
   const computedSubtotal  = paintingSubtotal + structTotal + woodTotal + customTotal
   // Estimator-only manual subtotal override takes precedence when set
   const subtotalOverride  = (estimate?.subtotalOverride != null && estimate.subtotalOverride > 0) ? estimate.subtotalOverride : null
-  const combinedSubtotal  = subtotalOverride ?? computedSubtotal
-  // When the price is overridden, the per-item amounts no longer sum to the
-  // shown subtotal, so hide them on the customer view — show labels only.
-  const hideItemPrices    = subtotalOverride != null
-  const discountAmount    = applyDiscount ? combinedSubtotal * 0.10 : 0
-  const discounted        = combinedSubtotal - discountAmount
-  const taxRate           = estimate?.salesTaxRate ?? null
-  const taxAmount         = taxRate != null ? discounted * taxRate : 0
-  const grandTotal        = discounted + taxAmount
   const depositPercent    = rules.depositPercent ?? 0.20
-  const depositAmount     = grandTotal * depositPercent
-  const balanceDue        = grandTotal - depositAmount
+
+  // Live (recomputed) pricing — used only until the estimate is signed.
+  const liveSubtotal      = subtotalOverride ?? computedSubtotal
+  const liveDiscount      = applyDiscount ? liveSubtotal * 0.10 : 0
+  const liveTaxRate       = estimate?.salesTaxRate ?? null
+  const liveTax           = liveTaxRate != null ? (liveSubtotal - liveDiscount) * liveTaxRate : 0
+  const liveGrand         = liveSubtotal - liveDiscount + liveTax
+
+  // PRICE LOCK: once an estimate is signed (approved), display the exact price
+  // the customer agreed to from the stored signed* fields — never recompute from
+  // live settings (the admin may have changed rates since). Falls back to a
+  // derivation when only the signed total was stored (older signings).
+  const lk = estimate?.status === 'approved'
+    ? (estimate as EstimateData & {
+        signedGrandTotal?: number; signedSubtotal?: number; signedDiscountAmount?: number
+        signedTaxAmount?: number; signedTaxRate?: number; signedDepositAmount?: number
+        signedBalanceDue?: number; signedDepositPercent?: number
+      })
+    : null
+  const isLocked = lk?.signedGrandTotal != null
+
+  let combinedSubtotal: number, discountAmount: number, taxAmount: number,
+      grandTotal: number, depositAmount: number, balanceDue: number, taxRate: number | null
+  if (isLocked) {
+    grandTotal   = lk!.signedGrandTotal!
+    taxRate      = lk!.signedTaxRate ?? liveTaxRate
+    depositAmount = lk!.signedDepositAmount ?? grandTotal * (lk!.signedDepositPercent ?? depositPercent)
+    balanceDue   = lk!.signedBalanceDue ?? (grandTotal - depositAmount)
+    if (lk!.signedSubtotal != null) {
+      combinedSubtotal = lk!.signedSubtotal
+      taxAmount        = lk!.signedTaxAmount ?? 0
+      discountAmount   = lk!.signedDiscountAmount ?? 0
+    } else {
+      // Derive the breakdown from the locked total (assumes the 10% sign-today discount)
+      const preTax     = taxRate != null ? grandTotal / (1 + taxRate) : grandTotal
+      combinedSubtotal = preTax / 0.90
+      discountAmount   = combinedSubtotal - preTax
+      taxAmount        = grandTotal - preTax
+    }
+  } else {
+    combinedSubtotal = liveSubtotal
+    discountAmount   = liveDiscount
+    taxRate          = liveTaxRate
+    taxAmount        = liveTax
+    grandTotal       = liveGrand
+    depositAmount    = grandTotal * depositPercent
+    balanceDue       = grandTotal - depositAmount
+  }
+  // Hide per-item amounts when overridden or locked — they no longer sum to the shown subtotal.
+  const hideItemPrices    = subtotalOverride != null || isLocked
 
   // Cache grand total for list view (fire-and-forget, runs once after load)
   const cachedTotalSaved = useRef(false)
@@ -414,6 +453,9 @@ export default function ProposalPage({ params }: { params: Promise<{ id: string 
           balanceDue,
           depositPercent,
           grandTotal,
+          subtotal:       combinedSubtotal,
+          discountAmount,
+          taxAmount,
           taxRate:        taxRate ?? null,
           taxCity:        parseCityFromAddress(estimate.clientAddress),
           estimateNumber: estimate.estimateNumber ?? null,
@@ -951,8 +993,8 @@ export default function ProposalPage({ params }: { params: Promise<{ id: string 
           )}
         </div>}
 
-        {/* ── Discount toggle ────────────────────────────────────────────── */}
-        {(totals || hasStructures) && (
+        {/* ── Discount toggle (hidden once signed — price is locked) ──────── */}
+        {(totals || hasStructures) && !isLocked && (
           <div className={`rounded-2xl border-2 p-5 transition-colors ${
             applyDiscount ? 'bg-green-50 border-green-400' : 'bg-white border-gray-200'
           }`}>
@@ -1025,7 +1067,7 @@ export default function ProposalPage({ params }: { params: Promise<{ id: string 
               {/* Subtotal / discount / tax */}
               <div className="border-t border-[oklch(0.94_0.004_140)] mt-1 pt-1">
                 <PriceLine label="Subtotal" value={fmtD(combinedSubtotal)} />
-                {applyDiscount && (
+                {(isLocked ? discountAmount > 0 : applyDiscount) && (
                   <div className="flex justify-between items-center gap-4 py-[9px]">
                     <span className="text-sm font-semibold text-[oklch(0.52_0.13_150)]">Discount (10% — Sign Today)</span>
                     <span className="text-sm font-semibold text-[oklch(0.52_0.13_150)] tabular-nums">− {fmtD(discountAmount)}</span>
