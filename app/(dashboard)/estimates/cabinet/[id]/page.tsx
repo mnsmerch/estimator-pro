@@ -170,13 +170,40 @@ export default function CabinetEstimateDetailPage({ params }: { params: Promise<
   const existingCO    = (estimate as typeof estimate & { changeOrders?: typeof coItems }).changeOrders ?? []
   const bd            = calculateCabinet(estimate)
   const subtotalOverride = (estimate.subtotalOverride != null && estimate.subtotalOverride > 0) ? estimate.subtotalOverride : null
-  const subtotal      = subtotalOverride ?? ((bd?.total ?? 0) + sumCabinetCustomItems(estimate.customItems))
-  const discounted    = subtotal * 0.90
-  const taxRate       = estimate.salesTaxRate ?? null
-  const taxAmount     = taxRate ? discounted * taxRate : 0
-  const grandTotal    = discounted + taxAmount
-  const depositAmt    = Math.round(grandTotal * 0.20 * 100) / 100
-  const balanceDue    = Math.round((grandTotal - depositAmt) * 100) / 100
+
+  // Live (recomputed) pricing — used only until the estimate is signed.
+  const liveSubtotal  = subtotalOverride ?? ((bd?.total ?? 0) + sumCabinetCustomItems(estimate.customItems))
+  const liveTaxRate   = estimate.salesTaxRate ?? null
+  const liveDiscounted = liveSubtotal * 0.90
+  const liveTax       = liveTaxRate ? liveDiscounted * liveTaxRate : 0
+  const liveGrand     = liveDiscounted + liveTax
+
+  // PRICE LOCK: once signed (approved), show the exact agreed price from the
+  // stored signed* fields — never recompute from live settings.
+  const lk = estimate.status === 'approved'
+    ? (estimate as typeof estimate & {
+        signedGrandTotal?: number; signedSubtotal?: number; signedTaxAmount?: number; signedTaxRate?: number
+        signedDepositAmount?: number; signedBalanceDue?: number; signedDepositPercent?: number
+      })
+    : null
+  const isLocked = lk?.signedGrandTotal != null
+
+  let subtotal: number, taxAmount: number, grandTotal: number, depositAmt: number, balanceDue: number, taxRate: number | null
+  if (isLocked) {
+    grandTotal = lk!.signedGrandTotal!
+    taxRate    = lk!.signedTaxRate ?? liveTaxRate
+    depositAmt = lk!.signedDepositAmount ?? Math.round(grandTotal * (lk!.signedDepositPercent ?? 0.20) * 100) / 100
+    balanceDue = lk!.signedBalanceDue ?? Math.round((grandTotal - depositAmt) * 100) / 100
+    subtotal   = lk!.signedSubtotal ?? (taxRate != null ? grandTotal / (1 + taxRate) / 0.90 : grandTotal / 0.90)
+    taxAmount  = lk!.signedTaxAmount ?? Math.round((grandTotal - subtotal * 0.90) * 100) / 100
+  } else {
+    subtotal   = liveSubtotal
+    taxRate    = liveTaxRate
+    taxAmount  = liveTax
+    grandTotal = liveGrand
+    depositAmt = Math.round(grandTotal * 0.20 * 100) / 100
+    balanceDue = Math.round((grandTotal - depositAmt) * 100) / 100
+  }
 
   async function handleRetrigger() {
     if (!estimate || retrigger) return

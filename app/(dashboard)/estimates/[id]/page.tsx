@@ -289,7 +289,6 @@ export default function EstimateDetailPage({ params }: { params: Promise<{ id: s
   }, [estimate, appMap, rules, constants, paintProducts])
 
   const jobType         = estimate?.jobType ?? 'exterior'
-  const taxRate         = estimate?.salesTaxRate ?? null
   const salesDiscount   = rules.salesDiscount ?? 0.10
   const woodTotal       = (estimate?.woodReplacementOpen ?? false) ? woodTotalRaw : 0
   const customTotal     = (estimate?.customItemsOpen ?? false) ? customTotalRaw : 0
@@ -298,14 +297,52 @@ export default function EstimateDetailPage({ params }: { params: Promise<{ id: s
   const computedSubtotal = paintingSubtotal + structTotal + woodTotal + customTotal
   // Estimator-only manual subtotal override (set on the proposal page) takes precedence
   const subtotalOverride = (estimate?.subtotalOverride != null && estimate.subtotalOverride > 0) ? estimate.subtotalOverride : null
-  const combinedSubtotal = subtotalOverride ?? computedSubtotal
-  const discountAmount  = combinedSubtotal * salesDiscount
-  const discounted      = combinedSubtotal - discountAmount
-  const taxAmount       = taxRate != null ? discounted * taxRate : 0
-  const grandTotal      = discounted + taxAmount
   const depositPercent  = rules.depositPercent ?? 0.20
-  const depositAmount   = grandTotal * depositPercent
-  const balanceDue      = grandTotal - depositAmount
+
+  // Live (recomputed) pricing — used only until the estimate is signed.
+  const liveTaxRate     = estimate?.salesTaxRate ?? null
+  const liveSubtotal    = subtotalOverride ?? computedSubtotal
+  const liveDiscount    = liveSubtotal * salesDiscount
+  const liveTax         = liveTaxRate != null ? (liveSubtotal - liveDiscount) * liveTaxRate : 0
+  const liveGrand       = liveSubtotal - liveDiscount + liveTax
+
+  // PRICE LOCK: once signed (approved), show the exact agreed price from the
+  // stored signed* fields — never recompute from live settings.
+  const lk = estimate?.status === 'approved'
+    ? (estimate as typeof estimate & {
+        signedGrandTotal?: number; signedSubtotal?: number; signedDiscountAmount?: number
+        signedTaxAmount?: number; signedTaxRate?: number; signedDepositAmount?: number
+        signedBalanceDue?: number; signedDepositPercent?: number
+      })
+    : null
+  const isLocked = lk?.signedGrandTotal != null
+
+  let combinedSubtotal: number, discountAmount: number, taxAmount: number,
+      grandTotal: number, depositAmount: number, balanceDue: number, taxRate: number | null
+  if (isLocked) {
+    grandTotal    = lk!.signedGrandTotal!
+    taxRate       = lk!.signedTaxRate ?? liveTaxRate
+    depositAmount = lk!.signedDepositAmount ?? grandTotal * (lk!.signedDepositPercent ?? depositPercent)
+    balanceDue    = lk!.signedBalanceDue ?? (grandTotal - depositAmount)
+    if (lk!.signedSubtotal != null) {
+      combinedSubtotal = lk!.signedSubtotal
+      taxAmount        = lk!.signedTaxAmount ?? 0
+      discountAmount   = lk!.signedDiscountAmount ?? 0
+    } else {
+      const preTax     = taxRate != null ? grandTotal / (1 + taxRate) : grandTotal
+      combinedSubtotal = preTax / (1 - salesDiscount)
+      discountAmount   = combinedSubtotal - preTax
+      taxAmount        = grandTotal - preTax
+    }
+  } else {
+    combinedSubtotal = liveSubtotal
+    discountAmount   = liveDiscount
+    taxRate          = liveTaxRate
+    taxAmount        = liveTax
+    grandTotal       = liveGrand
+    depositAmount    = grandTotal * depositPercent
+    balanceDue       = grandTotal - depositAmount
+  }
 
   // Cache computed total for list view — fire once after load settles
   useEffect(() => {
