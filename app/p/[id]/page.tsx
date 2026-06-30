@@ -948,16 +948,18 @@ export default function ProposalPage({ params }: { params: Promise<{ id: string 
           {/* Add-on toggles */}
           {(hasWoodData || hasCustomData) && (
             <div className="mt-5 pt-5 border-t border-gray-100">
-              <p className="text-sm font-semibold text-gray-700 mb-3">Optional Add-Ons</p>
-              <div className="space-y-3">
+              <p className="text-sm font-semibold text-gray-700 mb-1">Optional Add-Ons</p>
+              {isLocked && <p className="text-xs text-gray-400 mb-3">Selection locked — already signed.</p>}
+              <div className={`space-y-3 ${isLocked ? 'mt-2' : ''}`}>
                 {hasWoodData && (
-                  <label className="flex items-center justify-between cursor-pointer group">
+                  <label className={`flex items-center justify-between group ${isLocked ? '' : 'cursor-pointer'}`}>
                     <div className="flex items-center gap-3">
                       <input
                         type="checkbox"
                         checked={includeWood}
+                        disabled={isLocked}
                         onChange={e => setIncludeWood(e.target.checked)}
-                        className="w-6 h-6 rounded accent-brand-600 cursor-pointer"
+                        className={`w-6 h-6 rounded accent-brand-600 ${isLocked ? 'cursor-not-allowed' : 'cursor-pointer'}`}
                       />
                       <div>
                         <p className="text-sm font-medium text-gray-700 group-hover:text-gray-900">Wood Replacement</p>
@@ -970,18 +972,19 @@ export default function ProposalPage({ params }: { params: Promise<{ id: string 
                   </label>
                 )}
                 {hasCustomData && (estimate.customItems ?? []).filter(i => i.description && i.price > 0).map(item => (
-                  <label key={item.id} className="flex items-center justify-between cursor-pointer group">
+                  <label key={item.id} className={`flex items-center justify-between group ${isLocked ? '' : 'cursor-pointer'}`}>
                     <div className="flex items-center gap-3">
                       <input
                         type="checkbox"
                         checked={includedCustomIds.has(item.id)}
+                        disabled={isLocked}
                         onChange={e => setIncludedCustomIds(prev => {
                           const next = new Set(prev)
                           if (e.target.checked) next.add(item.id)
                           else next.delete(item.id)
                           return next
                         })}
-                        className="w-6 h-6 rounded accent-brand-600 cursor-pointer"
+                        className={`w-6 h-6 rounded accent-brand-600 ${isLocked ? 'cursor-not-allowed' : 'cursor-pointer'}`}
                       />
                       <p className="text-sm font-medium text-gray-700 group-hover:text-gray-900">{item.description}</p>
                     </div>
