@@ -30,6 +30,19 @@ function getGhlDb() {
   return getFirestore(app)
 }
 
+// Main estimator project DB — used only to guard/link invoices when an
+// estimateId is supplied so this route can't create a duplicate pair.
+const ESTIMATE_COLLECTIONS: Record<string, string> = {
+  exterior: 'estimates', interior: 'interiorEstimates', cabinet: 'cabinetEstimates',
+}
+function getMainDb() {
+  const raw = process.env.GOOGLE_SERVICE_ACCOUNT_JSON
+  if (!raw) throw new Error('GOOGLE_SERVICE_ACCOUNT_JSON not set')
+  const existing = getApps().find(a => a.name === '[DEFAULT]')
+  const app = existing ?? initializeApp({ credential: cert(JSON.parse(raw)) })
+  return getFirestore(app)
+}
+
 async function getGhlLocationToken(): Promise<string> {
   const db = getGhlDb()
   const snap = await db.collection('ghl_location_tokens').doc('KmTuAFWyGn4ijrs1sIzJ').get()
@@ -223,6 +236,8 @@ export async function POST(req: NextRequest) {
       taxRate,
       taxCity,
       company,
+      estimateId,
+      estimateType,
     } = await req.json() as {
       contactId:      string
       contactName:    string
@@ -236,10 +251,23 @@ export async function POST(req: NextRequest) {
       taxRate?:       number | null
       taxCity?:       string
       company:        CompanyDetails
+      estimateId?:    string
+      estimateType?:  string
     }
 
     if (!contactId) {
       return NextResponse.json({ error: 'contactId is required' }, { status: 400 })
+    }
+
+    // Idempotency guard: when tied to an estimate, never create a second pair.
+    const estCollection = ESTIMATE_COLLECTIONS[estimateType ?? 'exterior'] ?? 'estimates'
+    if (estimateId) {
+      const snap = await getMainDb().collection(estCollection).doc(estimateId).get()
+      const ex = snap.data() ?? {}
+      if (ex.invoiceCreated || ex.depositInvoiceId) {
+        console.log('[ghl/create-invoices] Invoices already exist for', estimateId, '— skipping')
+        return NextResponse.json({ success: true, alreadyInvoiced: true, depositInvoiceUrl: (ex.depositInvoiceUrl as string) ?? null })
+      }
     }
 
     const token      = await getGhlLocationToken()
@@ -292,6 +320,17 @@ export async function POST(req: NextRequest) {
     )
 
     console.log('[ghl/create-invoices] Created & sent deposit:', depositInvoice.id, '| draft balance:', balanceInvoice.id)
+
+    // Link invoices back to the estimate so the guard above and downstream
+    // change-order/paid webhooks can find them.
+    if (estimateId) {
+      await getMainDb().collection(estCollection).doc(estimateId).update({
+        ...(depositInvoice.id ? { depositInvoiceId: depositInvoice.id } : {}),
+        ...(balanceInvoice.id ? { balanceInvoiceId: balanceInvoice.id } : {}),
+        depositInvoiceUrl: depositInvoice.invoiceUrl,
+        invoiceCreated:    true,
+      }).catch((e: unknown) => console.error('[ghl/create-invoices] link-back failed:', e))
+    }
 
     return NextResponse.json({
       success:          true,

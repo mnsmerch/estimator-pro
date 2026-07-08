@@ -137,6 +137,19 @@ export async function POST(req: Request) {
     let depositInvoiceUrl: string | null = null
 
     if (contactId && grandTotal && grandTotal > 0 && depositAmount != null && balanceDue != null && company) {
+      // Idempotency guard: never create a second deposit+balance pair. Covers
+      // re-signing, the "Create GHL Invoices Now" retry button, and double submits.
+      const existingSnap = await adminDb.collection(collection).doc(estimateId).get()
+      const existing     = existingSnap.data() ?? {}
+      if (existing.invoiceCreated || existing.depositInvoiceId) {
+        console.log('[accept-estimate] Invoices already exist for', estimateId, '— skipping creation')
+        return NextResponse.json({
+          success:           true,
+          depositInvoiceUrl: (existing.depositInvoiceUrl as string) ?? null,
+          alreadyInvoiced:   true,
+        })
+      }
+
       try {
         const token      = await getGhlToken()
         const issueDate  = new Date().toISOString().slice(0, 10)

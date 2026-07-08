@@ -101,35 +101,32 @@ export async function POST(req: Request) {
       updatedAt:       FieldValue.serverTimestamp(),
     })
 
-    // 2. Get pricing — prefer what GHL sent back, fall back to what was stored at signing
-    let grandTotal    = body.grandTotal
-    let depositAmount = body.depositAmount
-    let balanceDue    = body.balanceDue
-    let depositPercent = body.depositPercent
-    let taxRate        = body.taxRate
-    let taxCity        = body.taxCity
-
-    if (!grandTotal || grandTotal <= 0) {
-      // GHL didn't echo pricing back — read what we stored at signing time
-      try {
-        const snap = await db.collection(col).doc(estimateId).get()
-        if (snap.exists) {
-          const d = snap.data()!
-          grandTotal    = d.signedGrandTotal    ?? grandTotal
-          depositAmount = d.signedDepositAmount ?? depositAmount
-          balanceDue    = d.signedBalanceDue    ?? balanceDue
-          depositPercent = d.signedDepositPercent ?? depositPercent
-          taxRate       = d.signedTaxRate       ?? taxRate
-          taxCity       = d.signedTaxCity       ?? taxCity
-          // Also pull contact info from estimate if not in payload
-          if (!body.contactName)  body.contactName  = d.clientName  ?? ''
-          if (!body.contactEmail) body.contactEmail = d.clientEmail ?? ''
-          if (!body.contactPhone) body.contactPhone = d.clientPhone ?? ''
-        }
-      } catch (fetchErr) {
-        console.warn('[attach-contact] Could not fetch stored pricing:', fetchErr)
-      }
+    // Idempotency guard: never create a second deposit+balance pair. If this
+    // estimate already has invoices (re-delivered webhook, re-sign, etc.) stop here.
+    const priorData = estSnap.data() ?? {}
+    if (priorData.invoiceCreated || priorData.depositInvoiceId) {
+      console.log('[attach-contact] Invoices already exist for', estimateId, '— skipping creation')
+      return NextResponse.json({
+        success: true,
+        invoicesCreated: false,
+        alreadyInvoiced: true,
+        depositInvoiceUrl: (priorData.depositInvoiceUrl as string) ?? null,
+      })
     }
+
+    // 2. Get pricing — ALWAYS prefer the price locked at signing time. The GHL
+    // echo (body.*) is only a fallback for estimates that never stored a snapshot;
+    // it can be stale or hand-edited and must never override the signed price.
+    const grandTotal     = (priorData.signedGrandTotal    as number) ?? body.grandTotal
+    const depositAmount  = (priorData.signedDepositAmount as number) ?? body.depositAmount
+    const balanceDue     = (priorData.signedBalanceDue    as number) ?? body.balanceDue
+    const depositPercent = (priorData.signedDepositPercent as number) ?? body.depositPercent
+    const taxRate        = (priorData.signedTaxRate       as number) ?? body.taxRate
+    const taxCity        = (priorData.signedTaxCity       as string) ?? body.taxCity
+    // Pull contact info from the estimate if not in the payload
+    if (!body.contactName)  body.contactName  = (priorData.clientName  as string) ?? ''
+    if (!body.contactEmail) body.contactEmail = (priorData.clientEmail as string) ?? ''
+    if (!body.contactPhone) body.contactPhone = (priorData.clientPhone as string) ?? ''
 
     if (!grandTotal || grandTotal <= 0 || depositAmount == null || balanceDue == null) {
       console.log('[attach-contact] Contact linked, no invoice data available:', estimateId, contactId)
