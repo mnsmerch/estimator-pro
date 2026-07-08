@@ -173,7 +173,7 @@ export const SCOPE_DEFAULTS: ScopeFields = {
   scopePainting:
     '- Paint the body, soffits same color.\n- Paint the trim an accent color.\n- Paint the garage door.\n- Paint the gutters and downspouts.\n- Paint the front door.',
   scopeCleanUp:
-    '- Remove masking.\n- Dispose of all job related debris.\n- Remove any drips (although we strive to not have any).',
+    '- Remove masking.\n- Dispose of all job related debris.',
   scopeWalkThrough:
     '- Walk thru inspection with owner.\n- Balance remaining is paid upon completion.',
   scopePaintProducts:
