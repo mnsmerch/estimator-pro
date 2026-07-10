@@ -344,6 +344,15 @@ export default function EstimateDetailPage({ params }: { params: Promise<{ id: s
     balanceDue       = grandTotal - depositAmount
   }
 
+  // On a locked (signed) estimate the individual line prices are still computed
+  // from live rates and drift as rates change, so they stop summing to the locked
+  // subtotal. Re-derive the painting line as the remainder of the locked subtotal
+  // after the other (fixed / separately-shown) items so the itemized breakdown
+  // always reconciles to the price the customer actually signed.
+  const displayPaintingSubtotal = isLocked
+    ? Math.max(0, combinedSubtotal - structTotal - woodTotal - customTotal)
+    : paintingSubtotal
+
   // Cache computed total for list view — fire once after load settles
   useEffect(() => {
     if (!loading && grandTotal > 0 && !cachedTotalSaved.current) {
@@ -672,10 +681,10 @@ export default function EstimateDetailPage({ params }: { params: Promise<{ id: s
             </div>
             <div className="p-6">
               <div className="space-y-2.5 text-sm">
-                {jobType !== 'structures' && paintingSubtotal > 0 && (
+                {jobType !== 'structures' && displayPaintingSubtotal > 0 && (
                   <div className="flex justify-between">
                     <span className="text-gray-600">Exterior Painting — {selectedBrandLabel}</span>
-                    <span className="font-medium text-gray-900 tabular-nums">{fmtD(paintingSubtotal)}</span>
+                    <span className="font-medium text-gray-900 tabular-nums">{fmtD(displayPaintingSubtotal)}</span>
                   </div>
                 )}
                 {jobType !== 'exterior' && deckSubtotal > 0 && (
@@ -714,7 +723,7 @@ export default function EstimateDetailPage({ params }: { params: Promise<{ id: s
                     <span className="font-medium text-gray-900 tabular-nums">{fmtD(item.price)}</span>
                   </div>
                 ))}
-                {combinedSubtotal > (paintingSubtotal || 0) && (
+                {combinedSubtotal > (displayPaintingSubtotal || 0) && (
                   <div className="flex justify-between border-t border-gray-100 pt-2.5">
                     <span className="text-gray-600">Subtotal</span>
                     <span className="font-medium text-gray-900 tabular-nums">{fmtD(combinedSubtotal)}</span>

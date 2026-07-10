@@ -45,8 +45,19 @@ export async function createInteriorEstimate(data: InteriorEstimateDraft, userId
 }
 
 export async function updateInteriorEstimate(id: string, data: Partial<InteriorEstimateDraft> & { status?: string }): Promise<void> {
-  await updateDoc(doc(db, COLLECTION, id), {
-    ...data,
+  const ref = doc(db, COLLECTION, id)
+  let payload = data
+  // Guard: a content save must never silently downgrade a signed (approved)
+  // estimate back to Pending. Only an explicit reset writes 'approved' away.
+  if (data.status && data.status !== 'approved') {
+    const snap = await getDoc(ref)
+    if (snap.exists() && snap.data().status === 'approved') {
+      const { status: _drop, ...rest } = data
+      payload = rest
+    }
+  }
+  await updateDoc(ref, {
+    ...payload,
     updatedAt: serverTimestamp(),
   })
 }

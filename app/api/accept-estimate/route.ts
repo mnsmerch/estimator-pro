@@ -65,6 +65,7 @@ export async function POST(req: Request) {
       taxCity,
       estimateNumber,
       company,
+      selectedBrand,
     } = await req.json() as {
       estimateId:     string
       estimateType?:  string
@@ -89,6 +90,7 @@ export async function POST(req: Request) {
         name: string; phone: string; email: string
         website: string; streetAddress: string; cityStateZip: string
       }
+      selectedBrand?: string
     }
 
     const collection = COLLECTIONS[estimateType] ?? 'estimates'
@@ -110,6 +112,11 @@ export async function POST(req: Request) {
       ...(depositPercent != null ? { signedDepositPercent: depositPercent } : {}),
       ...(taxRate      != null ? { signedTaxRate:       taxRate }      : {}),
       ...(taxCity               ? { signedTaxCity:      taxCity }      : {}),
+      // Lock the brand the customer actually signed under. The proposal/detail
+      // pages read selectedBrand for scope + paint-product display, so persisting
+      // it here keeps the record matching the signed price (and stops an editor
+      // save from reverting it to the estimator's originally-quoted brand).
+      ...(selectedBrand ? { selectedBrand, signedBrand: selectedBrand } : {}),
       updatedAt:        FieldValue.serverTimestamp(),
     })
 

@@ -401,6 +401,11 @@ export default function ProposalPage({ params }: { params: Promise<{ id: string 
   }
   // Hide per-item amounts when overridden or locked — they no longer sum to the shown subtotal.
   const hideItemPrices    = subtotalOverride != null || isLocked
+  // For the signed PDF/records, reconcile the painting line to the locked subtotal
+  // (live line prices drift with rate changes) so the breakdown always adds up.
+  const displayPaintingSubtotal = isLocked
+    ? Math.max(0, combinedSubtotal - structTotal - woodTotal - customTotal)
+    : paintingSubtotal
 
   // Cache grand total for list view (fire-and-forget, runs once after load)
   const cachedTotalSaved = useRef(false)
@@ -448,6 +453,7 @@ export default function ProposalPage({ params }: { params: Promise<{ id: string 
           estimateType:   'exterior',
           signatureName:  sigName.trim(),
           signatureDataUrl: sigDataUrl,
+          selectedBrand,
           // Always send pricing so it gets stored — needed for the GHL callback flow
           depositAmount,
           balanceDue,
@@ -519,7 +525,7 @@ export default function ProposalPage({ params }: { params: Promise<{ id: string 
           totalColors,
           totalCoats,
           selectedBrandLabel: brandPreset.label,
-          paintingSubtotal,
+          paintingSubtotal:   displayPaintingSubtotal,
           woodTotal,
           customItems:        (estimate.customItems ?? []).filter(i => includedCustomIds.has(i.id) && i.description && i.price > 0),
           combinedSubtotal,

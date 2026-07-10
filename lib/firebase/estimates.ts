@@ -43,8 +43,22 @@ export async function createEstimate(data: Omit<EstimateData, 'id' | 'createdAt'
 
 export async function updateEstimate(id: string, data: Partial<EstimateData>): Promise<void> {
   const ref = doc(db, COLLECTION, id)
+  let payload = data
+  // Guard: a content save must never silently downgrade a signed (approved)
+  // estimate — that would flip a signed job back to "Pending". Editors load a
+  // snapshot of the estimate when opened; if the customer signs in the meantime,
+  // saving would otherwise write the stale pre-signing status back over 'approved'.
+  // Only an explicit change-order reset (resetSignatureForChangeOrder, which
+  // writes directly) may move an approved estimate off 'approved'.
+  if (data.status && data.status !== 'approved') {
+    const snap = await getDoc(ref)
+    if (snap.exists() && snap.data().status === 'approved') {
+      const { status: _drop, ...rest } = data
+      payload = rest
+    }
+  }
   await updateDoc(ref, {
-    ...data,
+    ...payload,
     updatedAt: serverTimestamp(),
   })
 }
