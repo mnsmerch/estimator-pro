@@ -9,6 +9,7 @@ import { uploadPhoto, deletePhoto } from '@/lib/firebase/storage'
 import { useAutoSave } from '@/lib/useAutoSave'
 import AutoSaveIndicator from '@/components/AutoSaveIndicator'
 import EstimatorSubtotalOverride from '@/components/EstimatorSubtotalOverride'
+import DiscountPercentField from '@/components/DiscountPercentField'
 import { buildApplicationList, CATEGORY_ORDER } from '@/lib/applicationList'
 import type { ApplicationItem } from '@/lib/applicationList'
 import { calcEstimate, calcMarkup, calcPaintCost, surfaceAreaFactor, calcStructureAddonSubtotal } from '@/lib/estimateEngine'
@@ -599,6 +600,7 @@ export default function EstimateForm({ estimateId, initialData }: EstimateFormPr
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState(false)
   const [subtotalOverride, setSubtotalOverride] = useState<number | null>(initialData?.subtotalOverride ?? null)
+  const [discountPercent, setDiscountPercent] = useState<number>(initialData?.discountPercent ?? 0.10)
   const [photoUrls,  setPhotoUrls]  = useState<string[]>(initialData?.photoUrls  ?? [])
   const [photoNotes, setPhotoNotes] = useState<string[]>(initialData?.photoNotes ?? [])
   const [uploadingPhotos, setUploadingPhotos] = useState(false)
@@ -852,6 +854,7 @@ export default function EstimateForm({ estimateId, initialData }: EstimateFormPr
       jobType,
       taxExcluded:  !includeTax,
       salesTaxRate: includeTax ? (initialData?.salesTaxRate ?? null) : null,
+      discountPercent,
     }
   }
 
@@ -917,6 +920,7 @@ export default function EstimateForm({ estimateId, initialData }: EstimateFormPr
       jobType,
       taxExcluded:  !includeTax,
       salesTaxRate: includeTax ? (salesTaxRate ?? null) : null,
+      discountPercent,
       // Freeze the pricing basis at quote time so later settings edits can't
       // change the customer's quoted/signed price. The proposal page + dashboard
       // recompute against this snapshot instead of live settings.
@@ -1794,7 +1798,7 @@ export default function EstimateForm({ estimateId, initialData }: EstimateFormPr
                   {woodTotal   > 0 && <SummaryRow label="Wood Replacement" value={fmtCents(woodTotal)} />}
                   {customTotal > 0 && <SummaryRow label="Custom Items"     value={fmtCents(customTotal)} />}
                   <SummaryRow label="Subtotal" value={fmtCents(totals.subtotal + structTotal + woodTotal + customTotal)} bold />
-                  <SummaryRow label="10% Off"  value={fmtCents((totals.subtotal + structTotal + woodTotal + customTotal) * 0.90)} />
+                  <SummaryRow label={`${Math.round(discountPercent * 100)}% Off`}  value={fmtCents((totals.subtotal + structTotal + woodTotal + customTotal) * (1 - discountPercent))} />
                   <div className="flex items-center justify-between pt-1">
                     <label htmlFor="includeTax" className="text-sm text-gray-600 cursor-pointer select-none">
                       Include Sales Tax
@@ -1824,7 +1828,8 @@ export default function EstimateForm({ estimateId, initialData }: EstimateFormPr
           )}
         </section>}
 
-        {/* ── Estimator price override ──────────────────────────────────── */}
+        {/* ── Estimator price override + discount ───────────────────────── */}
+        <DiscountPercentField value={discountPercent} onChange={setDiscountPercent} />
         {isEdit && (
           <EstimatorSubtotalOverride
             override={subtotalOverride}

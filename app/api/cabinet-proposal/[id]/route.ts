@@ -42,7 +42,8 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
         const subtotal = override ?? ((bd.total ?? 0) + customTotal)
         if (subtotal > 0) {
           const taxRate    = raw.salesTaxRate as number | null ?? null
-          const discounted = subtotal * 0.90
+          const discountPct = (raw.discountPercent as number | null | undefined) ?? 0.10
+          const discounted = subtotal * (1 - discountPct)
           const taxAmount  = taxRate != null ? discounted * taxRate : 0
           cachedGrandTotal = discounted + taxAmount
           adminDb.collection('cabinetEstimates').doc(id).update({

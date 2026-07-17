@@ -351,10 +351,13 @@ export default function ProposalPage({ params }: { params: Promise<{ id: string 
   // Estimator-only manual subtotal override takes precedence when set
   const subtotalOverride  = (estimate?.subtotalOverride != null && estimate.subtotalOverride > 0) ? estimate.subtotalOverride : null
   const depositPercent    = rules.depositPercent ?? 0.20
+  // Per-estimate editable "sign today" discount; falls back to the global default.
+  const discountPct       = estimate?.discountPercent ?? rules.salesDiscount ?? 0.10
+  const discountPctLabel  = Math.round(discountPct * 100)
 
   // Live (recomputed) pricing — used only until the estimate is signed.
   const liveSubtotal      = subtotalOverride ?? computedSubtotal
-  const liveDiscount      = applyDiscount ? liveSubtotal * 0.10 : 0
+  const liveDiscount      = applyDiscount ? liveSubtotal * discountPct : 0
   const liveTaxRate       = estimate?.salesTaxRate ?? null
   const liveTax           = liveTaxRate != null ? (liveSubtotal - liveDiscount) * liveTaxRate : 0
   const liveGrand         = liveSubtotal - liveDiscount + liveTax
@@ -386,7 +389,7 @@ export default function ProposalPage({ params }: { params: Promise<{ id: string 
     } else {
       // Derive the breakdown from the locked total (assumes the 10% sign-today discount)
       const preTax     = taxRate != null ? grandTotal / (1 + taxRate) : grandTotal
-      combinedSubtotal = preTax / 0.90
+      combinedSubtotal = preTax / (1 - discountPct)
       discountAmount   = combinedSubtotal - preTax
       taxAmount        = grandTotal - preTax
     }
@@ -444,7 +447,7 @@ export default function ProposalPage({ params }: { params: Promise<{ id: string 
 
       // 1. Save signature + create GHL invoices atomically server-side
       const brandPresetForInvoice = PAINT_BRANDS.find(b => b.key === selectedBrand) ?? PAINT_BRANDS[0]
-      const itemLabel = `${applyDiscount ? '10% off ' : ''}Exterior Painting — ${clientProvidingPaint ? 'Labor (Paint by Owner)' : brandPresetForInvoice.label}`
+      const itemLabel = `${applyDiscount ? `${discountPctLabel}% off ` : ''}Exterior Painting — ${clientProvidingPaint ? 'Labor (Paint by Owner)' : brandPresetForInvoice.label}`
       const acceptRes  = await fetch('/api/accept-estimate', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -531,6 +534,7 @@ export default function ProposalPage({ params }: { params: Promise<{ id: string 
           combinedSubtotal,
           applyDiscount,
           discountAmount,
+          discountPercent: discountPct,
           taxRate,
           taxCity:            parseCityFromAddress(estimate.clientAddress),
           taxAmount,
@@ -1009,15 +1013,15 @@ export default function ProposalPage({ params }: { params: Promise<{ id: string 
           }`}>
             <div className="flex items-start justify-between gap-4">
               <div className="flex-1">
-                <p className="text-base font-bold text-gray-900">Sign Today &amp; Save 10%</p>
+                <p className="text-base font-bold text-gray-900">Sign Today &amp; Save {discountPctLabel}%</p>
                 <p className="text-sm text-gray-600 mt-0.5">
                   Accept this estimate today and save{' '}
-                  <span className="font-semibold text-green-700">{fmtD(combinedSubtotal * 0.10)}</span>{' '}
+                  <span className="font-semibold text-green-700">{fmtD(combinedSubtotal * discountPct)}</span>{' '}
                   off your project.
                 </p>
                 {applyDiscount && (
                   <p className="text-sm font-semibold text-green-700 mt-2">
-                    ✓ 10% discount applied — {fmtD(combinedSubtotal * 0.10)} savings included in your total
+                    ✓ {discountPctLabel}% discount applied — {fmtD(combinedSubtotal * discountPct)} savings included in your total
                   </p>
                 )}
               </div>
@@ -1078,7 +1082,7 @@ export default function ProposalPage({ params }: { params: Promise<{ id: string 
                 <PriceLine label="Subtotal" value={fmtD(combinedSubtotal)} />
                 {(isLocked ? discountAmount > 0 : applyDiscount) && (
                   <div className="flex justify-between items-center gap-4 py-[9px]">
-                    <span className="text-sm font-semibold text-[oklch(0.52_0.13_150)]">Discount (10% — Sign Today)</span>
+                    <span className="text-sm font-semibold text-[oklch(0.52_0.13_150)]">Discount ({discountPctLabel}% — Sign Today)</span>
                     <span className="text-sm font-semibold text-[oklch(0.52_0.13_150)] tabular-nums">− {fmtD(discountAmount)}</span>
                   </div>
                 )}
@@ -1468,8 +1472,8 @@ export default function ProposalPage({ params }: { params: Promise<{ id: string 
                           estimateId:      id,
                           estimateType:    'exterior',
                           subtotal:        Math.round(combinedSubtotal * 100) / 100,
-                          discountAmount:  Math.round(combinedSubtotal * 0.10 * 100) / 100,
-                          grandTotal:      Math.round((combinedSubtotal * 0.90 + taxAmount) * 100) / 100,
+                          discountAmount:  Math.round(combinedSubtotal * discountPct * 100) / 100,
+                          grandTotal:      Math.round((combinedSubtotal * (1 - discountPct) + taxAmount) * 100) / 100,
                           taxRate:         taxRate ?? 0,
                           taxAmount:       Math.round(taxAmount * 100) / 100,
                         }),

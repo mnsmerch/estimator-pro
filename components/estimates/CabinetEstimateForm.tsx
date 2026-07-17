@@ -12,6 +12,7 @@ import { uploadPhoto, deletePhoto } from '@/lib/firebase/storage'
 import { useAutoSave } from '@/lib/useAutoSave'
 import AutoSaveIndicator from '@/components/AutoSaveIndicator'
 import EstimatorSubtotalOverride from '@/components/EstimatorSubtotalOverride'
+import DiscountPercentField from '@/components/DiscountPercentField'
 import AppHeader from '@/components/AppHeader'
 import {
   calculateCabinet, CABINET_SCOPE_DEFAULTS, CABINET_PRICING, sumCabinetCustomItems,
@@ -131,6 +132,7 @@ export default function CabinetEstimateForm({
   const [uploadingPhotos, setUploadingPhotos] = useState(false)
   const [lightboxIndex, setLightboxIndex]     = useState<number | null>(null)
   const [subtotalOverride, setSubtotalOverride] = useState<number | null>(initialRecord?.subtotalOverride ?? null)
+  const [discountPercent, setDiscountPercent] = useState<number>(initialRecord?.discountPercent ?? 0.10)
 
   const isEditing = !!estimateId
 
@@ -150,15 +152,15 @@ export default function CabinetEstimateForm({
   // ── Auto-save ────────────────────────────────────────────────────────────
   const creatingRef = useRef(false)
   const autoSaveStatus = useAutoSave({
-    signature: JSON.stringify(draft),
+    signature: JSON.stringify({ ...draft, discountPercent }),
     enabled:   !!user && draft.clientName.trim() !== '' && !saving,
     onSave: async () => {
       if (!user) return
       if (estimateId) {
-        await updateCabinetEstimate(estimateId, draft)
+        await updateCabinetEstimate(estimateId, { ...draft, discountPercent })
       } else if (!creatingRef.current) {
         creatingRef.current = true
-        const id = await createCabinetEstimate(draft, user.uid)
+        const id = await createCabinetEstimate({ ...draft, discountPercent }, user.uid)
         router.replace(`/estimates/cabinet/${id}/edit`)
       }
     },
@@ -170,9 +172,9 @@ export default function CabinetEstimateForm({
     setSaving(true)
     try {
       if (estimateId) {
-        await updateCabinetEstimate(estimateId, draft)
+        await updateCabinetEstimate(estimateId, { ...draft, discountPercent })
       } else {
-        const id = await createCabinetEstimate(draft, user.uid)
+        const id = await createCabinetEstimate({ ...draft, discountPercent }, user.uid)
         router.replace(`/estimates/cabinet/${id}/edit`)
       }
       setSaved(true)
@@ -191,7 +193,7 @@ export default function CabinetEstimateForm({
     try {
       const taxRate = draft.address ? await lookupSalesTax(draft.address) : null
       if (draft.address && taxRate === null) setTaxLookupFailed(true)
-      const updatedDraft = { ...draft, salesTaxRate: taxRate }
+      const updatedDraft = { ...draft, salesTaxRate: taxRate, discountPercent }
       setDraft(updatedDraft)
       await updateCabinetEstimate(estimateId, updatedDraft)
       if (initialRecord?.status === 'draft' || !initialRecord?.status) {
@@ -668,7 +670,8 @@ export default function CabinetEstimateForm({
           </div>
         )}
 
-        {/* ── Estimator price override ───────────────────────────────────── */}
+        {/* ── Estimator price override + discount ────────────────────────── */}
+        <DiscountPercentField value={discountPercent} onChange={setDiscountPercent} />
         {isEditing && (
           <EstimatorSubtotalOverride
             override={subtotalOverride}

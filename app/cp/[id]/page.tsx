@@ -78,9 +78,13 @@ export default function CabinetProposalPage({ params }: { params: Promise<{ id: 
   const subtotalOverride = (estimate?.subtotalOverride != null && estimate.subtotalOverride > 0) ? estimate.subtotalOverride : null
   const depositPercent = 0.20
 
+  // Per-estimate "Sign Today" discount (defaults to 10%).
+  const discountPct      = estimate?.discountPercent ?? 0.10
+  const discountPctLabel = Math.round(discountPct * 100)
+
   // Live (recomputed) pricing — used only until the estimate is signed.
   const liveSubtotal   = subtotalOverride ?? computedSubtotal
-  const liveDiscount   = applyDiscount ? Math.round(liveSubtotal * 0.10 * 100) / 100 : 0
+  const liveDiscount   = applyDiscount ? Math.round(liveSubtotal * discountPct * 100) / 100 : 0
   const liveTaxRate    = estimate?.salesTaxRate ?? null
   const liveTax        = liveTaxRate != null ? Math.round((liveSubtotal - liveDiscount) * liveTaxRate * 100) / 100 : 0
   const liveTotal      = liveSubtotal - liveDiscount + liveTax
@@ -109,7 +113,7 @@ export default function CabinetProposalPage({ params }: { params: Promise<{ id: 
       discountAmount = lk!.signedDiscountAmount ?? 0
     } else {
       const preTax   = taxRate != null ? totalWithTax / (1 + taxRate) : totalWithTax
-      subtotal       = Math.round(preTax / 0.90 * 100) / 100
+      subtotal       = Math.round(preTax / (1 - discountPct) * 100) / 100
       discountAmount = Math.round((subtotal - preTax) * 100) / 100
       taxAmount      = Math.round((totalWithTax - preTax) * 100) / 100
     }
@@ -180,7 +184,7 @@ export default function CabinetProposalPage({ params }: { params: Promise<{ id: 
             contactName:  estimate.clientName,
             contactEmail: estimate.clientEmail,
             contactPhone: estimate.clientPhone,
-            itemLabel:    `${applyDiscount ? '10% off ' : ''}Cabinet Painting`,
+            itemLabel:    `${applyDiscount ? `${discountPctLabel}% off ` : ''}Cabinet Painting`,
             company: {
               name: company.name, phone: company.phone, email: company.email,
               website: company.website, streetAddress: company.streetAddress, cityStateZip: company.cityStateZip,
@@ -362,15 +366,15 @@ export default function CabinetProposalPage({ params }: { params: Promise<{ id: 
         }`}>
           <div className="flex items-start justify-between gap-4">
             <div className="flex-1">
-              <p className="text-base font-bold text-gray-900">Sign Today &amp; Save 10%</p>
+              <p className="text-base font-bold text-gray-900">Sign Today &amp; Save {discountPctLabel}%</p>
               <p className="text-sm text-gray-600 mt-0.5">
                 Accept this estimate today and save{' '}
-                <span className="font-semibold text-green-700">{fmtD(subtotal * 0.10)}</span>{' '}
+                <span className="font-semibold text-green-700">{fmtD(subtotal * discountPct)}</span>{' '}
                 off your project.
               </p>
               {applyDiscount && (
                 <p className="text-sm font-semibold text-green-700 mt-2">
-                  ✓ 10% discount applied — {fmtD(discountAmount)} savings included in your total
+                  ✓ {discountPctLabel}% discount applied — {fmtD(discountAmount)} savings included in your total
                 </p>
               )}
             </div>
@@ -407,7 +411,7 @@ export default function CabinetProposalPage({ params }: { params: Promise<{ id: 
                 <PriceLine label="Cabinet Refinishing" value={fmtD(subtotal)} />
                 {(isLocked ? discountAmount > 0 : applyDiscount) && (
                   <div className="flex justify-between items-center gap-4 py-[9px]">
-                    <span className="text-sm font-semibold text-[oklch(0.52_0.13_150)]">Discount (10% — Sign Today)</span>
+                    <span className="text-sm font-semibold text-[oklch(0.52_0.13_150)]">Discount ({discountPctLabel}% — Sign Today)</span>
                     <span className="text-sm font-semibold text-[oklch(0.52_0.13_150)] tabular-nums">− {fmtD(discountAmount)}</span>
                   </div>
                 )}

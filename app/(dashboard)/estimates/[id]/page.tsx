@@ -290,6 +290,8 @@ export default function EstimateDetailPage({ params }: { params: Promise<{ id: s
 
   const jobType         = estimate?.jobType ?? 'exterior'
   const salesDiscount   = rules.salesDiscount ?? 0.10
+  // Per-estimate editable discount; falls back to the global default.
+  const discountPct     = estimate?.discountPercent ?? salesDiscount
   const woodTotal       = (estimate?.woodReplacementOpen ?? false) ? woodTotalRaw : 0
   const customTotal     = (estimate?.customItemsOpen ?? false) ? customTotalRaw : 0
   const paintingSubtotal = jobType !== 'structures' ? (totals?.subtotal ?? 0) : 0
@@ -302,7 +304,7 @@ export default function EstimateDetailPage({ params }: { params: Promise<{ id: s
   // Live (recomputed) pricing — used only until the estimate is signed.
   const liveTaxRate     = estimate?.salesTaxRate ?? null
   const liveSubtotal    = subtotalOverride ?? computedSubtotal
-  const liveDiscount    = liveSubtotal * salesDiscount
+  const liveDiscount    = liveSubtotal * discountPct
   const liveTax         = liveTaxRate != null ? (liveSubtotal - liveDiscount) * liveTaxRate : 0
   const liveGrand       = liveSubtotal - liveDiscount + liveTax
 
@@ -330,7 +332,7 @@ export default function EstimateDetailPage({ params }: { params: Promise<{ id: s
       discountAmount   = lk!.signedDiscountAmount ?? 0
     } else {
       const preTax     = taxRate != null ? grandTotal / (1 + taxRate) : grandTotal
-      combinedSubtotal = preTax / (1 - salesDiscount)
+      combinedSubtotal = preTax / (1 - discountPct)
       discountAmount   = combinedSubtotal - preTax
       taxAmount        = grandTotal - preTax
     }
@@ -730,7 +732,7 @@ export default function EstimateDetailPage({ params }: { params: Promise<{ id: s
                   </div>
                 )}
                 <div className="flex justify-between text-green-700">
-                  <span>Discount ({(salesDiscount * 100).toFixed(0)}% — Sign Today)</span>
+                  <span>Discount ({(discountPct * 100).toFixed(0)}% — Sign Today)</span>
                   <span className="tabular-nums">− {fmtD(discountAmount)}</span>
                 </div>
                 {taxRate != null && taxAmount > 0 && (

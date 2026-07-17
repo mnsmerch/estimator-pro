@@ -36,6 +36,7 @@ export interface ProposalPdfData {
   combinedSubtotal: number
   applyDiscount: boolean
   discountAmount: number
+  discountPercent?: number
   taxRate: number | null
   taxCity: string
   taxAmount: number
@@ -209,7 +210,7 @@ export function ProposalPdf({ data }: { data: ProposalPdfData }) {
           </View>
           {data.applyDiscount && data.discountAmount > 0 && (
             <View style={s.priceRow}>
-              <Text style={s.discountLabel}>Discount (10% — Sign Today)</Text>
+              <Text style={s.discountLabel}>Discount ({Math.round((data.discountPercent ?? 0.10) * 100)}% — Sign Today)</Text>
               <Text style={s.discountValue}>− {fmtD(data.discountAmount)}</Text>
             </View>
           )}

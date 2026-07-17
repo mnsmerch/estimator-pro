@@ -146,6 +146,9 @@ export interface InteriorEstimateDraft {
   customItems?:  InteriorCustomItem[]
   // Estimator-only manual override of the pre-tax subtotal (null = use calculated)
   subtotalOverride?: number | null
+  // Estimator-editable "sign today" discount as a decimal (e.g. 0.10 = 10% off).
+  // Undefined falls back to the global rules.salesDiscount default.
+  discountPercent?: number | null
 }
 
 export interface OptionOverview {

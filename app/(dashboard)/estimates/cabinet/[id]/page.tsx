@@ -76,7 +76,8 @@ export default function CabinetEstimateDetailPage({ params }: { params: Promise<
         const bd = calculateCabinet(estimate)
         const ov = (estimate.subtotalOverride != null && estimate.subtotalOverride > 0) ? estimate.subtotalOverride : null
         const sub = ov ?? ((bd?.total ?? 0) + sumCabinetCustomItems(estimate.customItems))
-        const gt = (sub * 0.90) + ((estimate.salesTaxRate ?? null) != null ? sub * 0.90 * (estimate.salesTaxRate as number) : 0)
+        const dPct = estimate.discountPercent ?? 0.10
+        const gt = (sub * (1 - dPct)) + ((estimate.salesTaxRate ?? null) != null ? sub * (1 - dPct) * (estimate.salesTaxRate as number) : 0)
         if (gt > 0) {
           fetch('/api/cache-grand-total', {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -171,10 +172,14 @@ export default function CabinetEstimateDetailPage({ params }: { params: Promise<
   const bd            = calculateCabinet(estimate)
   const subtotalOverride = (estimate.subtotalOverride != null && estimate.subtotalOverride > 0) ? estimate.subtotalOverride : null
 
+  // Per-estimate "Sign Today" discount (defaults to 10%).
+  const discountPct      = estimate.discountPercent ?? 0.10
+  const discountPctLabel = Math.round(discountPct * 100)
+
   // Live (recomputed) pricing — used only until the estimate is signed.
   const liveSubtotal  = subtotalOverride ?? ((bd?.total ?? 0) + sumCabinetCustomItems(estimate.customItems))
   const liveTaxRate   = estimate.salesTaxRate ?? null
-  const liveDiscounted = liveSubtotal * 0.90
+  const liveDiscounted = liveSubtotal * (1 - discountPct)
   const liveTax       = liveTaxRate ? liveDiscounted * liveTaxRate : 0
   const liveGrand     = liveDiscounted + liveTax
 
@@ -194,8 +199,8 @@ export default function CabinetEstimateDetailPage({ params }: { params: Promise<
     taxRate    = lk!.signedTaxRate ?? liveTaxRate
     depositAmt = lk!.signedDepositAmount ?? Math.round(grandTotal * (lk!.signedDepositPercent ?? 0.20) * 100) / 100
     balanceDue = lk!.signedBalanceDue ?? Math.round((grandTotal - depositAmt) * 100) / 100
-    subtotal   = lk!.signedSubtotal ?? (taxRate != null ? grandTotal / (1 + taxRate) / 0.90 : grandTotal / 0.90)
-    taxAmount  = lk!.signedTaxAmount ?? Math.round((grandTotal - subtotal * 0.90) * 100) / 100
+    subtotal   = lk!.signedSubtotal ?? (taxRate != null ? grandTotal / (1 + taxRate) / (1 - discountPct) : grandTotal / (1 - discountPct))
+    taxAmount  = lk!.signedTaxAmount ?? Math.round((grandTotal - subtotal * (1 - discountPct)) * 100) / 100
   } else {
     subtotal   = liveSubtotal
     taxRate    = liveTaxRate
@@ -308,7 +313,7 @@ export default function CabinetEstimateDetailPage({ params }: { params: Promise<
             <div className="bg-gray-800 text-white px-6 py-3"><h3 className="text-sm font-bold uppercase tracking-wider">Pricing Summary</h3></div>
             <div className="p-6 space-y-2 text-sm">
               <div className="flex justify-between"><span className="text-gray-600">Cabinet Painting</span><span className="font-medium tabular-nums">{fmtD(subtotal)}</span></div>
-              <div className="flex justify-between text-green-700"><span>Discount (10%)</span><span className="tabular-nums">− {fmtD(subtotal*0.10)}</span></div>
+              <div className="flex justify-between text-green-700"><span>Discount ({discountPctLabel}%)</span><span className="tabular-nums">− {fmtD(subtotal*discountPct)}</span></div>
               {taxRate && taxAmount > 0 && <div className="flex justify-between text-gray-600"><span>Sales Tax ({(taxRate*100).toFixed(1)}%)</span><span className="tabular-nums">+ {fmtD(taxAmount)}</span></div>}
               <div className="border-t border-gray-100 pt-2 flex justify-between"><span className="font-bold text-gray-900">Total</span><span className="font-bold text-gray-900 tabular-nums text-lg">{fmtD(grandTotal)}</span></div>
               <div className="grid grid-cols-2 gap-3 pt-2">

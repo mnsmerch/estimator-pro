@@ -28,6 +28,8 @@ function computeInteriorGrandTotal(
     if (!options.length) return 0
 
     const salesDiscount = rules.salesDiscount ?? 0.10
+    // Per-estimate "Sign Today" discount (falls back to the global list-price rate).
+    const discountPct = typeof estimate.discountPercent === 'number' ? estimate.discountPercent : salesDiscount
 
     // rawSubtotalBeforeSavings for each room
     const rawSums = options.map(o => {
@@ -52,7 +54,7 @@ function computeInteriorGrandTotal(
     const overrideRaw = estimate.subtotalOverride
     const override = (typeof overrideRaw === 'number' && overrideRaw > 0) ? overrideRaw : null
     const combinedSubtotal = override ?? (selectedTotal + customTotal)
-    const discounted = combinedSubtotal - Math.round(combinedSubtotal * 0.10 * 100) / 100
+    const discounted = combinedSubtotal - Math.round(combinedSubtotal * discountPct * 100) / 100
     const taxRate = estimate.salesTaxRate as number | null ?? null
     const taxAmount = taxRate != null ? Math.round(discounted * taxRate * 100) / 100 : 0
     return discounted + taxAmount

@@ -10,6 +10,7 @@ import { uploadPhoto, deletePhoto } from '@/lib/firebase/storage'
 import { useAutoSave } from '@/lib/useAutoSave'
 import AutoSaveIndicator from '@/components/AutoSaveIndicator'
 import EstimatorSubtotalOverride from '@/components/EstimatorSubtotalOverride'
+import DiscountPercentField from '@/components/DiscountPercentField'
 import AppHeader from '@/components/AppHeader'
 import { calculateWallCalc, calculateCeilingCalc, calculateBaseboardCalc, calculateDoorCalc, calculateDoorFrameCalc, calculateWindowCalc, calculateMiscCalc, calculateOtherCalc, calculatePainterOverview, calculateCostBreakdown, calculateCombiningSavings, sumCombinedGallons } from '@/lib/interiorCalculations'
 import { DEFAULT_INTERIOR_RATES, DEFAULT_INTERIOR_RULES, DEFAULT_INTERIOR_CONSTANTS } from '@/lib/defaultSettings'
@@ -358,6 +359,7 @@ export default function InteriorEstimateForm({
   const [uploadingPhotos, setUploadingPhotos] = useState(false)
   const [uploadError, setUploadError]         = useState<string | null>(null)
   const [subtotalOverride, setSubtotalOverride] = useState<number | null>(initialRecord?.subtotalOverride ?? null)
+  const [discountPercent, setDiscountPercent] = useState<number>(initialRecord?.discountPercent ?? 0.10)
 
   // Persist the estimator-only subtotal override directly (kept out of the
   // autosaved draft so editing other fields never disturbs it).
@@ -385,11 +387,11 @@ export default function InteriorEstimateForm({
   // ── Auto-save ────────────────────────────────────────────────────────────────
   const creatingRef = useRef(false)
   const autoSaveStatus = useAutoSave({
-    signature: JSON.stringify({ ...draft, customItems }),
+    signature: JSON.stringify({ ...draft, customItems, discountPercent }),
     enabled:   !!user && draft.clientName.trim() !== '' && !saving,
     onSave: async () => {
       if (!user) return
-      const payload = { ...draft, customItems }
+      const payload = { ...draft, customItems, discountPercent }
       if (estimateId) {
         await updateInteriorEstimate(estimateId, payload)
       } else if (!creatingRef.current) {
@@ -631,7 +633,7 @@ export default function InteriorEstimateForm({
   async function handleSave() {
     if (!draft.clientName.trim() || !user) return
     setSaving(true)
-    const payload = { ...draft, customItems }
+    const payload = { ...draft, customItems, discountPercent }
     try {
       if (estimateId) {
         await updateInteriorEstimate(estimateId, payload)
@@ -1142,12 +1144,15 @@ export default function InteriorEstimateForm({
 
             {/* ── Estimator price override ─────────────────────────────────── */}
             {isEditing && (
-              <EstimatorSubtotalOverride
-                override={subtotalOverride}
-                computedSubtotal={allRoomsTotalPrice + customTotal}
-                onSave={saveSubtotalOverride}
-                fmt={n => n.toLocaleString('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-              />
+              <>
+                <DiscountPercentField value={discountPercent} onChange={setDiscountPercent} />
+                <EstimatorSubtotalOverride
+                  override={subtotalOverride}
+                  computedSubtotal={allRoomsTotalPrice + customTotal}
+                  onSave={saveSubtotalOverride}
+                  fmt={n => n.toLocaleString('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                />
+              </>
             )}
 
             {/* ── Photos ───────────────────────────────────────────────────── */}
