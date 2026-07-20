@@ -731,10 +731,12 @@ export default function EstimateDetailPage({ params }: { params: Promise<{ id: s
                     <span className="font-medium text-gray-900 tabular-nums">{fmtD(combinedSubtotal)}</span>
                   </div>
                 )}
-                <div className="flex justify-between text-green-700">
-                  <span>Discount ({(discountPct * 100).toFixed(0)}% — Sign Today)</span>
-                  <span className="tabular-nums">− {fmtD(discountAmount)}</span>
-                </div>
+                {discountAmount > 0 && (
+                  <div className="flex justify-between text-green-700">
+                    <span>Discount ({(discountPct * 100).toFixed(0)}% — Sign Today)</span>
+                    <span className="tabular-nums">− {fmtD(discountAmount)}</span>
+                  </div>
+                )}
                 {taxRate != null && taxAmount > 0 && (
                   <div className="flex justify-between text-gray-600">
                     <span>Sales Tax ({(taxRate * 100).toFixed(1)}%)</span>

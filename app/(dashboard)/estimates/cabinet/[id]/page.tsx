@@ -313,7 +313,7 @@ export default function CabinetEstimateDetailPage({ params }: { params: Promise<
             <div className="bg-gray-800 text-white px-6 py-3"><h3 className="text-sm font-bold uppercase tracking-wider">Pricing Summary</h3></div>
             <div className="p-6 space-y-2 text-sm">
               <div className="flex justify-between"><span className="text-gray-600">Cabinet Painting</span><span className="font-medium tabular-nums">{fmtD(subtotal)}</span></div>
-              <div className="flex justify-between text-green-700"><span>Discount ({discountPctLabel}%)</span><span className="tabular-nums">− {fmtD(subtotal*discountPct)}</span></div>
+              {discountPct > 0 && <div className="flex justify-between text-green-700"><span>Discount ({discountPctLabel}%)</span><span className="tabular-nums">− {fmtD(subtotal*discountPct)}</span></div>}
               {taxRate && taxAmount > 0 && <div className="flex justify-between text-gray-600"><span>Sales Tax ({(taxRate*100).toFixed(1)}%)</span><span className="tabular-nums">+ {fmtD(taxAmount)}</span></div>}
               <div className="border-t border-gray-100 pt-2 flex justify-between"><span className="font-bold text-gray-900">Total</span><span className="font-bold text-gray-900 tabular-nums text-lg">{fmtD(grandTotal)}</span></div>
               <div className="grid grid-cols-2 gap-3 pt-2">

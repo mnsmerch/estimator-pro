@@ -508,8 +508,8 @@ export default function InteriorProposalPage({ params }: { params: Promise<{ id:
           </div>
         )}
 
-        {/* ── Discount toggle (hidden once signed — price is locked) ──────── */}
-        {!isLocked && (
+        {/* ── Discount toggle (hidden once signed, or when no discount is set) ── */}
+        {!isLocked && discountPct > 0 && (
         <div className={`rounded-2xl border-2 p-5 transition-colors ${
           applyDiscount ? 'bg-green-50 border-green-400' : 'bg-white border-gray-200'
         }`}>
@@ -608,7 +608,7 @@ export default function InteriorProposalPage({ params }: { params: Promise<{ id:
               </span>
               <span className="text-sm font-medium text-[oklch(0.3_0.012_250)] tabular-nums">{fmtD(combinedSubtotal)}</span>
             </div>
-            {(isLocked ? discountAmount > 0 : applyDiscount) && (
+            {discountAmount > 0 && (
               <div className="flex justify-between items-center gap-4 py-[9px]">
                 <span className="text-sm font-semibold text-[oklch(0.52_0.13_150)]">Discount ({discountPctLabel}% — Sign Today)</span>
                 <span className="text-sm font-semibold text-[oklch(0.52_0.13_150)] tabular-nums">− {fmtD(discountAmount)}</span>

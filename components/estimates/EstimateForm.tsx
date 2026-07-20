@@ -1798,7 +1798,7 @@ export default function EstimateForm({ estimateId, initialData }: EstimateFormPr
                   {woodTotal   > 0 && <SummaryRow label="Wood Replacement" value={fmtCents(woodTotal)} />}
                   {customTotal > 0 && <SummaryRow label="Custom Items"     value={fmtCents(customTotal)} />}
                   <SummaryRow label="Subtotal" value={fmtCents(totals.subtotal + structTotal + woodTotal + customTotal)} bold />
-                  <SummaryRow label={`${Math.round(discountPercent * 100)}% Off`}  value={fmtCents((totals.subtotal + structTotal + woodTotal + customTotal) * (1 - discountPercent))} />
+                  {discountPercent > 0 && <SummaryRow label={`${Math.round(discountPercent * 100)}% Off`}  value={fmtCents((totals.subtotal + structTotal + woodTotal + customTotal) * (1 - discountPercent))} />}
                   <div className="flex items-center justify-between pt-1">
                     <label htmlFor="includeTax" className="text-sm text-gray-600 cursor-pointer select-none">
                       Include Sales Tax
