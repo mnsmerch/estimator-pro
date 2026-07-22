@@ -180,7 +180,7 @@ export const SCOPE_DEFAULTS: ScopeFields = {
   scopeWalkThrough:
     '- Walk thru inspection with owner.\n- Balance remaining is paid upon completion.',
   scopePaintProducts:
-    'Sherwin Williams "SuperPaint" exterior acrylic latex paint or similar product if this one is not available.',
+    'Sherwin Williams "SuperPaint" exterior acrylic latex paint.',
   totalColors: '',
   totalCoats: '',
 }
@@ -189,6 +189,6 @@ export function getDefaultScopeForBrand(brandKey: string): ScopeFields {
   const brandName = BRAND_PAINT_NAMES[brandKey] ?? 'SuperPaint'
   return {
     ...SCOPE_DEFAULTS,
-    scopePaintProducts: `Sherwin Williams "${brandName}" exterior acrylic latex paint or similar product if this one is not available.`,
+    scopePaintProducts: `Sherwin Williams "${brandName}" exterior acrylic latex paint.`,
   }
 }
