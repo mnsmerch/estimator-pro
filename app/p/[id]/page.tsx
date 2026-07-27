@@ -201,7 +201,7 @@ export default function ProposalPage({ params }: { params: Promise<{ id: string 
         setSelectedBrand(est.selectedBrand ?? 'superPaint')
         setIncludeWood(est.woodReplacementOpen ?? false)
         if (est.customItemsOpen) {
-          setIncludedCustomIds(new Set((est.customItems ?? []).filter(i => i.description && i.price > 0).map(i => i.id)))
+          setIncludedCustomIds(new Set((est.customItems ?? []).filter(i => i.description && i.price !== 0).map(i => i.id)))
         }
         setSigned(est.status === 'approved')
         setSigName(est.signatureName ?? '')
@@ -530,7 +530,7 @@ export default function ProposalPage({ params }: { params: Promise<{ id: string 
           selectedBrandLabel: brandPreset.label,
           paintingSubtotal:   displayPaintingSubtotal,
           woodTotal,
-          customItems:        (estimate.customItems ?? []).filter(i => includedCustomIds.has(i.id) && i.description && i.price > 0),
+          customItems:        (estimate.customItems ?? []).filter(i => includedCustomIds.has(i.id) && i.description && i.price !== 0),
           combinedSubtotal,
           applyDiscount,
           discountAmount,
@@ -1074,6 +1074,13 @@ export default function ProposalPage({ params }: { params: Promise<{ id: string 
                 {includeWood && woodTotal > 0 && <PriceLine label="Wood Replacement" value={hideItemPrices ? undefined : fmtD(woodTotal)} />}
                 {(estimate.customItems ?? []).filter(i => includedCustomIds.has(i.id) && i.description && i.price > 0).map(item => (
                   <PriceLine key={item.id} label={item.description} value={hideItemPrices ? undefined : fmtD(item.price)} />
+                ))}
+                {/* Negative custom items are credits/discounts — always shown (never hidden) so the breakdown reconciles */}
+                {(estimate.customItems ?? []).filter(i => includedCustomIds.has(i.id) && i.description && i.price < 0).map(item => (
+                  <div key={item.id} className="flex justify-between items-center gap-4 py-[9px]">
+                    <span className="text-sm font-semibold text-[oklch(0.52_0.13_150)]">{item.description}</span>
+                    <span className="text-sm font-semibold text-[oklch(0.52_0.13_150)] tabular-nums">− {fmtD(Math.abs(item.price))}</span>
+                  </div>
                 ))}
               </div>
 

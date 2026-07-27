@@ -194,10 +194,10 @@ export function ProposalPdf({ data }: { data: ProposalPdfData }) {
               <Text style={s.priceValue}>{fmtD(data.woodTotal)}</Text>
             </View>
           )}
-          {data.customItems.filter(i => i.description && i.price > 0).map((item, idx) => (
+          {data.customItems.filter(i => i.description && i.price !== 0).map((item, idx) => (
             <View key={idx} style={s.priceRow}>
-              <Text style={s.priceLabel}>{item.description}</Text>
-              <Text style={s.priceValue}>{fmtD(item.price)}</Text>
+              <Text style={item.price < 0 ? s.discountLabel : s.priceLabel}>{item.description}</Text>
+              <Text style={item.price < 0 ? s.discountValue : s.priceValue}>{item.price < 0 ? `− ${fmtD(Math.abs(item.price))}` : fmtD(item.price)}</Text>
             </View>
           ))}
 

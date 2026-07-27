@@ -591,11 +591,11 @@ export default function InteriorProposalPage({ params }: { params: Promise<{ id:
           </div>
 
           {/* Custom line items */}
-          {customItems.filter(i => i.description && i.price > 0).map(item => (
+          {customItems.filter(i => i.description && i.price !== 0).map(item => (
             <div key={item.id} className="flex items-center gap-3 p-3 rounded-xl border border-gray-200 bg-gray-50">
-              <span className="flex-1 text-sm font-medium text-gray-900">{item.description}</span>
-              {!hideItemPrices && (
-                <span className="text-sm font-semibold text-gray-900 tabular-nums shrink-0">{fmtD(item.price)}</span>
+              <span className={`flex-1 text-sm font-medium ${item.price < 0 ? 'text-[oklch(0.52_0.13_150)]' : 'text-gray-900'}`}>{item.description}</span>
+              {(item.price < 0 || !hideItemPrices) && (
+                <span className={`text-sm font-semibold tabular-nums shrink-0 ${item.price < 0 ? 'text-[oklch(0.52_0.13_150)]' : 'text-gray-900'}`}>{item.price < 0 ? `− ${fmtD(Math.abs(item.price))}` : fmtD(item.price)}</span>
               )}
             </div>
           ))}

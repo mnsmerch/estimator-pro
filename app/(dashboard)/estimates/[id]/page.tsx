@@ -719,10 +719,10 @@ export default function EstimateDetailPage({ params }: { params: Promise<{ id: s
                     <span className="font-medium text-gray-900 tabular-nums">{fmtD(woodTotal)}</span>
                   </div>
                 )}
-                {(estimate?.customItemsOpen ?? false) && (estimate?.customItems ?? []).filter(i => i.description && i.price > 0).map(item => (
+                {(estimate?.customItemsOpen ?? false) && (estimate?.customItems ?? []).filter(i => i.description && i.price !== 0).map(item => (
                   <div key={item.id} className="flex justify-between">
-                    <span className="text-gray-600">{item.description}</span>
-                    <span className="font-medium text-gray-900 tabular-nums">{fmtD(item.price)}</span>
+                    <span className={item.price < 0 ? 'text-green-700' : 'text-gray-600'}>{item.description}</span>
+                    <span className={`font-medium tabular-nums ${item.price < 0 ? 'text-green-700' : 'text-gray-900'}`}>{item.price < 0 ? `− ${fmtD(Math.abs(item.price))}` : fmtD(item.price)}</span>
                   </div>
                 ))}
                 {combinedSubtotal > (displayPaintingSubtotal || 0) && (
