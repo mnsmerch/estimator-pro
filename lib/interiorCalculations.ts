@@ -546,6 +546,7 @@ export interface PainterOverview {
   trimGallons:      number   // ROUNDUP(baseboards+doors+frames+windows raw gallons, 0) — no misc
   miscGallons:      number   // ROUNDUP(misc linear+sqft raw gallons, 0) — separate from trim
   otherGallons:     number   // sum of user-entered gallons from otherEntries
+  primerGallons:    number   // ROUNDUP((primerSq + primerLn/3) / primer coverage) for stain-to-paint / prime items
   recycleFee:      number   // totalGallons × avgRecycleFee (rounded for display)
   sundries:        number   // allPrepRaw × sundriesPerHour (rounded for display)
   materialsTotal:  number   // paint costs + recycleFee + sundries
@@ -807,8 +808,44 @@ export function calculatePainterOverview(
                          ?? paintProducts.find(p => p.id === option.paints.wall)
   const otherPaintPrice_  = otherProduct?.pricePerGallon ?? 0
 
+  // ── Primer ("prime 1 above" sheet line) ──────────────────────────────────
+  // Mirrors PricesB!P11 = (PrimerSQ + PrimerLN × ⅓) / primerCoverage, ROUNDUP.
+  // PrimerLN (1B!D26) sums, for every item whose selected type is a
+  // stain-to-paint or prime variant: baseboard lnft + door count + frame count
+  // + window count + misc lnft. PrimerSQ (1B!D27) adds wall/ceiling sqft for
+  // "prime new drywall" types. Materials only — no labor line.
+  const isPrimeKey = (key: string) =>
+    /prime/i.test(key) || key.toLowerCase().includes('staintopaint') ||
+    /^stp[A-Z0-9]/.test(key) || /^p2c[A-Z0-9]/.test(key)
+
+  let primerLn = 0
+  for (const section of option.baseboards) {
+    if (!isPrimeKey(section.baseboardType)) continue
+    for (const m of section.measurements) primerLn += m.length === '' ? 0 : m.length
+  }
+  for (const e of option.doors)      if (isPrimeKey(e.doorType))      primerLn += e.count === '' ? 0 : e.count
+  for (const e of option.doorFrames) if (isPrimeKey(e.doorFrameType)) primerLn += e.count === '' ? 0 : e.count
+  for (const e of option.windows)    if (isPrimeKey(e.windowType))    primerLn += e.count === '' ? 0 : e.count
+  for (const e of option.miscLinearFeetEntries) if (isPrimeKey(e.miscTrimType)) primerLn += e.linearFeet === '' ? 0 : e.linearFeet
+
+  let primerSq = 0
+  for (const section of option.walls) {
+    if (!/prime/i.test(section.wallType)) continue
+    for (const m of section.measurements) primerSq += (m.length === '' ? 0 : m.length) * (m.height === '' ? 0 : m.height)
+  }
+  for (const section of option.ceilings) {
+    if (!/prime/i.test(section.ceilingType)) continue
+    for (const m of section.measurements) primerSq += (m.length === '' ? 0 : m.length) * (m.width === '' ? 0 : m.width)
+  }
+
+  const primerProduct    = paintProducts.find(p => p.id === 'int-sw-multipurpose-primer')
+  const primerCoverage   = primerProduct?.coverage       ?? 400
+  const primerPrice_     = primerProduct?.pricePerGallon ?? 38.45
+  const primerRawGallons = (primerSq + primerLn * (1 / 3)) / primerCoverage
+  const primerGallons    = primerRawGallons > 0 ? Math.ceil(primerRawGallons) : 0
+
   // ── Materials & Labor ────────────────────────────────────────────────────
-  const totalGallons = wallGallons + ceilingGallons + trimGallons + miscGallons + otherGallons
+  const totalGallons = wallGallons + ceilingGallons + trimGallons + miscGallons + otherGallons + primerGallons
 
   // avgRecycleFee = average of 1-gal and 5-gal recycle fees (Inputs!B32)
   const avgRecycleFee  = (rules.recycleFeeGallon + rules.recycleFeeFiveGal) / 2
@@ -824,7 +861,7 @@ export function calculatePainterOverview(
   // materialsTotal = paint costs + recycle fee + sundries (SUM D19:D27)
   // Uses raw (unrounded) component values so precision matches the sheet's SUM formula
   const trimPrice_     = baseboardProduct?.pricePerGallon ?? 0
-  const paintCost      = wallGallons * wallPrice + ceilingGallons * ceilingPrice_ + trimGallons * trimPrice_ + otherGallons * otherPaintPrice_
+  const paintCost      = wallGallons * wallPrice + ceilingGallons * ceilingPrice_ + trimGallons * trimPrice_ + otherGallons * otherPaintPrice_ + primerGallons * primerPrice_
   const materialsTotal = Math.round((paintCost + rawRecycleFee + rawSundries) * 100) / 100
 
   // laborTotal = totalHours × wage (B29 × Inputs!B10)
@@ -869,6 +906,7 @@ export function calculatePainterOverview(
     trimGallons,
     miscGallons,
     otherGallons,
+    primerGallons,
     recycleFee,
     sundries,
     materialsTotal,
