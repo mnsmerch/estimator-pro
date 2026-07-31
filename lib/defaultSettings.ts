@@ -198,7 +198,11 @@ export const DEFAULT_INTERIOR_RATES: InteriorProductionRates = {
     popcornChangeColor:           65,
     popcornVaultedSameColor:      75,
     popcornVaultedChangeColor:    40,
-    // 4 auto-calculated prime+paint rates are derived — not stored
+    // Prime & paint new drywall (from the sheet "Enter Ceiling Type" table)
+    primeNewTextured:             63.63636364,
+    primeNewTexturedVaulted:      33.33,
+    primeNewSmooth:               33.33,
+    primeNewSmoothVaulted:        30,
   },
   baseboardTypes: {
     // lnft/hr — mirrors Inputs sheet M column (baseboard VLOOKUP table)
@@ -212,24 +216,52 @@ export const DEFAULT_INTERIOR_RATES: InteriorProductionRates = {
     crownMolding:     20,
   },
   doorTypes: {
-    // 7 base rows — all other rows are auto-calculated from these
+    // Full VLOOKUP table from the Google Sheet "Enter Door Type" (Hours | lnft).
+    // Every key here must match a DOOR_TYPE_OPTIONS key in InteriorEstimateForm.
     doors1Side:                  { hours: 1,    lnft: 55  },
     doorsBothSides:              { hours: 1.2,  lnft: 110 },
     closet1Side:                 { hours: 1.2,  lnft: 110 },
     closetBothSides:             { hours: 2,    lnft: 220 },
+    commercialSteel1Side:        { hours: 1.38, lnft: 55  },
     commercialSteelBothSides:    { hours: 2.75, lnft: 110 },
+    sameColorDoors1Side:         { hours: 0.75, lnft: 55  },
+    sameColorDoorsBothSides:     { hours: 0.9,  lnft: 110 },
+    sameColorCloset1Side:        { hours: 0.9,  lnft: 110 },
+    sameColorClosetBothSides:    { hours: 1.5,  lnft: 220 },
+    sameColorCSSteel1Side:       { hours: 1.03, lnft: 55  },
+    sameColorCSSteelBothSides:   { hours: 2.06, lnft: 110 },
+    stainToPaint1Side:           { hours: 2.5,  lnft: 55  },
+    stainToPaintBothSides:       { hours: 3,    lnft: 110 },
+    stainToPaintCloset1Side:     { hours: 3,    lnft: 110 },
+    stainToPaintClosetBoth:      { hours: 5,    lnft: 220 },
+    prime2Coats1Side:            { hours: 1.2,  lnft: 55  },
+    prime2CoatsBothSides:        { hours: 1.44, lnft: 110 },
     stainNewDoorsBothSides:      { hours: 6,    lnft: 110 },
     stainOldDoorsBothSides:      { hours: 10,   lnft: 110 },
   },
   doorFrameTypes: {
-    // 4 base rows — all other rows are auto-calculated from these
-    dfDoor1Side:                 { hours: 0.5,  lnft: 17  },
-    dfDoorBothSides:             { hours: 1,    lnft: 34  },
-    dfCommercialSteel1Side:      { hours: 1,    lnft: 55  },
-    dfCommercialSteelBothSides:  { hours: 2,    lnft: 110 },
+    // Full VLOOKUP table from the sheet "Enter Door Frame Type" (Hours | lnft).
+    dfDoor1Side:                  { hours: 0.5,  lnft: 17  },
+    dfDoorBothSides:              { hours: 1,    lnft: 34  },
+    dfCommercialSteel1Side:       { hours: 1,    lnft: 55  },
+    dfCommercialSteelBothSides:   { hours: 2,    lnft: 110 },
+    dfCloset1Side:                { hours: 0.59, lnft: 20  },
+    dfClosetBothSides:            { hours: 1.18, lnft: 40  },
+    dfDoorSameColor1Side:         { hours: 0.38, lnft: 17  },
+    dfDoorSameColorBothSides:     { hours: 0.75, lnft: 34  },
+    dfSameColorCloset1Side:       { hours: 0.44, lnft: 20  },
+    dfSameColorClosetBothSides:   { hours: 0.88, lnft: 40  },
+    dfSameColorCSSteel1Side:      { hours: 0.75, lnft: 55  },
+    dfSameColorCSSteelBothSides:  { hours: 1.5,  lnft: 110 },
+    dfStainToPaintDoor1Side:      { hours: 1.25, lnft: 17  },
+    dfStainToPaintDoorBothSides:  { hours: 2.5,  lnft: 34  },
+    dfStainToPaintCloset1Side:    { hours: 1.47, lnft: 20  },
+    dfStainToPaintClosetBothSides:{ hours: 2.94, lnft: 40  },
+    dfPrime2Coats1Side:           { hours: 0.6,  lnft: 17  },
+    dfPrime2CoatsBothSides:       { hours: 1.2,  lnft: 34  },
   },
   windowTypes: {
-    // 8 base rows — all other rows are auto-calculated from these
+    // Full VLOOKUP table from the sheet "Enter Window Type" (Hours | lnft).
     vinylNoTrim:          { hours: 0.125, lnft: 0  },
     vinylSillTrim:        { hours: 0.17,  lnft: 4  },
     vinylTrim4Sides:      { hours: 1,     lnft: 16 },
@@ -238,6 +270,28 @@ export const DEFAULT_INTERIOR_RATES: InteriorProductionRates = {
     woodOpens:            { hours: 1.75,  lnft: 20 },
     twoToneWoodDontOpen:  { hours: 1.75,  lnft: 32 },
     twoToneWoodOpens:     { hours: 2.25,  lnft: 36 },
+    scVinylNoTrim:        { hours: 0.09,  lnft: 0  },
+    scVinylSillTrim:      { hours: 0.13,  lnft: 4  },
+    scVinylTrim4Sides:    { hours: 0.75,  lnft: 16 },
+    scWoodNoTrim:         { hours: 0.19,  lnft: 0  },
+    scWoodDontOpen:       { hours: 0.94,  lnft: 16 },
+    scWoodOpens:          { hours: 1.31,  lnft: 20 },
+    scTwoToneDontOpen:    { hours: 1.31,  lnft: 32 },
+    scTwoToneOpens:       { hours: 1.69,  lnft: 36 },
+    stpVinylSillTrim:     { hours: 0.42,  lnft: 4  },
+    stpVinylTrim4Sides:   { hours: 2.5,   lnft: 16 },
+    stpWoodNoTrim:        { hours: 0.63,  lnft: 0  },
+    stpWoodDontOpen:      { hours: 3.13,  lnft: 16 },
+    stpWoodOpens:         { hours: 4.38,  lnft: 20 },
+    stpTwoToneDontOpen:   { hours: 4.38,  lnft: 32 },
+    stpTwoToneOpens:      { hours: 5.63,  lnft: 36 },
+    p2cVinylSillTrim:     { hours: 0.2,   lnft: 4  },
+    p2cVinylTrim4Sides:   { hours: 1.2,   lnft: 16 },
+    p2cWoodNoTrim:        { hours: 0.3,   lnft: 0  },
+    p2cWoodDontOpen:      { hours: 1.5,   lnft: 16 },
+    p2cWoodOpens:         { hours: 2.1,   lnft: 20 },
+    p2cTwoToneDontOpen:   { hours: 2.1,   lnft: 32 },
+    p2cTwoToneOpens:      { hours: 2.7,   lnft: 36 },
   },
   miscTrimTypes: {
     // Trim
@@ -270,8 +324,9 @@ export const DEFAULT_INTERIOR_RATES: InteriorProductionRates = {
     wallsCeilingsSprayedPrep: 75,
   },
   miscSqftTypes: {
-    shelves:      75,
-    fixPatchHole:  1,
+    shelves:          75,
+    sameColorShelves: 56.25,
+    fixPatchHole:      1,
   },
   miscHourlyTypes: {
     moveFurniture:            1,            // Units/Hr = 1/1 = 1
