@@ -649,6 +649,16 @@ export function calculatePainterOverview(
     baseboardRawGallons += (sectionLnft * widthFt_ / baseboardCoverage) * coatMult
   }
   const tapeFloorsFromBaseboards = totalBaseboardLnft > 0 ? totalBaseboardLnft / tapeLineRate_ : 0
+
+  // "w/o walls" adjustment (mirrors Painter Sheet cell B4): the tape/caulk line
+  // where the baseboard meets the wall is normally counted from wall length, but
+  // when the room has baseboards and NO walls painted, that same line must be
+  // counted from the baseboard length instead (otherwise it's lost entirely).
+  // This feeds the grand total, set-up/clean-up, and sundries.
+  if (tapeCaulkWallsToBaseboards === 0 && totalBaseboardLnft > 0) {
+    tapeCaulkWallsToBaseboards = totalBaseboardLnft / tapingRate
+  }
+
   // ── Doors ────────────────────────────────────────────────────────────────
   let doors           = 0
   let doorRawGallons  = 0
