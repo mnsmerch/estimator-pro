@@ -673,8 +673,8 @@ export default function InteriorEstimateForm({
   const avgRecycleFee_      = (rules.recycleFeeGallon + rules.recycleFeeFiveGal) / 2
 
   // Combined gallons (ceil of combined raw per surface) — fewer than summing per-room ceiled gallons
-  const combinedTotalGallons_ = draft.options.length > 1 ? sumCombinedGallons(allOverviews) : allOverviews.reduce((s, po) => s + po.wallGallons + po.ceilingGallons + po.trimGallons + po.miscGallons + po.otherGallons, 0)
-  const perRoomTotalGallons_  = allOverviews.reduce((s, po) => s + po.wallGallons + po.ceilingGallons + po.trimGallons + po.miscGallons + po.otherGallons, 0)
+  const combinedTotalGallons_ = draft.options.length > 1 ? sumCombinedGallons(allOverviews) : allOverviews.reduce((s, po) => s + po.wallGallons + po.ceilingGallons + po.trimGallons + po.miscGallons + po.otherGallons + po.primerGallons, 0)
+  const perRoomTotalGallons_  = allOverviews.reduce((s, po) => s + po.wallGallons + po.ceilingGallons + po.trimGallons + po.miscGallons + po.otherGallons + po.primerGallons, 0)
   // Recycle fee correction: gallons saved by combining × fee/gal ÷ markup
   const recycleFeeCorrection_ = markup_ > 0 ? (perRoomTotalGallons_ - combinedTotalGallons_) * avgRecycleFee_ / markup_ : 0
 

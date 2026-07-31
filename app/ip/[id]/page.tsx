@@ -157,7 +157,7 @@ export default function InteriorProposalPage({ params }: { params: Promise<{ id:
       const selOverviews = selected.map(o => roomOverviews.get(o.id)!).filter(Boolean)
       const avgRecycleFee = (rules.recycleFeeGallon + rules.recycleFeeFiveGal) / 2
       const combinedG = sumCombinedGallons(selOverviews)
-      const perRoomG  = selOverviews.reduce((s, po) => s + po.wallGallons + po.ceilingGallons + po.trimGallons + po.miscGallons + po.otherGallons, 0)
+      const perRoomG  = selOverviews.reduce((s, po) => s + po.wallGallons + po.ceilingGallons + po.trimGallons + po.miscGallons + po.otherGallons + po.primerGallons, 0)
       recycleFeeCorr  = (perRoomG - combinedG) * avgRecycleFee / markup
     }
 

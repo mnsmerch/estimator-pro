@@ -11,6 +11,7 @@ import {
   calculatePainterOverview,
   calculateCostBreakdown,
   calculateCombiningSavings,
+  sumCombinedGallons,
 } from '@/lib/interiorCalculations'
 import type { InteriorBusinessRules, InteriorPaintProduct, InteriorProductionRates, InteriorProductionConstants } from '@/types/interiorSettings'
 import type { RoomOption } from '@/types/interiorEstimate'
@@ -45,7 +46,21 @@ function computeInteriorGrandTotal(
       savings = calculateCombiningSavings(options, rates, constants, products, rules)
     }
 
-    const selectedTotal = Math.round((totalRaw - savings) / (1 - salesDiscount) * 100) / 100
+    // Recycle-fee correction: the sheet prices recycle fees on ONE combined
+    // materials block (gallons ceiled once per paint category across all rooms),
+    // while per-room breakdowns ceil per room. Subtract the difference so this
+    // total matches the proposal page and the sheet.
+    let recycleCorr = 0
+    const markup = 1 - (rules.netProfitMargin + rules.overheadMargin + rules.marketingMargin + rules.salesMargin + rules.productionMgmtMargin)
+    if (options.length > 1 && markup > 0) {
+      const overviews  = rawSums.map(r => r.po)
+      const avgFee     = (rules.recycleFeeGallon + rules.recycleFeeFiveGal) / 2
+      const combinedG  = sumCombinedGallons(overviews)
+      const perRoomG   = overviews.reduce((s, po) => s + po.wallGallons + po.ceilingGallons + po.trimGallons + po.miscGallons + po.otherGallons + po.primerGallons, 0)
+      recycleCorr = (perRoomG - combinedG) * avgFee / markup
+    }
+
+    const selectedTotal = Math.round((totalRaw - savings - recycleCorr) / (1 - salesDiscount) * 100) / 100
 
     // Custom items
     const customItems = (estimate.customItems ?? []) as { price?: number }[]

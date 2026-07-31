@@ -564,6 +564,7 @@ export interface PainterOverview {
   ceilingRawGallons: number
   trimRawGallons:    number  // baseboards+doors+frames+windows combined, before ceil
   miscRawGallons:    number
+  primerRawGallons:  number
 }
 
 /**
@@ -920,6 +921,7 @@ export function calculatePainterOverview(
     ceilingRawGallons,
     trimRawGallons:         baseboardRawGallons + doorRawGallons + doorFrameRawGallons + windowRawGallons,
     miscRawGallons,
+    primerRawGallons,
   }
 }
 
@@ -1019,6 +1021,7 @@ export function sumCombinedGallons(overviews: PainterOverview[]): number {
     Math.ceil(overviews.reduce((s, po) => s + po.ceilingRawGallons, 0)) +
     Math.ceil(overviews.reduce((s, po) => s + po.trimRawGallons,    0)) +
     Math.ceil(overviews.reduce((s, po) => s + po.miscRawGallons,    0)) +
+    Math.ceil(overviews.reduce((s, po) => s + po.primerRawGallons,  0)) +
     overviews.reduce((s, po) => s + po.otherGallons, 0)
   )
 }
