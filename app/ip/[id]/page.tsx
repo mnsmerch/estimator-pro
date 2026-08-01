@@ -590,6 +590,24 @@ export default function InteriorProposalPage({ params }: { params: Promise<{ id:
             })}
           </div>
 
+          {/* Combining Rooms & Items Savings — shown so the customer sees the
+              multi-room paint savings (mirrors the sheet's savings line). It is
+              the exact gap between the per-room prices above and the combined
+              subtotal below, so the displayed lines always sum to the penny. */}
+          {multiRoom && !hideItemPrices && selectedRooms.size > 1 && (() => {
+            const roomsSum = estimate.options
+              .filter(o => selectedRooms.has(o.id))
+              .reduce((s, o) => s + (roomBreakdowns.get(o.id)?.totalPrice ?? 0), 0)
+            const shown = Math.round((roomsSum - selectedTotal) * 100) / 100
+            if (shown <= 0) return null
+            return (
+              <div className="flex items-center gap-3 p-3 rounded-xl border border-[oklch(0.89_0.06_150)] bg-[oklch(0.96_0.035_150)]">
+                <span className="flex-1 text-sm font-medium text-[oklch(0.52_0.13_150)]">Combining Rooms &amp; Items Savings</span>
+                <span className="text-sm font-semibold text-[oklch(0.52_0.13_150)] tabular-nums shrink-0">− {fmtD(shown)}</span>
+              </div>
+            )
+          })()}
+
           {/* Custom line items */}
           {customItems.filter(i => i.description && i.price !== 0).map(item => (
             <div key={item.id} className="flex items-center gap-3 p-3 rounded-xl border border-gray-200 bg-gray-50">
