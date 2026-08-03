@@ -86,14 +86,9 @@ export async function POST(req: Request) {
 
     if (body.estimateId) {
       const collection = COLLECTIONS[body.estimateType ?? 'exterior'] ?? 'estimates'
-      const ref = adminDb.collection(collection).doc(body.estimateId)
-      // Never downgrade a signed (approved) estimate back to 'sent' — that
-      // unlocks the price display so the link reprices at live rates instead
-      // of the locked signed price. Re-sending the email must not un-sign.
-      const snap = await ref.get()
-      const isApproved = snap.exists && snap.data()?.status === 'approved'
-      await ref.update({
-        ...(isApproved ? {} : { status: 'sent', ...(body.grandTotal ? { cachedGrandTotal: body.grandTotal } : {}) }),
+      await adminDb.collection(collection).doc(body.estimateId).update({
+        status:    'sent',
+        ...(body.grandTotal ? { cachedGrandTotal: body.grandTotal } : {}),
         updatedAt: FieldValue.serverTimestamp(),
       })
     }
