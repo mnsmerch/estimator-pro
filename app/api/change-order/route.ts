@@ -92,11 +92,15 @@ export async function POST(req: Request) {
     if (!snap.exists) return NextResponse.json({ error: 'Estimate not found' }, { status: 404 })
 
     const est = snap.data()!
+    // Change-order item prices are entered PRE-TAX by the estimator. Sales tax
+    // is added on top (exclusive), exactly like the original invoice items.
     const changeOrderTotal    = items.reduce((s, i) => s + (i.price || 0), 0)
     const signedGrandTotal    = (est.signedGrandTotal    ?? 0) as number
     const signedDepositAmount = (est.signedDepositAmount ?? 0) as number
     const signedTaxRate       = (est.signedTaxRate       ?? 0) as number
-    const newGrandTotal       = signedGrandTotal + changeOrderTotal
+    const signedTaxCity       = (est.signedTaxCity       ?? '') as string
+    const changeOrderTax      = Math.round(changeOrderTotal * signedTaxRate * 100) / 100
+    const newGrandTotal       = Math.round((signedGrandTotal + changeOrderTotal + changeOrderTax) * 100) / 100
     const divisor             = signedTaxRate > 0 ? (1 + signedTaxRate) : 1
     const newBalanceDue       = Math.round((newGrandTotal - signedDepositAmount) * 100) / 100
 
@@ -151,6 +155,16 @@ export async function POST(req: Request) {
           }
 
           const originalBalPreTax = Math.round(((signedGrandTotal - signedDepositAmount) / divisor) * 100) / 100
+          // Rebuild the invoice's sales-tax entry (exclusive) so replacing the
+          // items doesn't silently drop the tax line from the invoice.
+          const taxEntry = signedTaxRate > 0 ? [{
+            _id:         newObjectId(),
+            taxId:       newObjectId(),
+            name:        signedTaxCity ? `Sales Tax - ${signedTaxCity} ${parseFloat((signedTaxRate * 100).toFixed(4))}%` : `Sales Tax ${parseFloat((signedTaxRate * 100).toFixed(4))}%`,
+            rate:        parseFloat((signedTaxRate * 100).toFixed(4)),
+            calculation: 'exclusive',
+            description: '',
+          }] : []
           const invoiceItems = [
             {
               name:        'Original Balance Due',
@@ -159,14 +173,17 @@ export async function POST(req: Request) {
               amount:      originalBalPreTax,
               qty:         1,
               type:        'one_time',
+              ...(taxEntry.length ? { taxes: taxEntry } : {}),
             },
+            // Change-order prices are pre-tax as entered — tax is added by GHL
             ...items.map(item => ({
               name:        item.description,
               description: 'Change Order',
               currency:    'USD',
-              amount:      Math.round(item.price / divisor * 100) / 100,
+              amount:      Math.round(item.price * 100) / 100,
               qty:         1,
               type:        'one_time',
+              ...(taxEntry.length ? { taxes: taxEntry } : {}),
             })),
           ]
 

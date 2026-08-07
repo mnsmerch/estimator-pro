@@ -1690,6 +1690,40 @@ export default function InteriorEstimateForm({
                     {allRoomsTotalPrice > 0 ? `$${allRoomsTotalPrice.toLocaleString()}` : '—'}
                   </span>
                 </div>
+                {/* Discount + sales tax + final total — mirrors the customer proposal */}
+                {allRoomsTotalPrice > 0 && (() => {
+                  const discPct    = discountPercent ?? rules.salesDiscount ?? 0.10
+                  const discAmt    = Math.round(allRoomsTotalPrice * discPct * 100) / 100
+                  const discounted = allRoomsTotalPrice - discAmt
+                  const taxRate    = draft.salesTaxRate
+                  const taxAmt     = taxRate != null ? Math.round(discounted * taxRate * 100) / 100 : 0
+                  return (
+                    <>
+                      {discPct > 0 && (
+                        <div className="flex items-center justify-between px-4 py-1.5">
+                          <span className="text-xs text-green-700">Discount ({Math.round(discPct * 100)}% — Sign Today)</span>
+                          <span className="text-xs font-semibold tabular-nums text-green-700">−${discAmt.toFixed(2)}</span>
+                        </div>
+                      )}
+                      {taxRate != null ? (
+                        <div className="flex items-center justify-between px-4 py-1.5">
+                          <span className="text-xs text-gray-500">Sales Tax ({(taxRate * 100).toFixed(1)}%)</span>
+                          <span className="text-xs font-semibold tabular-nums text-gray-700">+${taxAmt.toFixed(2)}</span>
+                        </div>
+                      ) : (
+                        <div className="px-4 py-1.5">
+                          <span className="text-xs text-amber-600">No sales tax — address lookup missing (re-generate proposal to fetch)</span>
+                        </div>
+                      )}
+                      <div className="mx-4 mt-1 pt-2 border-t border-gray-100 flex items-center justify-between">
+                        <span className="text-sm font-bold text-gray-800">Customer Total{taxRate != null ? ' (with tax)' : ''}</span>
+                        <span className="text-sm font-bold tabular-nums text-brand-700">
+                          ${(discounted + taxAmt).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </span>
+                      </div>
+                    </>
+                  )
+                })()}
               </div>
             </div>
 

@@ -999,7 +999,10 @@ export default function EstimateDetailPage({ params }: { params: Promise<{ id: s
           const coDate      = (estimate as typeof estimate & { changeOrderDate?: string }).changeOrderDate
           const signedTotal = (estimate as typeof estimate & { signedGrandTotal?: number }).signedGrandTotal ?? 0
           const signedDep   = (estimate as typeof estimate & { signedDepositAmount?: number }).signedDepositAmount ?? 0
-          const newTotal    = coResult?.newGrandTotal  ?? (signedTotal + coTotal)
+          // CO items are pre-tax — add sales tax on top, matching the invoice
+          const coTaxRate   = (estimate as typeof estimate & { signedTaxRate?: number }).signedTaxRate ?? 0
+          const coTax       = Math.round(coTotal * coTaxRate * 100) / 100
+          const newTotal    = coResult?.newGrandTotal  ?? (signedTotal + coTotal + coTax)
           const newBal      = coResult?.newBalanceDue  ?? (newTotal - signedDep)
           return (
             <div className="bg-amber-50 border border-amber-200 rounded-xl p-6">
@@ -1019,6 +1022,12 @@ export default function EstimateDetailPage({ params }: { params: Promise<{ id: s
                     <span className={`tabular-nums font-medium ${item.price >= 0 ? '' : 'text-green-700'}`}>{item.price >= 0 ? '+ ' : '− '}{fmtD(Math.abs(item.price))}</span>
                   </div>
                 ))}
+                {coTax !== 0 && (
+                  <div className="flex justify-between text-amber-800">
+                    <span>Sales Tax on Change Order ({(coTaxRate * 100).toFixed(1)}%)</span>
+                    <span className="tabular-nums font-medium">{coTax >= 0 ? '+ ' : '− '}{fmtD(Math.abs(coTax))}</span>
+                  </div>
+                )}
                 <div className="border-t border-amber-300 pt-2 flex justify-between font-bold text-gray-900">
                   <span>New Balance Due</span>
                   <span className="tabular-nums">{fmtD(newBal)}</span>

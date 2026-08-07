@@ -326,8 +326,10 @@ export default function InteriorEstimateDetailPage({ params }: { params: Promise
         {(coResult || (isModified && existingCO.length > 0)) && (() => {
           const items   = coResult ? coItems : existingCO
           const coTotal = items.reduce((s,i) => s+(i.price||0), 0)
-          const stored  = estimate as typeof estimate & { signedGrandTotal?: number; signedDepositAmount?: number }
-          const newTotal = coResult?.newGrandTotal ?? ((stored.signedGrandTotal ?? 0) + coTotal)
+          const stored  = estimate as typeof estimate & { signedGrandTotal?: number; signedDepositAmount?: number; signedTaxRate?: number }
+          // CO items are pre-tax — add sales tax on top, matching the invoice
+          const coTax    = Math.round(coTotal * (stored.signedTaxRate ?? 0) * 100) / 100
+          const newTotal = coResult?.newGrandTotal ?? ((stored.signedGrandTotal ?? 0) + coTotal + coTax)
           const newBal   = coResult?.newBalanceDue  ?? (newTotal - (stored.signedDepositAmount ?? 0))
           return (
             <div className="bg-amber-50 border border-amber-200 rounded-xl p-5">

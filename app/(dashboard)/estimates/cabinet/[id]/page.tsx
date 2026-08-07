@@ -327,8 +327,10 @@ export default function CabinetEstimateDetailPage({ params }: { params: Promise<
         {/* Change Order Summary */}
         {(coResult||(isModified&&existingCO.length>0)) && (() => {
           const items=coResult?coItems:existingCO; const coTotal=items.reduce((s,i)=>s+(i.price||0),0)
-          const stored=estimate as typeof estimate & {signedGrandTotal?:number;signedDepositAmount?:number}
-          const newTotal=coResult?.newGrandTotal??((stored.signedGrandTotal??0)+coTotal)
+          const stored=estimate as typeof estimate & {signedGrandTotal?:number;signedDepositAmount?:number;signedTaxRate?:number}
+          // CO items are pre-tax — add sales tax on top, matching the invoice
+          const coTax=Math.round(coTotal*(stored.signedTaxRate??0)*100)/100
+          const newTotal=coResult?.newGrandTotal??((stored.signedGrandTotal??0)+coTotal+coTax)
           const newBal=coResult?.newBalanceDue??(newTotal-(stored.signedDepositAmount??0))
           return <div className="bg-amber-50 border border-amber-200 rounded-xl p-5"><div className="flex items-center gap-2 mb-3"><span className="text-xs font-bold uppercase tracking-wider text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full">Modified</span><p className="text-sm font-semibold text-amber-900">Change Order</p></div><div className="space-y-1.5 text-sm">{items.map(item=><div key={item.id} className="flex justify-between text-amber-800"><span>{item.description}</span><span className="tabular-nums">{item.price>=0?'+ ':'− '}{fmtD(Math.abs(item.price))}</span></div>)}<div className="border-t border-amber-200 pt-2 flex justify-between font-bold text-gray-900"><span>New Balance Due</span><span className="tabular-nums">{fmtD(newBal)}</span></div></div></div>
         })()}
