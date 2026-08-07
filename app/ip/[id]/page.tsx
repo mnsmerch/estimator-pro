@@ -799,6 +799,36 @@ export default function InteriorProposalPage({ params }: { params: Promise<{ id:
                 By signing below you authorize {company.name} to proceed with the work described
                 above at the price shown.
               </p>
+
+              {/* What the customer is accepting: paint + rooms, unmissable */}
+              {(() => {
+                const wallPaintId = paintChoice ?? estimate.options[0]?.paints.wall
+                const paintName = (products.find(p => p.id === wallPaintId)?.name ?? '')
+                  .replace(/^\((SW|BM)\)\s*/, '')
+                const acceptedRooms = effectiveOptions.filter(o => selectedRooms.has(o.id)).map(o => o.name.trim())
+                if (!paintName && acceptedRooms.length === 0) return null
+                return (
+                  <div className="mb-5 rounded-2xl border-2 border-[oklch(0.62_0.12_150)] bg-[oklch(0.96_0.035_150)] p-5 text-center">
+                    <p className="text-xs font-semibold uppercase tracking-widest text-[oklch(0.45_0.1_150)]">You are accepting</p>
+                    {paintName && (
+                      <p className="text-2xl sm:text-3xl font-extrabold text-[oklch(0.3_0.08_150)] mt-1.5 leading-tight">
+                        {paintName}
+                      </p>
+                    )}
+                    {acceptedRooms.length > 0 && (
+                      <>
+                        <p className="text-xs font-semibold uppercase tracking-widest text-[oklch(0.45_0.1_150)] mt-3">
+                          For {acceptedRooms.length === 1 ? 'this area' : `these ${acceptedRooms.length} areas`}
+                        </p>
+                        <p className="text-lg sm:text-xl font-bold text-[oklch(0.3_0.08_150)] mt-1">
+                          {acceptedRooms.join(' · ')}
+                        </p>
+                      </>
+                    )}
+                  </div>
+                )
+              })()}
+
               <div className="space-y-4">
                 <label className="flex items-start gap-3 cursor-pointer">
                   <input
