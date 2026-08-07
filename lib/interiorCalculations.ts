@@ -565,6 +565,10 @@ export interface PainterOverview {
   trimRawGallons:    number  // baseboards+doors+frames+windows combined, before ceil
   miscRawGallons:    number
   primerRawGallons:  number
+
+  // ── Walls & Ceilings Same Color & Sheen savings (sheet PricesB C12) ───────
+  // Raw COST terms (labor$ + paint$), pre-markup. 0 when the box is unchecked.
+  sameColorSheenSavingsRaw: number
 }
 
 /**
@@ -804,6 +808,26 @@ export function calculatePainterOverview(
   }
   const ceilingGallons = Math.ceil(ceilingRawGallons)
 
+  // ── Walls & Ceilings Same Color & Sheen savings (sheet PricesB C12) ───────
+  // When walls and ceilings are the same color & sheen there is no cut line to
+  // hand-paint between them, and wall+ceiling paint merges into one purchase:
+  //   labor$  = Σ sectionWallLength / handCut(wallType) × wage × burden
+  //   paint$  = (ceil(wallGal) + ceil(ceilGal) − ceil(wallGal+ceilGal)) × wallPrice
+  let sameColorSheenSavingsRaw = 0
+  if (option.wallsCeilingsSameColor) {
+    let laborHrsSaved = 0
+    for (const section of option.walls) {
+      const wallRate = rates.wallTypes[section.wallType]
+      if (!wallRate || !wallRate.handCut) continue
+      const len = section.measurements.reduce((s, m) => s + (m.length === '' ? 0 : m.length), 0)
+      laborHrsSaved += len / wallRate.handCut
+    }
+    const gallonsSaved = Math.max(0,
+      (Math.ceil(wallRawGallons) + Math.ceil(ceilingRawGallons)) - Math.ceil(wallRawGallons + ceilingRawGallons))
+    sameColorSheenSavingsRaw =
+      laborHrsSaved * rules.wage * rules.payrollBurden + gallonsSaved * wallPrice
+  }
+
   // ── Other paint product ───────────────────────────────────────────────────
   const otherProduct      = paintProducts.find(p => p.id === option.paints.other)
                          ?? paintProducts.find(p => p.id === option.paints.wall)
@@ -922,6 +946,7 @@ export function calculatePainterOverview(
     trimRawGallons:         baseboardRawGallons + doorRawGallons + doorFrameRawGallons + windowRawGallons,
     miscRawGallons,
     primerRawGallons,
+    sameColorSheenSavingsRaw,
   }
 }
 
@@ -966,9 +991,11 @@ export function calculateCostBreakdown(
     return { grandTotal: 0, setupAndCleanUp: 0, combiningSavings: 0, sundriesAndFees: 0, subtotal: 0, totalPrice: 0, rawSubtotalBeforeSavings: 0 }
   }
 
-  // Grand Total = (productiveHours × wage × burden + paintCost) / markup
-  // Uses productive hours only — setup/cleanup is its own line item below
-  const grandTotal = Math.round((po.rawProductiveLaborCost + po.rawPaintCost) / markup * 100) / 100
+  // Grand Total = (productiveHours × wage × burden + paintCost − sameColorSheen) / markup
+  // Uses productive hours only — setup/cleanup is its own line item below.
+  // sameColorSheenSavingsRaw mirrors the sheet's negative "Walls & Ceilings
+  // Same Color & Sheen" line inside each room's item sum.
+  const grandTotal = Math.round((po.rawProductiveLaborCost + po.rawPaintCost - po.sameColorSheenSavingsRaw) / markup * 100) / 100
 
   // Setup & Clean Up cost = (setupHours × wage × burden) / markup
   const setupCost = Math.round(
@@ -987,7 +1014,7 @@ export function calculateCostBreakdown(
 
   // Subtotal = (grand total + setup/cleanup + sundries − combining savings) / (1 − salesDiscount)
   // Use raw (pre-round) values so precision matches the sheet
-  const rawGrandTotal      = (po.rawProductiveLaborCost + po.rawPaintCost) / markup
+  const rawGrandTotal      = (po.rawProductiveLaborCost + po.rawPaintCost - po.sameColorSheenSavingsRaw) / markup
   const rawSetupCost       = (po.setupAndCleanUpRaw * rules.wage * rules.payrollBurden) / markup
   const rawSundriesAndFees = (po.rawSundries + po.rawRecycleFee) / markup
   const rawSubtotalSum     = rawGrandTotal + rawSetupCost + rawSundriesAndFees - combiningSavings

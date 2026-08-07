@@ -66,6 +66,7 @@ export async function POST(req: Request) {
       estimateNumber,
       company,
       selectedBrand,
+      paintChoice,
     } = await req.json() as {
       estimateId:     string
       estimateType?:  string
@@ -91,9 +92,26 @@ export async function POST(req: Request) {
         website: string; streetAddress: string; cityStateZip: string
       }
       selectedBrand?: string
+      // Interior: paint product id the customer chose on the proposal —
+      // persisted into every room's wall/ceiling paints at signing.
+      paintChoice?: string
     }
 
     const collection = COLLECTIONS[estimateType] ?? 'estimates'
+
+    // Interior paint choice: bake the customer's selected wall/ceiling paint
+    // into every room so the stored estimate matches the price they signed.
+    let paintedOptions: Record<string, unknown>[] | undefined
+    if (paintChoice && estimateType === 'interior') {
+      const preSnap = await adminDb.collection(collection).doc(estimateId).get()
+      const opts = (preSnap.data()?.options ?? []) as Record<string, unknown>[]
+      if (opts.length) {
+        paintedOptions = opts.map(o => ({
+          ...o,
+          paints: { ...(o.paints as Record<string, string> ?? {}), wall: paintChoice, ceiling: paintChoice },
+        }))
+      }
+    }
 
     // 1. Save signature + approve + store pricing so attach-contact can use it later
     await adminDb.collection(collection).doc(estimateId).update({
@@ -117,6 +135,7 @@ export async function POST(req: Request) {
       // it here keeps the record matching the signed price (and stops an editor
       // save from reverting it to the estimator's originally-quoted brand).
       ...(selectedBrand ? { selectedBrand, signedBrand: selectedBrand } : {}),
+      ...(paintedOptions ? { options: paintedOptions, signedPaintChoice: paintChoice } : {}),
       updatedAt:        FieldValue.serverTimestamp(),
     })
 

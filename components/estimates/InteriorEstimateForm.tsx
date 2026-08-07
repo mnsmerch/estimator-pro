@@ -360,6 +360,7 @@ export default function InteriorEstimateForm({
   const [uploadError, setUploadError]         = useState<string | null>(null)
   const [subtotalOverride, setSubtotalOverride] = useState<number | null>(initialRecord?.subtotalOverride ?? null)
   const [discountPercent, setDiscountPercent] = useState<number>(initialRecord?.discountPercent ?? 0.10)
+  const [paintChoices, setPaintChoices] = useState<string[]>((initialRecord as (typeof initialRecord & { paintChoices?: string[] }) | undefined)?.paintChoices ?? [])
 
   // Persist the estimator-only subtotal override directly (kept out of the
   // autosaved draft so editing other fields never disturbs it).
@@ -387,11 +388,11 @@ export default function InteriorEstimateForm({
   // ── Auto-save ────────────────────────────────────────────────────────────────
   const creatingRef = useRef(false)
   const autoSaveStatus = useAutoSave({
-    signature: JSON.stringify({ ...draft, customItems, discountPercent }),
+    signature: JSON.stringify({ ...draft, customItems, discountPercent, paintChoices }),
     enabled:   !!user && draft.clientName.trim() !== '' && !saving,
     onSave: async () => {
       if (!user) return
-      const payload = { ...draft, customItems, discountPercent }
+      const payload = { ...draft, customItems, discountPercent, paintChoices }
       if (estimateId) {
         await updateInteriorEstimate(estimateId, payload)
       } else if (!creatingRef.current) {
@@ -633,7 +634,7 @@ export default function InteriorEstimateForm({
   async function handleSave() {
     if (!draft.clientName.trim() || !user) return
     setSaving(true)
-    const payload = { ...draft, customItems, discountPercent }
+    const payload = { ...draft, customItems, discountPercent, paintChoices }
     try {
       if (estimateId) {
         await updateInteriorEstimate(estimateId, payload)
@@ -679,7 +680,9 @@ export default function InteriorEstimateForm({
   const recycleFeeCorrection_ = markup_ > 0 ? (perRoomTotalGallons_ - combinedTotalGallons_) * avgRecycleFee_ / markup_ : 0
 
   // Grand Total and Setup — sum raw values, divide by markup once
-  const allRoomsGrandTotal  = markup_ > 0 ? Math.round(allOverviews.reduce((s, po) => s + po.rawProductiveLaborCost + po.rawPaintCost, 0) / markup_ * 100) / 100 : 0
+  // (nets the Walls & Ceilings Same Color & Sheen savings, like the sheet's C14 item sum)
+  const allRoomsSameColorSavings = markup_ > 0 ? Math.round(allOverviews.reduce((s, po) => s + po.sameColorSheenSavingsRaw, 0) / markup_ * 100) / 100 : 0
+  const allRoomsGrandTotal  = markup_ > 0 ? Math.round(allOverviews.reduce((s, po) => s + po.rawProductiveLaborCost + po.rawPaintCost - po.sameColorSheenSavingsRaw, 0) / markup_ * 100) / 100 : 0
   const allRoomsSetup       = markup_ > 0 ? Math.round(allOverviews.reduce((s, po) => s + po.setupAndCleanUpRaw * rules.wage * rules.payrollBurden, 0) / markup_ * 100) / 100 : 0
   // Sundries: sum raw prep sundries + COMBINED gallons × recycle rate / markup — matches sheet (D26+D25+D27)/B23
   const allRoomsSundries    = markup_ > 0 ? Math.round((allOverviews.reduce((s, po) => s + po.rawSundries, 0) + combinedTotalGallons_ * avgRecycleFee_) / markup_ * 100) / 100 : 0
@@ -925,6 +928,24 @@ export default function InteriorEstimateForm({
             ))}
             <AddButton label="Add Ceiling Type" onClick={() => addCeilingSection(activeOption.id)} />
 
+            {/* Walls & Ceilings Same Color & Sheen — sheet savings checkbox */}
+            <label className={`flex items-start gap-3 rounded-xl border px-5 py-4 cursor-pointer transition-colors ${
+              activeOption.wallsCeilingsSameColor ? 'bg-green-50 border-green-300' : 'bg-white border-gray-200'
+            }`}>
+              <input
+                type="checkbox"
+                checked={activeOption.wallsCeilingsSameColor ?? false}
+                onChange={e => patchOption(activeOption.id, { wallsCeilingsSameColor: e.target.checked })}
+                className="mt-0.5 w-4 h-4 rounded accent-green-600"
+              />
+              <span>
+                <span className="block text-sm font-medium text-gray-900">Walls &amp; Ceilings — Same Color &amp; Sheen</span>
+                <span className="block text-xs text-gray-500 mt-0.5">
+                  No cut line to hand-paint between walls and ceilings — refunds that labor plus merged paint round-ups for this room.
+                </span>
+              </span>
+            </label>
+
             {/* Ceiling-only: perimeter */}
             <div className="bg-white rounded-xl border border-gray-200 px-5 py-4">
               <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">For Ceilings Only — Option</p>
@@ -1139,6 +1160,43 @@ export default function InteriorEstimateForm({
                     </span>
                   </div>
                 </div>
+              )}
+            </div>
+
+            {/* ── Customer paint options (proposal price comparison) ────────── */}
+            <div className="bg-white rounded-xl border border-gray-200 px-5 py-4">
+              <p className="text-sm font-semibold text-gray-900">Customer Paint Options</p>
+              <p className="text-xs text-gray-500 mt-0.5 mb-3">
+                Offer 2+ wall/ceiling paints and the customer sees each option&apos;s full price side by side on the proposal and picks one. Leave empty for a single-price proposal.
+              </p>
+              <div className="flex flex-wrap gap-2 mb-2">
+                {paintChoices.map(pid => {
+                  const p = products.find(x => x.id === pid)
+                  return (
+                    <span key={pid} className="inline-flex items-center gap-1.5 rounded-full bg-brand-50 border border-brand-200 text-brand-800 text-xs font-medium pl-3 pr-1.5 py-1">
+                      {p?.name ?? pid}
+                      <button
+                        onClick={() => setPaintChoices(prev => prev.filter(x => x !== pid))}
+                        className="w-4 h-4 rounded-full hover:bg-brand-100 text-brand-500 leading-none"
+                        aria-label="Remove"
+                      >×</button>
+                    </span>
+                  )
+                })}
+                {paintChoices.length === 0 && <span className="text-xs text-gray-400">No options added</span>}
+              </div>
+              <select
+                value=""
+                onChange={e => { const v = e.target.value; if (v && !paintChoices.includes(v)) setPaintChoices(prev => [...prev, v]) }}
+                className="w-full sm:w-80 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+              >
+                <option value="">+ Add paint option…</option>
+                {products.filter(p => p.pricePerGallon > 0 && !paintChoices.includes(p.id)).map(p => (
+                  <option key={p.id} value={p.id}>{p.name} — ${p.pricePerGallon}/gal</option>
+                ))}
+              </select>
+              {paintChoices.length === 1 && (
+                <p className="text-xs text-amber-600 mt-2">Add at least one more option — a single option won&apos;t show the comparison.</p>
               )}
             </div>
 
@@ -1676,6 +1734,14 @@ export default function InteriorEstimateForm({
                     </span>
                   </div>
                 ))}
+                {allRoomsSameColorSavings > 0 && (
+                  <div className="flex items-center justify-between px-4 py-1.5">
+                    <span className="text-xs text-gray-500">Same Color &amp; Sheen Savings <span className="text-gray-400">(included above)</span></span>
+                    <span className="text-xs font-semibold tabular-nums text-green-600">
+                      −${allRoomsSameColorSavings.toFixed(2)}
+                    </span>
+                  </div>
+                )}
                 {combiningSavings > 0 && (
                   <div className="flex items-center justify-between px-4 py-1.5">
                     <span className="text-xs text-gray-500">Combining Rooms Savings</span>

@@ -102,6 +102,9 @@ export interface RoomOption {
   miscSquareFeetEntries: MiscSquareFeetEntry[]
   miscHourlyEntries:     MiscHourlyEntry[]
   otherEntries:          OtherEntry[]
+  // Sheet "Walls & Ceilings Same Color & Sheen" checkbox: refunds the hand-cut
+  // line between walls and ceilings plus merged wall/ceiling gallon round-ups.
+  wallsCeilingsSameColor?: boolean
   // more measurement sections added incrementally
 }
 
@@ -149,6 +152,9 @@ export interface InteriorEstimateDraft {
   // Estimator-editable "sign today" discount as a decimal (e.g. 0.10 = 10% off).
   // Undefined falls back to the global rules.salesDiscount default.
   discountPercent?: number | null
+  // Wall/ceiling paint products offered to the customer on the proposal as
+  // selectable price options (product ids). Fewer than 2 → single-price proposal.
+  paintChoices?: string[]
 }
 
 export interface OptionOverview {

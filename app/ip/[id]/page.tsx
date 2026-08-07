@@ -121,52 +121,74 @@ export default function InteriorProposalPage({ params }: { params: Promise<{ id:
     load()
   }, [id])
 
+  // Customer paint choice: overrides the wall/ceiling paint of every room.
+  // null = the paints the estimator configured.
+  const [paintChoice, setPaintChoice] = useState<string | null>(null)
+  const paintChoices = ((estimate as (typeof estimate & { paintChoices?: string[] }) | null)?.paintChoices ?? [])
+    .filter(pid => products.some(p => p.id === pid))
+
+  const applyPaintChoice = useCallback((options: RoomOption[], choice: string | null): RoomOption[] => {
+    if (!choice) return options
+    return options.map(o => ({ ...o, paints: { ...o.paints, wall: choice, ceiling: choice } }))
+  }, [])
+
+  const effectiveOptions = useMemo(
+    () => estimate ? applyPaintChoice(estimate.options, paintChoice) : [],
+    [estimate, paintChoice, applyPaintChoice])
+
+  // Default the paint choice once the estimate loads: prefer the estimator's
+  // configured wall paint when it's among the offered choices, else the first.
+  useEffect(() => {
+    if (!estimate || paintChoice != null || paintChoices.length < 2) return
+    const currentWall = estimate.options[0]?.paints.wall
+    setPaintChoice(paintChoices.includes(currentWall) ? currentWall : paintChoices[0])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [estimate, paintChoices.length])
+
   // Per-room breakdowns and overviews (for prices and recycle-fee correction)
   const roomBreakdowns = useMemo(() => {
-    if (!estimate) return new Map<string, ReturnType<typeof getRoomBreakdown>>()
     const map = new Map<string, ReturnType<typeof getRoomBreakdown>>()
-    for (const option of estimate.options) {
+    for (const option of effectiveOptions) {
       map.set(option.id, getRoomBreakdown(option, rates, constants, products, rules))
     }
     return map
-  }, [estimate, rates, constants, products, rules])
+  }, [effectiveOptions, rates, constants, products, rules])
 
   const roomOverviews = useMemo(() => {
-    if (!estimate) return new Map<string, ReturnType<typeof calculatePainterOverview>>()
     const map = new Map<string, ReturnType<typeof calculatePainterOverview>>()
-    for (const option of estimate.options) {
+    for (const option of effectiveOptions) {
       map.set(option.id, calculatePainterOverview(option, rates, constants, products, rules))
     }
     return map
-  }, [estimate, rates, constants, products, rules])
+  }, [effectiveOptions, rates, constants, products, rules])
 
-  // Total of selected rooms — with combining savings and recycle-fee correction
-  const selectedTotal = useMemo(() => {
-    if (!estimate) return 0
-    const selected = estimate.options.filter(o => selectedRooms.has(o.id))
+  // Total of the selected rooms for ANY option set — combining savings +
+  // recycle-fee correction included. Used for the live total and choice cards.
+  const totalForOptions = useCallback((options: RoomOption[]) => {
+    const selected = options.filter(o => selectedRooms.has(o.id))
     if (selected.length === 0) return 0
     const salesDiscount = rules.salesDiscount ?? 0.10
     const markup = 1 - (rules.netProfitMargin + rules.overheadMargin + rules.marketingMargin + rules.salesMargin + rules.productionMgmtMargin)
     const savings = selected.length > 1
       ? calculateCombiningSavings(selected, rates, constants, products, rules)
       : 0
-
-    // Recycle fee correction: rooms bought together need fewer gallons → lower recycle fee
+    const selOverviews = selected.map(o => calculatePainterOverview(o, rates, constants, products, rules))
     let recycleFeeCorr = 0
     if (selected.length > 1 && markup > 0) {
-      const selOverviews = selected.map(o => roomOverviews.get(o.id)!).filter(Boolean)
       const avgRecycleFee = (rules.recycleFeeGallon + rules.recycleFeeFiveGal) / 2
       const combinedG = sumCombinedGallons(selOverviews)
       const perRoomG  = selOverviews.reduce((s, po) => s + po.wallGallons + po.ceilingGallons + po.trimGallons + po.miscGallons + po.otherGallons + po.primerGallons, 0)
       recycleFeeCorr  = (perRoomG - combinedG) * avgRecycleFee / markup
     }
-
-    const rawSum = selected.reduce((s, o) => {
-      const cb = roomBreakdowns.get(o.id)
-      return s + (cb?.rawSubtotalBeforeSavings ?? 0)
-    }, 0) - savings - recycleFeeCorr
+    const rawSum = selected.reduce((s, o) =>
+      s + calculateCostBreakdown(calculatePainterOverview(o, rates, constants, products, rules), rules).rawSubtotalBeforeSavings, 0)
+      - savings - recycleFeeCorr
     return Math.round(rawSum / (1 - salesDiscount) * 100) / 100
-  }, [estimate, selectedRooms, roomBreakdowns, roomOverviews, rates, constants, products, rules])
+  }, [selectedRooms, rates, constants, products, rules])
+
+  const selectedTotal = useMemo(
+    () => estimate ? totalForOptions(effectiveOptions) : 0,
+    [estimate, effectiveOptions, totalForOptions])
 
   // Custom items added on top of the rooms subtotal
   const customItems    = (estimate as (typeof estimate & { customItems?: { id: string; description: string; price: number }[] }) | null)?.customItems ?? []
@@ -309,12 +331,14 @@ export default function InteriorProposalPage({ params }: { params: Promise<{ id:
           taxRate:          taxRate ?? null,
           taxCity:          parseCityFromAddress(estimate.address ?? ''),
           estimateNumber:   (estimate as typeof estimate & { estimateNumber?: number }).estimateNumber ?? null,
+          // Persist the customer's paint selection into the room paints at signing
+          ...(paintChoice ? { paintChoice } : {}),
           ...(estimate.clientContactId ? {
             contactId:      estimate.clientContactId,
             contactName:    estimate.clientName,
             contactEmail:   estimate.clientEmail,
             contactPhone:   estimate.clientPhone,
-            itemLabel:      `${applyDiscount ? `${discountPctLabel}% off ` : ''}Interior Painting`,
+            itemLabel:      `${applyDiscount ? `${discountPctLabel}% off ` : ''}Interior Painting${paintChoice ? ` — ${(products.find(p => p.id === paintChoice)?.name ?? '').replace(/^\((SW|BM)\)\s*/, '')}` : ''}`,
             company: {
               name: company.name, phone: company.phone, email: company.email,
               website: company.website, streetAddress: company.streetAddress, cityStateZip: company.cityStateZip,
@@ -557,9 +581,46 @@ export default function InteriorProposalPage({ params }: { params: Promise<{ id:
             )}
           </div>
 
+          {/* Paint options — customer chooses which paint quality to price */}
+          {paintChoices.length >= 2 && !hideItemPrices && (
+            <div>
+              <p className="text-sm font-semibold text-gray-800 mb-2">Choose your paint</p>
+              <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(${Math.min(paintChoices.length, 3)}, minmax(0, 1fr))` }}>
+                {(() => {
+                  const cards = paintChoices.map(pid => {
+                    const sub  = totalForOptions(applyPaintChoice(estimate.options, pid)) + customTotal
+                    const disc = applyDiscount ? Math.round(sub * discountPct * 100) / 100 : 0
+                    const tax  = liveTaxRate != null ? Math.round((sub - disc) * liveTaxRate * 100) / 100 : 0
+                    return { pid, name: products.find(p => p.id === pid)?.name ?? pid, total: sub - disc + tax }
+                  })
+                  const cheapest = Math.min(...cards.map(c => c.total))
+                  return cards.map(c => {
+                    const isSel = (paintChoice ?? cards[0].pid) === c.pid
+                    return (
+                      <button
+                        key={c.pid}
+                        disabled={isLocked}
+                        onClick={() => { if (!isLocked) setPaintChoice(c.pid) }}
+                        className={`text-left rounded-xl border-2 p-3 transition-colors ${
+                          isSel ? 'border-[oklch(0.62_0.12_150)] bg-[oklch(0.96_0.035_150)]' : 'border-gray-200 bg-white hover:border-gray-300'
+                        } ${isLocked ? 'cursor-not-allowed opacity-70' : 'cursor-pointer'}`}
+                      >
+                        <span className="block text-xs font-medium text-gray-600 leading-snug">{c.name.replace(/^\((SW|BM)\)\s*/, '')}</span>
+                        <span className="block text-base font-bold text-gray-900 tabular-nums mt-1">{fmtD(c.total)}</span>
+                        <span className={`block text-[11px] tabular-nums mt-0.5 ${c.total === cheapest ? 'text-[oklch(0.52_0.13_150)] font-semibold' : 'text-gray-400'}`}>
+                          {c.total === cheapest ? 'Best value' : `+ ${fmtD(c.total - cheapest)}`}
+                        </span>
+                      </button>
+                    )
+                  })
+                })()}
+              </div>
+            </div>
+          )}
+
           {/* Room list */}
           <div className="space-y-2">
-            {estimate.options.map(option => {
+            {effectiveOptions.map(option => {
               const price     = roomBreakdowns.get(option.id)?.totalPrice ?? 0
               const isChecked = selectedRooms.has(option.id)
               return (
@@ -595,7 +656,7 @@ export default function InteriorProposalPage({ params }: { params: Promise<{ id:
               the exact gap between the per-room prices above and the combined
               subtotal below, so the displayed lines always sum to the penny. */}
           {multiRoom && !hideItemPrices && selectedRooms.size > 1 && (() => {
-            const roomsSum = estimate.options
+            const roomsSum = effectiveOptions
               .filter(o => selectedRooms.has(o.id))
               .reduce((s, o) => s + (roomBreakdowns.get(o.id)?.totalPrice ?? 0), 0)
             const shown = Math.round((roomsSum - selectedTotal) * 100) / 100
