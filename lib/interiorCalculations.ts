@@ -490,8 +490,8 @@ export function calculateOtherCalc(
 
   if (totalHours === 0 && totalGallons === 0) return { hours: 0, gallons: 0, laborCost: 0, price: 0 }
 
-  const otherProduct  = paintProducts.find(p => p.id === option.paints.other)
-                     ?? paintProducts.find(p => p.id === option.paints.wall)
+  // Matches painting-estimator-pro: "other" gallons bill at the wall paint price
+  const otherProduct  = paintProducts.find(p => p.id === option.paints.wall)
   const pricePerGallon = otherProduct?.pricePerGallon ?? 0
 
   const rawLabor  = totalHours * rules.wage * rules.payrollBurden
@@ -761,6 +761,18 @@ export function calculatePainterOverview(
     otherGallons += e.gallons === '' ? 0 : e.gallons
   }
 
+  // ── Walls & Ceilings Same Color & Sheen ──────────────────────────────────
+  // Matches the painting-estimator-pro engine (computeRoom, wallsCeilingsCombo):
+  // the hand-cut line between walls and ceilings is EXCLUDED from billed hours
+  // (which also shrinks set-up/clean-up, computed from productive hours) AND the
+  // same labor is subtracted again as the customer-visible savings line.
+  // Labor-only — no gallon merge component.
+  let sameColorSheenSavingsRaw = 0
+  if (option.wallsCeilingsSameColor) {
+    sameColorSheenSavingsRaw = handCutLineWallsToCeilings * rules.wage * rules.payrollBurden
+    handCutLineWallsToCeilings = 0
+  }
+
   // ── Set up and Clean Up ──────────────────────────────────────────────────
   // = (all productive hours) / cleanupHoursRatio
   const productiveHours =
@@ -808,30 +820,10 @@ export function calculatePainterOverview(
   }
   const ceilingGallons = Math.ceil(ceilingRawGallons)
 
-  // ── Walls & Ceilings Same Color & Sheen savings (sheet PricesB C12) ───────
-  // When walls and ceilings are the same color & sheen there is no cut line to
-  // hand-paint between them, and wall+ceiling paint merges into one purchase:
-  //   labor$  = Σ sectionWallLength / handCut(wallType) × wage × burden
-  //   paint$  = (ceil(wallGal) + ceil(ceilGal) − ceil(wallGal+ceilGal)) × wallPrice
-  let sameColorSheenSavingsRaw = 0
-  if (option.wallsCeilingsSameColor) {
-    let laborHrsSaved = 0
-    for (const section of option.walls) {
-      const wallRate = rates.wallTypes[section.wallType]
-      if (!wallRate || !wallRate.handCut) continue
-      const len = section.measurements.reduce((s, m) => s + (m.length === '' ? 0 : m.length), 0)
-      laborHrsSaved += len / wallRate.handCut
-    }
-    const gallonsSaved = Math.max(0,
-      (Math.ceil(wallRawGallons) + Math.ceil(ceilingRawGallons)) - Math.ceil(wallRawGallons + ceilingRawGallons))
-    sameColorSheenSavingsRaw =
-      laborHrsSaved * rules.wage * rules.payrollBurden + gallonsSaved * wallPrice
-  }
-
-  // ── Other paint product ───────────────────────────────────────────────────
-  const otherProduct      = paintProducts.find(p => p.id === option.paints.other)
-                         ?? paintProducts.find(p => p.id === option.paints.wall)
-  const otherPaintPrice_  = otherProduct?.pricePerGallon ?? 0
+  // ── Other paint price ─────────────────────────────────────────────────────
+  // Matches painting-estimator-pro: "other" gallons bill at the room's wall
+  // paint price (not a separate product selection).
+  const otherPaintPrice_  = wallPrice
 
   // ── Primer ("prime 1 above" sheet line) ──────────────────────────────────
   // Mirrors PricesB!P11 = (PrimerSQ + PrimerLN × ⅓) / primerCoverage, ROUNDUP.
@@ -1082,52 +1074,32 @@ export function calculateCombiningSavings(
     calculatePainterOverview(o, rates, constants, paintProducts, rules)
   )
 
-  // Helper: gallon savings for one surface type, then convert to price savings
-  function galSavings(
-    rawPerRoom:       number[],
-    pricePerGallon:   (roomIdx: number) => number,
-  ): number {
-    const sumRaw     = rawPerRoom.reduce((s, g) => s + g, 0)
-    if (sumRaw === 0) return 0
-    const combined   = Math.ceil(sumRaw)
-    const perRoomSum = rawPerRoom.reduce((s, g) => s + Math.ceil(g), 0)
-    const saved      = perRoomSum - combined
-    if (saved <= 0) return 0
-    // Use the price of the first room that actually has gallons
-    const idx = rawPerRoom.findIndex(g => g > 0)
-    const price = idx >= 0 ? pricePerGallon(idx) : 0
-    return saved * price / markup
+  // Pool gallons per (role, product) — matches painting-estimator-pro: rooms
+  // that share the same product combine their round-ups; different products
+  // never pool together.
+  const pools = new Map<string, { raw: number; perRoomCeil: number; price: number }>()
+  const add = (role: string, productId: string | undefined, raw: number) => {
+    if (raw <= 0) return
+    const price = paintProducts.find(p => p.id === productId)?.pricePerGallon ?? 0
+    const key = `${role}|${productId ?? ''}`
+    const e = pools.get(key) ?? { raw: 0, perRoomCeil: 0, price }
+    e.raw += raw
+    e.perRoomCeil += Math.ceil(raw)
+    pools.set(key, e)
+  }
+  for (const [i, po] of overviews.entries()) {
+    add('wall',    options[i].paints.wall,    po.wallRawGallons)
+    add('ceiling', options[i].paints.ceiling, po.ceilingRawGallons)
+    add('trim',    options[i].paints.trim,    po.trimRawGallons)
+    // "Other" gallons bill at the room's wall paint price (app behavior)
+    add('other',   options[i].paints.wall,    po.otherGallons)
   }
 
   let savings = 0
-
-  // Walls
-  savings += galSavings(
-    overviews.map(po => po.wallRawGallons),
-    i => paintProducts.find(p => p.id === options[i].paints.wall)?.pricePerGallon ?? 0,
-  )
-
-  // Ceilings
-  savings += galSavings(
-    overviews.map(po => po.ceilingRawGallons),
-    i => paintProducts.find(p => p.id === options[i].paints.ceiling)?.pricePerGallon ?? 0,
-  )
-
-  // Trim (baseboards + doors + frames + windows all use trim paint)
-  savings += galSavings(
-    overviews.map(po => po.trimRawGallons),
-    i => paintProducts.find(p => p.id === options[i].paints.trim)?.pricePerGallon ?? 0,
-  )
-
-  // Other
-  savings += galSavings(
-    overviews.map(po => po.otherGallons),  // user-entered (exact integers)
-    i => {
-      const prod = paintProducts.find(p => p.id === options[i].paints.other)
-                ?? paintProducts.find(p => p.id === options[i].paints.wall)
-      return prod?.pricePerGallon ?? 0
-    },
-  )
+  for (const e of pools.values()) {
+    const saved = e.perRoomCeil - Math.ceil(e.raw)
+    if (saved > 0) savings += saved * e.price / markup
+  }
 
   return Math.round(savings * 100) / 100
 }
